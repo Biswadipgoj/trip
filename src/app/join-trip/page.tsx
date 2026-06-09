@@ -31,9 +31,18 @@ export default function JoinTripPage() {
   const [importedFromLink, setImportedFromLink] = useState(false)
   const [confetti, setConfetti] = useState(false)
 
-  // Import trip from share link (?d=<base64-encoded-trip>)
+  // Import trip from share link — supports both new ?code= format and legacy ?d=<base64-trip>
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+
+    // New safe format: just the trip code
+    const codeParam = params.get('code')
+    if (codeParam) {
+      setTripCode(codeParam.toUpperCase())
+      return
+    }
+
+    // Legacy format: full base64-encoded trip object (kept for backward compat)
     const encoded = params.get('d')
     if (!encoded) return
     try {

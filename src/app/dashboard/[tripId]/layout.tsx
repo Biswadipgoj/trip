@@ -1,9 +1,10 @@
 'use client'
-import React from 'react';
+import React from 'react'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
+import { useHydrated } from '@/components/StoreProvider'
 import { AppNav } from '@/components/shared/AppNav'
 
 interface AppLayoutProps {
@@ -13,16 +14,21 @@ interface AppLayoutProps {
 
 // This is a client component that wraps each trip sub-route
 export default function AppLayout({ children, params }: AppLayoutProps) {
-  const { tripId } = React.use(params);
+  const { tripId } = React.use(params)
   const router = useRouter()
   const session = useStore(s => s.session)
+  const hydrated = useHydrated()
 
   useEffect(() => {
-    if (!session) {
+    // Only redirect after store has hydrated from localStorage
+    // Prevents false redirects on first SSR paint
+    if (hydrated && !session) {
       router.replace('/login')
     }
-  }, [session, router])
+  }, [hydrated, session, router])
 
+  // Show nothing until we know whether user is logged in
+  if (!hydrated) return null
   if (!session) return null
 
   return (

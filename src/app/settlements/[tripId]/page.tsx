@@ -16,14 +16,21 @@ interface SettlementsPageProps {
 export default function SettlementsPage({ params }: SettlementsPageProps) {
   const { tripId } = React.use(params)
 
-  const members      = useStore(s => s.getMembersByTrip(tripId))
-  const expenses     = useStore(s => s.getExpensesByTrip(tripId))
-  const hotelExpenses = useStore(s => s.getHotelExpensesByTrip(tripId))
-  const groups       = useStore(s => s.getGroupsByTrip(tripId))
-  const sponsorships = useStore(s => s.getSponsorshipsByTrip(tripId))
-  const settlements  = useStore(s => s.getSettlementsByTrip(tripId))
+  const allMembers      = useStore(s => s.members)
+  const allExpenses     = useStore(s => s.expenses)
+  const allHotelExpenses = useStore(s => s.hotelExpenses)
+  const allGroups       = useStore(s => s.settlementGroups)
+  const allSponsorships = useStore(s => s.sponsorships)
+  const allSettlements  = useStore(s => s.settlements)
   const updateStatus = useStore(s => s.updateSettlementStatus)
   const generateSettlements = useStore(s => s.generateSettlements)
+
+  const members      = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+  const expenses     = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
+  const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
+  const groups       = useMemo(() => allGroups.filter(g => g.tripId === tripId), [allGroups, tripId])
+  const sponsorships = useMemo(() => allSponsorships.filter(s => s.tripId === tripId), [allSponsorships, tripId])
+  const settlements  = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
 
   const [showQr, setShowQr] = React.useState<string | null>(null)
 

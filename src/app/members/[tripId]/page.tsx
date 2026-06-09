@@ -17,11 +17,15 @@ interface MembersPageProps {
 
 export default function MembersPage({ params }: MembersPageProps) {
   const { tripId } = React.use(params)
-  const members = useStore(s => s.getMembersByTrip(tripId))
-  const expenses = useStore(s => s.getExpensesByTrip(tripId))
-  const hotelExpenses = useStore(s => s.getHotelExpensesByTrip(tripId))
+  const allMembers = useStore(s => s.members)
+  const allExpenses = useStore(s => s.expenses)
+  const allHotelExpenses = useStore(s => s.hotelExpenses)
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const session = useStore(s => s.session)
+
+  const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+  const expenses = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
+  const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
 
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
   const [upiInput, setUpiInput] = useState('')

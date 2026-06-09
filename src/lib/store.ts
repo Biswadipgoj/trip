@@ -19,6 +19,10 @@ interface AppState {
   settlementGroups: SettlementGroup[]
   sponsorships:     Sponsorship[]
 
+  // ─── Hydration ──────────────────────────────────────────────────────────────
+  hydrated: boolean
+  setHydrated: (v: boolean) => void
+
   // ─── Session ────────────────────────────────────────────────────────────────
   session: TripSession | null
 
@@ -68,6 +72,9 @@ interface AppState {
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
+      hydrated:         false,
+      setHydrated:      (v) => set({ hydrated: v }),
+
       trips:            [],
       members:          [],
       expenses:         [],
@@ -323,6 +330,10 @@ export const useStore = create<AppState>()(
       name: 'trip-expense-store',
       version: 2,
       skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
+      onRehydrateStorage: () => (state) => {
+        // Called after localStorage data is loaded — safe to show protected routes now
+        if (state) state.setHydrated(true)
+      },
     }
   )
 )

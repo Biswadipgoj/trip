@@ -30,16 +30,27 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const { tripId } = React.use(params)
   const router = useRouter()
 
-  const trip = useStore(s => s.getTripById(tripId))
-  const members = useStore(s => s.getMembersByTrip(tripId))
-  const expenses = useStore(s => s.getExpensesByTrip(tripId))
-  const hotelExpenses = useStore(s => s.getHotelExpensesByTrip(tripId))
-  const settlements = useStore(s => s.getSettlementsByTrip(tripId))
+  // Use raw store state + filter in useMemo to avoid React 19 getSnapshot infinite loop
+  const trip = useStore(s => s.trips.find(t => t.id === tripId))
+  const allMembers = useStore(s => s.members)
+  const allExpenses = useStore(s => s.expenses)
+  const allHotelExpenses = useStore(s => s.hotelExpenses)
+  const allSettlements = useStore(s => s.settlements)
   const session = useStore(s => s.session)
+  const closeTrip = useStore(s => s.closeTrip)
+
+  const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+  const expenses = useMemo(() =>
+    allExpenses
+      .filter(e => e.tripId === tripId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [allExpenses, tripId]
+  )
+  const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
+  const settlements = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [confettiFired, setConfettiFired] = useState(false)
-  const closeTrip = useStore(s => s.closeTrip)
 
   const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
 
