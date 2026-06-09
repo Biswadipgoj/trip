@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import Link from 'next/link'
+import type { Trip } from '@/types'
 
 type Step = 'find' | 'join' | 'pin' | 'success'
 
@@ -15,6 +16,8 @@ export default function JoinTripPage() {
   const getTripByCode = useStore(s => s.getTripByCode)
   const joinTrip = useStore(s => s.joinTrip)
   const setSession = useStore(s => s.setSession)
+
+  const importTrip = useStore(s => s.importTrip)
 
   const [step, setStep] = useState<Step>('find')
   const [tripCode, setTripCode] = useState('')
@@ -25,8 +28,25 @@ export default function JoinTripPage() {
   const [pinConfirm, setPinConfirm] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [foundTrip, setFoundTrip] = useState<{ name: string; id: string } | null>(null)
-  const [joinedMemberId, setJoinedMemberId] = useState<string | null>(null)
+  const [importedFromLink, setImportedFromLink] = useState(false)
   const [confetti, setConfetti] = useState(false)
+
+  // Import trip from share link (?d=<base64-encoded-trip>)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const encoded = params.get('d')
+    if (!encoded) return
+    try {
+      const trip: Trip = JSON.parse(atob(encoded))
+      if (trip?.tripCode && trip?.id) {
+        importTrip(trip)
+        setTripCode(trip.tripCode)
+        setImportedFromLink(true)
+      }
+    } catch {
+      // invalid encoded data — silently ignore
+    }
+  }, [importTrip])
 
   const handleFind = () => {
     const trip = getTripByCode(tripCode.trim().toUpperCase())
@@ -63,7 +83,6 @@ export default function JoinTripPage() {
       setErrors({ general: 'Could not join trip. Try again.' })
       return
     }
-    setJoinedMemberId(member.id)
     setSession({ tripId: foundTrip!.id, memberId: member.id, tripCode: tripCode.toUpperCase() })
     setStep('success')
     setConfetti(true)
@@ -96,6 +115,13 @@ export default function JoinTripPage() {
                 <h1 className="text-2xl font-bold text-white mb-1">Join a Trip</h1>
                 <p className="text-white/50 text-sm">Enter the trip code shared by your friend</p>
               </div>
+
+              {importedFromLink && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
+                  <Link2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <p className="text-xs text-emerald-400">Trip found via link — just enter the password to join</p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>

@@ -8,7 +8,7 @@ import { calculateBalances, formatCurrency } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { CountUp } from '@/components/animations/CountUp'
-import { FadeIn, StaggerList } from '@/components/animations/FadeIn'
+import { FadeIn } from '@/components/animations/FadeIn'
 import { Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 interface MembersPageProps {
@@ -54,7 +54,8 @@ export default function MembersPage({ params }: MembersPageProps) {
       {/* Member Cards */}
       <div className="grid grid-cols-1 gap-4">
         {balances.map((balance, i) => {
-          const member = members.find(m => m.id === balance.memberId)!
+          const member = members.find(m => m.id === balance.memberId)
+          if (!member) return null
           const isMe = session?.memberId === balance.memberId
           const isEditing = editingUpi === balance.memberId
 

@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { MapPin, ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles } from 'lucide-react'
+import { MapPin, ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2 } from 'lucide-react'
+import type { Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import Link from 'next/link'
 
@@ -24,7 +25,10 @@ export default function CreateTripPage() {
   const [pinConfirm, setPinConfirm] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [result, setResult] = useState<{ tripCode: string; tripId: string; memberId: string } | null>(null)
+  const [createdTrip, setCreatedTrip] = useState<Trip | null>(null)
+  const [shareUrl, setShareUrl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
   const [confetti, setConfetti] = useState(false)
 
   const validateDetails = () => {
@@ -53,6 +57,12 @@ export default function CreateTripPage() {
     if (!validatePin()) return
     const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
+    setCreatedTrip(trip)
+    try {
+      setShareUrl(`${window.location.origin}/join-trip?d=${btoa(JSON.stringify(trip))}`)
+    } catch {
+      setShareUrl(`${window.location.origin}/join-trip`)
+    }
     setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
     setStep('success')
     setConfetti(true)
@@ -63,6 +73,14 @@ export default function CreateTripPage() {
       navigator.clipboard.writeText(result.tripCode)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const copyLink = () => {
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl)
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
     }
   }
 
@@ -296,7 +314,7 @@ export default function CreateTripPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.35 }}
-                className="glass rounded-2xl p-6 mb-6"
+                className="glass rounded-2xl p-6 mb-4"
               >
                 <p className="text-xs text-white/40 mb-2 font-medium">YOUR TRIP CODE</p>
                 <p
@@ -318,6 +336,39 @@ export default function CreateTripPage() {
                   {copied ? 'Copied!' : 'Copy Code'}
                 </button>
               </motion.div>
+
+              {/* Share join link */}
+              {shareUrl && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="glass rounded-2xl p-4 mb-6 text-left"
+                >
+                  <p className="text-xs text-white/40 mb-2 font-medium flex items-center gap-1.5">
+                    <Link2 className="w-3.5 h-3.5" />
+                    SHARE JOIN LINK (works on any device)
+                  </p>
+                  <p className="text-[11px] text-white/30 font-mono break-all mb-3 leading-relaxed">
+                    {shareUrl}
+                  </p>
+                  <button
+                    id="copy-join-link-btn"
+                    onClick={copyLink}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      copiedLink
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-brand-600/20 text-brand-400 border border-brand-500/30 hover:bg-brand-600/30'
+                    }`}
+                  >
+                    {copiedLink ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                    {copiedLink ? 'Link Copied!' : 'Copy Join Link'}
+                  </button>
+                  <p className="text-[10px] text-white/25 mt-2">
+                    Anyone who opens this link can join directly — no code needed
+                  </p>
+                </motion.div>
+              )}
 
               <motion.button
                 id="go-to-dashboard-btn"

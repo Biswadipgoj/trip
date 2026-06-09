@@ -28,6 +28,7 @@ interface AppState {
   closeTrip:   (tripId: string) => void
   getTripById: (tripId: string) => Trip | undefined
   getTripByCode: (code: string) => Trip | undefined
+  importTrip:   (trip: Trip) => void
 
   // ─── Member Actions ─────────────────────────────────────────────────────────
   getMembersByTrip: (tripId: string) => Member[]
@@ -125,6 +126,13 @@ export const useStore = create<AppState>()(
 
       getTripById:   (tripId) => get().trips.find(t => t.id === tripId),
       getTripByCode: (code)   => get().trips.find(t => t.tripCode === code),
+
+      importTrip: (trip) => {
+        set(s => {
+          if (s.trips.some(t => t.tripCode === trip.tripCode)) return s
+          return { trips: [...s.trips, trip] }
+        })
+      },
 
       // ─── Members ────────────────────────────────────────────────────────────
       getMembersByTrip: (tripId) => get().members.filter(m => m.tripId === tripId),
@@ -313,7 +321,8 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'trip-expense-store',
-      version: 2, // bump version to clear old data structure
+      version: 2,
+      skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
     }
   )
 )
