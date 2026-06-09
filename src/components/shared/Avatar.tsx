@@ -28,7 +28,7 @@ export function Avatar({ name, color, size = 'md', animate = false, className }:
     ? {
         initial: { scale: 0, opacity: 0 },
         animate: { scale: 1, opacity: 1 },
-        transition: { type: 'spring', stiffness: 400, damping: 25 },
+        transition: { type: 'spring' as const, stiffness: 400, damping: 25 },
       }
     : {}
 

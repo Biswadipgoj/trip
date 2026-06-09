@@ -32,7 +32,7 @@ interface AppState {
   // ─── Member Actions ─────────────────────────────────────────────────────────
   getMembersByTrip: (tripId: string) => Member[]
   getMemberById:    (id: string) => Member | undefined
-  updateMemberUpi:  (memberId: string, upiId: string, upiName: string) => void
+  updateMemberUpi:  (memberId: string, upiId: string, upiName?: string) => void
 
   // ─── Expense Actions ─────────────────────────────────────────────────────────
   addExpense:        (data: Omit<Expense, 'id' | 'createdAt'>) => Expense
