@@ -33,6 +33,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const trip = useStore(s => s.getTripById(tripId))
   const members = useStore(s => s.getMembersByTrip(tripId))
   const expenses = useStore(s => s.getExpensesByTrip(tripId))
+  const hotelExpenses = useStore(s => s.getHotelExpensesByTrip(tripId))
   const settlements = useStore(s => s.getSettlementsByTrip(tripId))
   const session = useStore(s => s.session)
 
@@ -40,7 +41,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const [confettiFired, setConfettiFired] = useState(false)
   const closeTrip = useStore(s => s.closeTrip)
 
-  const balances = useMemo(() => calculateBalances(expenses, members), [expenses, members])
+  const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
   const settledCount = settlements.filter(s => s.status === 'confirmed').length
