@@ -1,9 +1,10 @@
 'use client'
-import React from 'react';
+import React from 'react'
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
+import { useHydrated } from '@/components/StoreProvider'
 import { AppNav } from '@/components/shared/AppNav'
 
 export default function RouteLayout({
@@ -13,11 +14,18 @@ export default function RouteLayout({
   children: React.ReactNode
   params: Promise<{ tripId: string }>
 }) {
-  const { tripId } = React.use(params);
+  const { tripId } = React.use(params)
   const router = useRouter()
   const session = useStore(s => s.session)
-  useEffect(() => { if (!session) router.replace('/login') }, [session, router])
+  const hydrated = useHydrated()
+
+  useEffect(() => {
+    if (hydrated && !session) router.replace('/login')
+  }, [hydrated, session, router])
+
+  if (!hydrated) return null
   if (!session) return null
+
   return (
     <div className="min-h-screen">
       <AppNav tripId={tripId} />

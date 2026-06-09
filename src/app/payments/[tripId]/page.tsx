@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { formatCurrency, formatDate, generateId } from '@/lib/utils'
@@ -16,11 +16,14 @@ interface PaymentsPageProps {
 export default function PaymentsPage({ params }: PaymentsPageProps) {
   const { tripId } = React.use(params)
 
-  const members           = useStore(s => s.getMembersByTrip(tripId))
-  const hotelExpenses     = useStore(s => s.getHotelExpensesByTrip(tripId))
-  const addHotelExpense   = useStore(s => s.addHotelExpense)
+  const allMembers         = useStore(s => s.members)
+  const allHotelExpenses   = useStore(s => s.hotelExpenses)
+  const addHotelExpense    = useStore(s => s.addHotelExpense)
   const deleteHotelExpense = useStore(s => s.deleteHotelExpense)
-  const session           = useStore(s => s.session)
+  const session            = useStore(s => s.session)
+
+  const members       = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+  const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
 
   const [showModal, setShowModal]   = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)

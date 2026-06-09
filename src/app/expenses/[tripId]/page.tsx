@@ -1,5 +1,5 @@
 'use client'
-import React from 'react';
+import React from 'react'
 
 import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,14 +30,24 @@ const SPLIT_TYPES: SplitType[] = ['equal', 'custom', 'percentage', 'quantity']
 
 export default function ExpensesPage({ params }: ExpensesPageProps) {
   const { tripId } = React.use(params)
-  const expenses     = useStore(s => s.getExpensesByTrip(tripId))
-  const members      = useStore(s => s.getMembersByTrip(tripId))
-  const addExpense   = useStore(s => s.addExpense)
-  const deleteExpense= useStore(s => s.deleteExpense)
-  const session      = useStore(s => s.session)
 
-  const [showModal, setShowModal]     = useState(false)
-  const [expandedId, setExpandedId]   = useState<string | null>(null)
+  // Raw store state + useMemo filtering avoids React 19 getSnapshot infinite loop
+  const allExpenses    = useStore(s => s.expenses)
+  const allMembers     = useStore(s => s.members)
+  const addExpense     = useStore(s => s.addExpense)
+  const deleteExpense  = useStore(s => s.deleteExpense)
+  const session        = useStore(s => s.session)
+
+  const expenses = useMemo(() =>
+    allExpenses
+      .filter(e => e.tripId === tripId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [allExpenses, tripId]
+  )
+  const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+
+  const [showModal, setShowModal]   = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // ── Form state ──────────────────────────────────────────────────────────────
   const [title, setTitle]           = useState('')
@@ -103,7 +113,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
     if (!paidBy)               errs.paidBy = 'Select who paid'
     if (participants.length === 0) errs.participants = 'Select at least one participant'
 
-    // Validate split totals for non-equal types
     if (splitType === 'custom' && splitDiff > 0.5) {
       errs.split = `Custom amounts must sum to ${formatCurrency(totalAmt)} (current: ${formatCurrency(splitSum)})`
     }
@@ -226,7 +235,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         className="overflow-hidden"
                       >
                         <div className="px-4 pb-4 border-t border-white/10 pt-3 space-y-3">
-                          {/* Participants & shares */}
                           <div>
                             <p className="text-xs text-white/40 mb-2">Split between {participantMembers.length} people</p>
                             <div className="space-y-1.5">
@@ -253,7 +261,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             </div>
                           </div>
 
-                          {/* Notes */}
                           {expense.notes && (
                             <p className="text-xs text-white/40 flex items-center gap-1">
                               <Info className="w-3 h-3" />
@@ -261,7 +268,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             </p>
                           )}
 
-                          {/* Delete */}
                           <div className="flex justify-end pt-1">
                             <button
                               id={`delete-expense-${expense.id}`}
@@ -315,7 +321,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
               onClick={e => e.stopPropagation()}
               className="glass-strong rounded-3xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto"
             >
-              {/* Modal header */}
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-lg font-bold text-white">Add Expense</h2>
                 <button
@@ -468,7 +473,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   </div>
                 </div>
 
-                {/* Custom split inputs for non-equal types */}
+                {/* Custom split inputs */}
                 <AnimatePresence>
                   {splitType !== 'equal' && participants.length > 0 && (
                     <motion.div
@@ -507,7 +512,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                   onChange={e => setSplitValues(v => ({ ...v, [pid]: e.target.value }))}
                                 />
                               </div>
-                              {/* Resolved amount preview */}
                               <span className="text-xs text-white/50 w-16 text-right">
                                 {resolvedShares[pid] ? formatCurrency(resolvedShares[pid]) : '—'}
                               </span>
@@ -515,7 +519,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           )
                         })}
 
-                        {/* Validation feedback */}
                         {totalAmt > 0 && (
                           <div className={`flex items-center justify-between pt-2 border-t border-white/10 text-xs ${splitDiff > 0.5 ? 'text-red-400' : 'text-emerald-400'}`}>
                             <span>Total</span>

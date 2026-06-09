@@ -58,11 +58,8 @@ export default function CreateTripPage() {
     const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
     setCreatedTrip(trip)
-    try {
-      setShareUrl(`${window.location.origin}/join-trip?d=${btoa(JSON.stringify(trip))}`)
-    } catch {
-      setShareUrl(`${window.location.origin}/join-trip`)
-    }
+    // Security: only share the trip code, never the full trip object (which contains the password)
+    setShareUrl(`${window.location.origin}/join-trip?code=${encodeURIComponent(trip.tripCode)}`)
     setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
     setStep('success')
     setConfetti(true)
