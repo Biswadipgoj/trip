@@ -42,11 +42,17 @@ export default function JoinTripPage() {
       return
     }
 
-    // Legacy format: full base64-encoded trip object (kept for backward compat)
+    // Legacy format: full base64-encoded trip object (kept for cross-device support)
     const encoded = params.get('d')
     if (!encoded) return
     try {
-      const trip: Trip = JSON.parse(atob(encoded))
+      let decodedStr = atob(encoded)
+      try {
+        decodedStr = decodeURIComponent(decodedStr)
+      } catch (e) {
+        // Fallback to raw atob for older links that weren't encoded with encodeURIComponent
+      }
+      const trip: Trip = JSON.parse(decodedStr)
       if (trip?.tripCode && trip?.id) {
         importTrip(trip)
         setTripCode(trip.tripCode)
