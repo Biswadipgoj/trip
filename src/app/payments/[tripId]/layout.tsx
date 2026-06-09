@@ -13,6 +13,7 @@ export default function RouteLayout({
   children: React.ReactNode
   params: Promise<{ tripId: string }>
 }) {
+  const { tripId } = React.use(params);
   const router = useRouter()
   const session = useStore(s => s.session)
   useEffect(() => { if (!session) router.replace('/login') }, [session, router])

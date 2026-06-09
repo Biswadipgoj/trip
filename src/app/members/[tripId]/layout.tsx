@@ -13,6 +13,7 @@ export default function MembersLayout({
   children: React.ReactNode
   params: Promise<{ tripId: string }>
 }) {
+  const { tripId } = React.use(params);
   const router = useRouter()
   const session = useStore(s => s.session)
 
