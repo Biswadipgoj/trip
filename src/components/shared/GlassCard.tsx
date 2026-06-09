@@ -20,7 +20,7 @@ export function GlassCard({ children, className, hover = true, glow = false, onC
       whileTap={onClick ? { scale: 0.98 } : undefined}
       transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={cn(
-        'relative rounded-2xl border border-white/10 bg-gradient-glass backdrop-blur-xl',
+        'relative rounded-2xl border border-white/50 bg-gradient-glass backdrop-blur-xl',
         'shadow-glass overflow-hidden',
         glow && 'shadow-glow-sm',
         onClick && 'cursor-pointer',
@@ -29,7 +29,7 @@ export function GlassCard({ children, className, hover = true, glow = false, onC
       {...props}
     >
       {/* Subtle top highlight */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/80 to-transparent" />
       {children}
     </motion.div>
   )

@@ -1,11 +1,9 @@
 'use client'
-import React from 'react';
-
-import { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateBalances, formatCurrency, getCategoryColor, getCategoryIcon } from '@/lib/utils'
+import { calculateBalances, formatCurrency, getCategoryColor, getCategoryIcon, formatDate } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -20,7 +18,6 @@ import {
   Clock, ArrowRight, Plus, Trophy, Wallet
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
 
 interface DashboardPageProps {
   params: Promise<{ tripId: string }>
@@ -30,29 +27,28 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const { tripId } = React.use(params)
   const router = useRouter()
 
-  // Use raw store state + filter in useMemo to avoid React 19 getSnapshot infinite loop
   const trip = useStore(s => s.trips.find(t => t.id === tripId))
   const allMembers = useStore(s => s.members)
+  const allMemberUnits = useStore(s => s.memberUnits)
   const allExpenses = useStore(s => s.expenses)
-  const allHotelExpenses = useStore(s => s.hotelExpenses)
   const allSettlements = useStore(s => s.settlements)
   const session = useStore(s => s.session)
   const closeTrip = useStore(s => s.closeTrip)
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
+  const memberUnits = useMemo(() => allMemberUnits.filter(u => u.tripId === tripId), [allMemberUnits, tripId])
   const expenses = useMemo(() =>
     allExpenses
       .filter(e => e.tripId === tripId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
     [allExpenses, tripId]
   )
-  const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
   const settlements = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [confettiFired, setConfettiFired] = useState(false)
 
-  const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
+  const balances = useMemo(() => calculateBalances(expenses, members, memberUnits), [expenses, members, memberUnits])
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
   const settledCount = settlements.filter(s => s.status === 'confirmed').length
@@ -90,7 +86,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Wallet,
       label: 'Total Spent',
       value: totalSpent,
-      color: 'hsl(240, 78%, 58%)',
+      color: 'hsl(260, 60%, 60%)', // brand color
       prefix: '₹',
     },
     {
@@ -98,7 +94,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Users,
       label: 'Members',
       value: members.length,
-      color: 'hsl(280, 78%, 55%)',
+      color: 'hsl(260, 60%, 70%)',
       prefix: '',
     },
     {
@@ -106,7 +102,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Receipt,
       label: 'Expenses',
       value: expenses.length,
-      color: 'hsl(25, 80%, 55%)',
+      color: 'hsl(25, 70%, 70%)',
       prefix: '',
     },
     {
@@ -114,7 +110,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: CheckCircle2,
       label: 'Settled',
       value: settledCount,
-      color: 'hsl(158, 60%, 45%)',
+      color: 'hsl(158, 60%, 60%)', // emerald
       prefix: '',
       suffix: `/${totalSettlements}`,
     },
@@ -136,14 +132,14 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h1 className="text-2xl font-bold text-slate-800" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {trip.name}
               </h1>
               <StatusBadge status={trip.status} />
             </div>
-            <p className="text-white/40 text-sm">Code: <span className="font-mono text-brand-400">{trip.tripCode}</span></p>
+            <p className="text-slate-500 text-sm">Code: <span className="font-mono text-brand-600 font-medium">{trip.tripCode}</span></p>
           </div>
-          <Link href={`/expenses/${tripId}`} id="add-expense-btn" className="btn-brand flex items-center gap-1.5 text-sm py-2 px-4">
+          <Link href={`/expenses/${tripId}`} id="add-expense-btn" className="btn-brand flex items-center gap-1.5 text-sm py-2 px-4 shadow-elevated">
             <Plus className="w-4 h-4" />
             Add
           </Link>
@@ -154,7 +150,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       <div className="grid grid-cols-2 gap-3">
         {kpiCards.map((card, i) => (
           <FadeIn key={card.id} delay={i * 0.07}>
-            <GlassCard hover className="p-4">
+            <GlassCard hover className="p-4 bg-white border-black/5 shadow-card">
               <div className="flex items-center gap-2 mb-2">
                 <div
                   className="w-7 h-7 rounded-lg flex items-center justify-center"
@@ -162,12 +158,12 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 >
                   <card.icon className="w-3.5 h-3.5" style={{ color: card.color }} />
                 </div>
-                <span className="text-xs text-white/50 font-medium">{card.label}</span>
+                <span className="text-xs text-slate-500 font-medium">{card.label}</span>
               </div>
-              <div className="text-2xl font-bold text-white" id={card.id}>
+              <div className="text-2xl font-bold text-slate-800" id={card.id}>
                 <span>{card.prefix}</span>
                 <CountUp end={card.value} decimals={card.prefix === '₹' ? 0 : 0} duration={1.2} />
-                {card.suffix && <span className="text-sm text-white/40">{card.suffix}</span>}
+                {card.suffix && <span className="text-sm text-slate-400">{card.suffix}</span>}
               </div>
             </GlassCard>
           </FadeIn>
@@ -177,28 +173,28 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       {/* Settlement Progress */}
       {totalSettlements > 0 && (
         <FadeIn delay={0.35}>
-          <GlassCard className="p-5">
+          <GlassCard className="p-5 bg-white border-black/5 shadow-card">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-brand-400" />
-                <span className="text-sm font-semibold text-white">Settlement Progress</span>
+                <TrendingUp className="w-4 h-4 text-brand-500" />
+                <span className="text-sm font-semibold text-slate-800">Settlement Progress</span>
               </div>
-              <span className="text-xs text-white/40">{settledCount} of {totalSettlements} confirmed</span>
+              <span className="text-xs text-slate-500">{settledCount} of {totalSettlements} confirmed</span>
             </div>
-            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${(settledCount / totalSettlements) * 100}%` }}
                 transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
                 className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, hsl(240,78%,58%), hsl(280,78%,55%))' }}
+                style={{ background: 'linear-gradient(90deg, hsl(260,60%,70%), hsl(158,60%,70%))' }}
               />
             </div>
             {isFullySettled && (
               <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="mt-2 text-xs text-emerald-400 font-medium flex items-center gap-1"
+                className="mt-2 text-xs text-emerald-600 font-medium flex items-center gap-1 bg-emerald-50 w-fit px-2 py-1 rounded"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 All settled! Trip is complete.
@@ -212,8 +208,8 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         {/* Category Chart */}
         {categoryData.length > 0 && (
           <FadeIn delay={0.4}>
-            <GlassCard className="p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Expense Breakdown</h2>
+            <GlassCard className="p-5 bg-white border-black/5 shadow-card">
+              <h2 className="text-sm font-semibold text-slate-800 mb-4">Expense Breakdown</h2>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie
@@ -234,18 +230,19 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
-                      background: 'hsl(222, 36%, 10%)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'white',
+                      border: '1px solid rgba(0,0,0,0.1)',
                       borderRadius: 12,
-                      color: 'white',
+                      color: 'hsl(240,20%,15%)',
                       fontSize: 12,
+                      boxShadow: '0 4px 20px rgba(0,0,0,0.05)'
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex flex-wrap gap-2 mt-2">
                 {categoryData.map(cat => (
-                  <div key={cat.name} className="flex items-center gap-1.5 text-xs text-white/60">
+                  <div key={cat.name} className="flex items-center gap-1.5 text-xs text-slate-600 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
                     <div className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
                     {cat.icon} {cat.name}
                   </div>
@@ -257,22 +254,26 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
         {/* Recent Activity */}
         <FadeIn delay={0.45}>
-          <GlassCard className="p-5">
+          <GlassCard className="p-5 bg-white border-black/5 shadow-card h-full">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white">Recent Expenses</h2>
-              <Link href={`/expenses/${tripId}`} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
+              <h2 className="text-sm font-semibold text-slate-800">Recent Expenses</h2>
+              <Link href={`/expenses/${tripId}`} className="text-xs text-brand-600 font-medium hover:text-brand-700 flex items-center gap-1">
                 View all <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
             {expenses.length === 0 ? (
               <div className="text-center py-6">
-                <Receipt className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                <p className="text-white/40 text-sm">No expenses yet</p>
+                <Receipt className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                <p className="text-slate-400 text-sm">No expenses yet</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {expenses.slice(0, 4).map((expense, i) => {
-                  const payer = members.find(m => m.id === expense.paidBy)
+                  const payersArr = Object.keys(expense.paidBy || {})
+                  const payerName = payersArr.length > 1 
+                    ? `${payersArr.length} payers` 
+                    : members.find(m => m.id === payersArr[0])?.name || 'Someone'
+
                   return (
                     <motion.div
                       key={expense.id}
@@ -283,15 +284,15 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                     >
                       <div
                         className="w-8 h-8 rounded-xl flex items-center justify-center text-sm flex-shrink-0"
-                        style={{ background: `${getCategoryColor(expense.category)}20` }}
+                        style={{ background: getCategoryColor(expense.category) }}
                       >
                         {getCategoryIcon(expense.category)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white truncate">{expense.title}</p>
-                        <p className="text-xs text-white/40">{payer?.name}</p>
+                        <p className="text-sm font-medium text-slate-800 truncate">{expense.title}</p>
+                        <p className="text-[10px] text-slate-500">{payerName}</p>
                       </div>
-                      <span className="text-sm font-semibold text-white">{formatCurrency(expense.amount)}</span>
+                      <span className="text-sm font-semibold text-slate-900">{formatCurrency(expense.amount)}</span>
                     </motion.div>
                   )
                 })}
@@ -304,10 +305,10 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       {/* Member Balances Quick View */}
       {balances.length > 0 && (
         <FadeIn delay={0.5}>
-          <GlassCard className="p-5">
+          <GlassCard className="p-5 bg-white border-black/5 shadow-card">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-white">Member Balances</h2>
-              <Link href={`/members/${tripId}`} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
+              <h2 className="text-sm font-semibold text-slate-800">Member Balances</h2>
+              <Link href={`/members/${tripId}`} className="text-xs text-brand-600 font-medium hover:text-brand-700 flex items-center gap-1">
                 Full view <ArrowRight className="w-3 h-3" />
               </Link>
             </div>
@@ -322,22 +323,22 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 >
                   <Avatar name={b.name} color={b.avatarColor} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{b.name}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{b.name}</p>
                   </div>
                   <div className="text-right">
                     <p
-                      className={`text-sm font-semibold ${
+                      className={`text-sm font-bold ${
                         b.netBalance > 0
-                          ? 'text-emerald-400'
+                          ? 'text-emerald-500'
                           : b.netBalance < 0
-                          ? 'text-red-400'
-                          : 'text-white/40'
+                          ? 'text-red-500'
+                          : 'text-slate-400'
                       }`}
                     >
                       {b.netBalance > 0 ? '+' : ''}
                       {formatCurrency(b.netBalance)}
                     </p>
-                    <p className="text-[10px] text-white/30">
+                    <p className="text-[10px] font-medium text-slate-500">
                       {b.netBalance > 0 ? 'gets back' : b.netBalance < 0 ? 'owes' : 'settled'}
                     </p>
                   </div>
@@ -358,7 +359,7 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md"
       onClick={onDismiss}
     >
       <motion.div
@@ -367,7 +368,7 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
         exit={{ scale: 0.7, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         onClick={e => e.stopPropagation()}
-        className="glass-strong rounded-3xl p-10 text-center max-w-sm mx-4"
+        className="bg-white rounded-3xl p-10 text-center max-w-sm mx-4 shadow-elevated border border-black/5"
       >
         <motion.div
           animate={{ rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.2, 1] }}
@@ -378,13 +379,13 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+          <h2 className="text-2xl font-bold text-slate-800 mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             TRIP SUCCESSFULLY CLOSED
           </h2>
-          <p className="text-white/60 text-sm mb-2">
-            <strong className="text-white">{tripName}</strong> is fully settled!
+          <p className="text-slate-600 text-sm mb-2">
+            <strong className="text-slate-900">{tripName}</strong> is fully settled!
           </p>
-          <p className="text-white/40 text-xs mb-8">Everyone's accounts are balanced. Great trip! 🎉</p>
+          <p className="text-slate-500 text-xs mb-8">Everyone's accounts are balanced. Great trip! 🎉</p>
         </motion.div>
 
         <motion.div
@@ -393,7 +394,7 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
           transition={{ delay: 0.6 }}
           className="flex flex-col gap-3"
         >
-          <div className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-400 mx-auto">
+          <div className="inline-flex items-center justify-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-600 mx-auto">
             <CheckCircle2 className="w-4 h-4" />
             All Payments Confirmed
           </div>

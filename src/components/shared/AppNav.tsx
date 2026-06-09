@@ -9,9 +9,7 @@ import {
   Users,
   Receipt,
   ArrowLeftRight,
-  CreditCard,
   BarChart3,
-  ChevronLeft,
   MapPin,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
@@ -28,7 +26,6 @@ function getNavItems(tripId: string): NavItem[] {
     { href: `/members/${tripId}`,     label: 'Members',     icon: Users },
     { href: `/expenses/${tripId}`,    label: 'Expenses',    icon: Receipt },
     { href: `/settlements/${tripId}`, label: 'Settle',      icon: ArrowLeftRight },
-    { href: `/payments/${tripId}`,    label: 'Payments',    icon: CreditCard },
     { href: `/report/${tripId}`,      label: 'Report',      icon: BarChart3 },
   ]
 }
@@ -46,15 +43,15 @@ export function AppNav({ tripId }: AppNavProps) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 border-r border-white/10 bg-surface-1/80 backdrop-blur-xl z-50 p-4">
+      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 border-r border-black/5 bg-surface-0/80 backdrop-blur-xl z-50 p-4">
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-2 py-3 mb-6">
           <div className="w-8 h-8 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-sm">
             <MapPin className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-xs text-white/40 font-medium">Trip</p>
-            <p className="text-sm font-semibold text-white truncate max-w-[140px]">
+            <p className="text-xs text-slate-400 font-medium">Trip</p>
+            <p className="text-sm font-semibold text-slate-800 truncate max-w-[140px]">
               {trip?.name || 'Loading...'}
             </p>
           </div>
@@ -71,18 +68,18 @@ export function AppNav({ tripId }: AppNavProps) {
                 className={cn(
                   'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                   isActive
-                    ? 'text-white'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                    ? 'text-brand-600'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-black/5'
                 )}
               >
                 {isActive && (
                   <motion.div
                     layoutId="sidebar-active"
-                    className="absolute inset-0 rounded-xl bg-brand-600/30 border border-brand-500/30"
+                    className="absolute inset-0 rounded-xl bg-brand-50 border border-brand-100"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
-                <item.icon className={cn('w-4 h-4 relative z-10', isActive && 'text-brand-400')} />
+                <item.icon className={cn('w-4 h-4 relative z-10', isActive && 'text-brand-500')} />
                 <span className="relative z-10">{item.label}</span>
               </Link>
             )
@@ -90,10 +87,10 @@ export function AppNav({ tripId }: AppNavProps) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/10 pt-4 mt-4">
+        <div className="border-t border-black/5 pt-4 mt-4">
           <div className="px-3 py-2">
-            <p className="text-xs text-white/30">Logged in as</p>
-            <p className="text-sm font-medium text-white/70 truncate">
+            <p className="text-xs text-slate-400">Logged in as</p>
+            <p className="text-sm font-medium text-slate-700 truncate">
               {session?.tripCode || '—'}
             </p>
           </div>
@@ -101,7 +98,7 @@ export function AppNav({ tripId }: AppNavProps) {
       </aside>
 
       {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-white/10 bg-surface-1/90 backdrop-blur-xl">
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-black/5 bg-surface-0/90 backdrop-blur-xl pb-safe">
         <div className="flex items-center justify-around px-2 py-2">
           {navItems.map(item => {
             const isActive = pathname === item.href
@@ -113,17 +110,17 @@ export function AppNav({ tripId }: AppNavProps) {
                 className={cn(
                   'relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl min-w-[52px]',
                   'transition-colors',
-                  isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+                  isActive ? 'text-brand-600' : 'text-slate-400 hover:text-slate-700'
                 )}
               >
                 {isActive && (
                   <motion.div
                     layoutId="bottom-nav-active"
-                    className="absolute inset-0 rounded-xl bg-brand-600/25"
+                    className="absolute inset-0 rounded-xl bg-brand-50"
                     transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                   />
                 )}
-                <item.icon className={cn('w-5 h-5 relative z-10', isActive && 'text-brand-400')} />
+                <item.icon className={cn('w-5 h-5 relative z-10', isActive && 'text-brand-500')} />
                 <span className="relative z-10 text-[10px] font-medium">{item.label}</span>
               </Link>
             )

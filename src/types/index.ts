@@ -28,16 +28,24 @@ export interface Member {
   joinedAt: string
 }
 
+export interface MemberUnit {
+  id: string
+  tripId: string
+  name: string           // e.g. "Rahul & Priya"
+  memberIds: string[]    // members merged into this unit
+}
+
 export interface Expense {
   id: string
   tripId: string
   title: string
   amount: number
-  paidBy: string // member id
+  paidBy: Record<string, number> // Map of memberId -> amount paid (supports multiple payers)
   category: ExpenseCategory
-  participants: string[] // member ids who share this expense
+  participants: string[] // member ids (or unit ids) who share this expense
   splitType: SplitType
   splits: ParticipantSplit[] // populated for custom/percentage/quantity splits
+  rooms?: Room[] // for hotel/room-based splits
   createdAt: string
   notes?: string
 }
@@ -47,18 +55,7 @@ export interface Room {
   id: string
   name: string     // e.g. "Room A", "Deluxe Suite"
   cost: number     // this room's cost
-  occupantIds: string[] // member ids staying in this room
-}
-
-// A hotel booking that contains multiple rooms
-export interface HotelExpense {
-  id: string
-  tripId: string
-  title: string          // e.g. "Goa Beach Resort"
-  totalAmount: number    // sum of all room costs
-  paidBy: string         // who made the payment
-  rooms: Room[]
-  createdAt: string
+  occupantIds: string[] // member/unit ids staying in this room
 }
 
 // Settlement Group: multiple members treated as ONE financial entity at settlement time

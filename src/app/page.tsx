@@ -24,13 +24,13 @@ export default function Home() {
   }, [session, router])
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-16">
+    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-16 bg-surface-0 noise relative">
       {/* Hero */}
       <motion.div
         initial={{ opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.7, ease: [0.21, 0.47, 0.32, 0.98] }}
-        className="text-center max-w-xl mx-auto"
+        className="text-center max-w-xl mx-auto z-10 relative"
       >
         {/* Logo */}
         <motion.div
@@ -47,9 +47,9 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
         >
-          <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-600/10 px-3 py-1.5 mb-5">
-            <Sparkles className="w-3.5 h-3.5 text-brand-400" />
-            <span className="text-xs font-medium text-brand-400">Premium Trip Expense Manager</span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-brand-300 bg-brand-50 px-3 py-1.5 mb-5 shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+            <span className="text-xs font-medium text-brand-700">Premium Trip Expense Manager</span>
           </div>
         </motion.div>
 
@@ -57,7 +57,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35, duration: 0.55 }}
-          className="text-5xl font-display font-bold tracking-tight mb-4"
+          className="text-5xl font-display font-bold tracking-tight mb-4 text-slate-800"
           style={{ fontFamily: "'Space Grotesk', sans-serif" }}
         >
           Split trips,{' '}
@@ -68,7 +68,7 @@ export default function Home() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.5 }}
-          className="text-white/60 text-lg mb-10 leading-relaxed"
+          className="text-slate-500 text-lg mb-10 leading-relaxed max-w-md mx-auto font-medium"
         >
           Track every rupee, split every expense, and settle up via UPI — automatically.
         </motion.p>
@@ -80,14 +80,14 @@ export default function Home() {
           transition={{ delay: 0.55, duration: 0.5 }}
           className="flex flex-col sm:flex-row gap-3 justify-center"
         >
-          <Link href="/create-trip" id="create-trip-btn" className="btn-brand inline-flex items-center justify-center gap-2">
+          <Link href="/create-trip" id="create-trip-btn" className="btn-brand inline-flex items-center justify-center gap-2 shadow-elevated">
             <span>Create a Trip</span>
             <ArrowRight className="w-4 h-4" />
           </Link>
-          <Link href="/join-trip" id="join-trip-btn" className="btn-ghost inline-flex items-center justify-center gap-2">
+          <Link href="/join-trip" id="join-trip-btn" className="btn-ghost inline-flex items-center justify-center gap-2 bg-white/50 backdrop-blur border border-black/5 hover:bg-white/80">
             <span>Join Existing Trip</span>
           </Link>
-          <Link href="/login" id="login-btn" className="btn-ghost inline-flex items-center justify-center gap-2">
+          <Link href="/login" id="login-btn" className="btn-ghost inline-flex items-center justify-center gap-2 bg-white/50 backdrop-blur border border-black/5 hover:bg-white/80">
             <span>Login</span>
           </Link>
         </motion.div>
@@ -98,7 +98,7 @@ export default function Home() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.75, duration: 0.6 }}
-        className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto w-full"
+        className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto w-full z-10 relative"
       >
         {features.map((feat, i) => (
           <motion.div
@@ -106,13 +106,13 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8 + i * 0.1, duration: 0.5 }}
-            className="glass rounded-2xl p-5 text-center"
+            className="glass rounded-2xl p-5 text-center bg-white/40 border border-white/60 shadow-glass"
           >
-            <div className="mx-auto mb-3 w-10 h-10 rounded-xl bg-brand-600/20 flex items-center justify-center">
-              <feat.icon className="w-5 h-5 text-brand-400" />
+            <div className="mx-auto mb-3 w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center">
+              <feat.icon className="w-5 h-5 text-brand-600" />
             </div>
-            <h3 className="text-sm font-semibold text-white mb-1">{feat.title}</h3>
-            <p className="text-xs text-white/50">{feat.desc}</p>
+            <h3 className="text-sm font-bold text-slate-800 mb-1">{feat.title}</h3>
+            <p className="text-xs text-slate-500 font-medium">{feat.desc}</p>
           </motion.div>
         ))}
       </motion.div>

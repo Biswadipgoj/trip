@@ -2,11 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   Trip, Member, Expense, Settlement, TripSession, PaymentStatus,
-  SettlementGroup, Sponsorship, HotelExpense, Room, SplitType, ParticipantSplit
+  SettlementGroup, Sponsorship, Room, SplitType, ParticipantSplit, MemberUnit
 } from '@/types'
 import {
   generateId, generateTripCode, getAvatarColor,
-  calculateBalances, calculateSettlements, resolveHotelSplits
+  calculateBalances, calculateSettlements
 } from '@/lib/utils'
 
 interface AppState {
@@ -14,10 +14,10 @@ interface AppState {
   trips:            Trip[]
   members:          Member[]
   expenses:         Expense[]
-  hotelExpenses:    HotelExpense[]
   settlements:      Settlement[]
   settlementGroups: SettlementGroup[]
   sponsorships:     Sponsorship[]
+  memberUnits:      MemberUnit[]
 
   // ─── Hydration ──────────────────────────────────────────────────────────────
   hydrated: boolean
@@ -39,18 +39,17 @@ interface AppState {
   getMemberById:    (id: string) => Member | undefined
   updateMemberUpi:  (memberId: string, upiId: string, upiName?: string) => void
 
+  // ─── Member Unit Actions ────────────────────────────────────────────────────
+  addMemberUnit:    (tripId: string, name: string, memberIds: string[]) => MemberUnit
+  removeMemberUnit: (id: string) => void
+
   // ─── Expense Actions ─────────────────────────────────────────────────────────
   addExpense:        (data: Omit<Expense, 'id' | 'createdAt'>) => Expense
   deleteExpense:     (expenseId: string) => void
   getExpensesByTrip: (tripId: string) => Expense[]
 
-  // ─── Hotel / Room Actions ────────────────────────────────────────────────────
-  addHotelExpense:        (data: Omit<HotelExpense, 'id' | 'createdAt'>) => HotelExpense
-  deleteHotelExpense:     (id: string) => void
-  getHotelExpensesByTrip: (tripId: string) => HotelExpense[]
-
   // ─── Settlement Group Actions ────────────────────────────────────────────────
-  addSettlementGroup:    (tripId: string, name: string, memberIds: string[]) => SettlementGroup
+  addSettlementGroup:    (tripId: string, name: string, memberIds: string[], createdBy: string) => SettlementGroup
   removeSettlementGroup: (id: string) => void
   getGroupsByTrip:       (tripId: string) => SettlementGroup[]
 
@@ -67,6 +66,9 @@ interface AppState {
   // ─── Session Actions ─────────────────────────────────────────────────────────
   setSession: (session: TripSession | null) => void
   login:      (tripCode: string, mobile: string, pin: string) => Member | null
+  
+  // ─── Developer Tools ─────────────────────────────────────────────────────────
+  clearData: () => void
 }
 
 export const useStore = create<AppState>()(
@@ -78,11 +80,15 @@ export const useStore = create<AppState>()(
       trips:            [],
       members:          [],
       expenses:         [],
-      hotelExpenses:    [],
       settlements:      [],
       settlementGroups: [],
       sponsorships:     [],
+      memberUnits:      [],
       session:          null,
+
+      clearData: () => set({
+        trips: [], members: [], expenses: [], settlements: [], settlementGroups: [], sponsorships: [], memberUnits: [], session: null
+      }),
 
       // ─── Trips ──────────────────────────────────────────────────────────────
       createTrip: (name, creatorName, mobile, password, pin) => {
@@ -153,6 +159,20 @@ export const useStore = create<AppState>()(
         }))
       },
 
+      // ─── Member Units ───────────────────────────────────────────────────────
+      addMemberUnit: (tripId, name, memberIds) => {
+        const unit: MemberUnit = { id: generateId(), tripId, name, memberIds }
+        set(s => ({ memberUnits: [...s.memberUnits, unit] }))
+        get().generateSettlements(tripId)
+        return unit
+      },
+      
+      removeMemberUnit: (id) => {
+        const unit = get().memberUnits.find(u => u.id === id)
+        set(s => ({ memberUnits: s.memberUnits.filter(u => u.id !== id) }))
+        if (unit) get().generateSettlements(unit.tripId)
+      },
+
       // ─── Expenses ───────────────────────────────────────────────────────────
       addExpense: (data) => {
         const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() }
@@ -172,32 +192,13 @@ export const useStore = create<AppState>()(
           .filter(e => e.tripId === tripId)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
 
-      // ─── Hotel Expenses ──────────────────────────────────────────────────────
-      addHotelExpense: (data) => {
-        const hotel: HotelExpense = {
-          ...data,
-          id: generateId(),
-          createdAt: new Date().toISOString(),
-        }
-        set(s => ({ hotelExpenses: [...s.hotelExpenses, hotel] }))
-        get().generateSettlements(data.tripId)
-        return hotel
-      },
-
-      deleteHotelExpense: (id) => {
-        const hotel = get().hotelExpenses.find(h => h.id === id)
-        set(s => ({ hotelExpenses: s.hotelExpenses.filter(h => h.id !== id) }))
-        if (hotel) get().generateSettlements(hotel.tripId)
-      },
-
-      getHotelExpensesByTrip: (tripId) =>
-        get().hotelExpenses
-          .filter(h => h.tripId === tripId)
-          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-
       // ─── Settlement Groups ───────────────────────────────────────────────────
-      addSettlementGroup: (tripId, name, memberIds) => {
-        const group: SettlementGroup = { id: generateId(), tripId, name, memberIds }
+      addSettlementGroup: (tripId, name, memberIds, createdBy) => {
+        const group: SettlementGroup = { 
+          id: generateId(), tripId, name, memberIds,
+          // We will temporarily cast this if the type hasn't fully updated yet or just store it.
+          ...( { createdBy, createdAt: new Date().toISOString() } as any )
+        }
         set(s => ({ settlementGroups: [...s.settlementGroups, group] }))
         get().generateSettlements(tripId)
         return group
@@ -214,7 +215,6 @@ export const useStore = create<AppState>()(
 
       // ─── Sponsorships ────────────────────────────────────────────────────────
       addSponsorship: (tripId, sponsorMemberId, sponsoredMemberId) => {
-        // Check for duplicate or reverse
         const existing = get().sponsorships.find(
           sp =>
             sp.tripId === tripId &&
@@ -242,16 +242,16 @@ export const useStore = create<AppState>()(
       generateSettlements: (tripId) => {
         const state = get()
         const expenses      = state.expenses.filter(e => e.tripId === tripId)
-        const hotelExpenses = state.hotelExpenses.filter(h => h.tripId === tripId)
         const members       = state.members.filter(m => m.tripId === tripId)
         const groups        = state.settlementGroups.filter(g => g.tripId === tripId)
         const sponsorships  = state.sponsorships.filter(sp => sp.tripId === tripId)
+        const memberUnits   = state.memberUnits.filter(u => u.tripId === tripId)
 
         // 1. Calculate raw balances
-        const balances = calculateBalances(expenses, hotelExpenses, members)
+        const balances = calculateBalances(expenses, members, memberUnits)
 
         // 2 & 3. Generate settlement routes (applies sponsorships + groups internally)
-        const routes = calculateSettlements(balances, members, groups, sponsorships)
+        const routes = calculateSettlements(balances, members, groups, sponsorships, memberUnits)
 
         // Preserve confirmed statuses
         const prevSettlements = state.settlements.filter(s => s.tripId === tripId)
@@ -328,10 +328,9 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'trip-expense-store',
-      version: 2,
-      skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
+      version: 3, // bumped version due to paidBy schema change
+      skipHydration: true,
       onRehydrateStorage: () => (state) => {
-        // Called after localStorage data is loaded — safe to show protected routes now
         if (state) state.setHydrated(true)
       },
     }

@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import {
   MemberBalance, Expense, Member, SettlementRoute,
-  SettlementGroup, Sponsorship, HotelExpense, ParticipantSplit
+  SettlementGroup, Sponsorship, ParticipantSplit, MemberUnit
 } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
@@ -48,15 +48,16 @@ export function getInitials(name: string): string {
     .slice(0, 2)
 }
 
+// Lighter pastel colors for the new theme
 export const AVATAR_COLORS = [
-  'hsl(240, 78%, 58%)',
-  'hsl(280, 78%, 55%)',
-  'hsl(340, 75%, 55%)',
-  'hsl(25, 80%, 55%)',
-  'hsl(158, 60%, 45%)',
-  'hsl(195, 70%, 48%)',
-  'hsl(45, 80%, 52%)',
-  'hsl(310, 70%, 52%)',
+  'hsl(240, 60%, 85%)', // soft pastel purple
+  'hsl(158, 50%, 80%)', // mint green
+  'hsl(340, 60%, 85%)', // pastel pink
+  'hsl(25,  70%, 80%)', // soft peach
+  'hsl(195, 60%, 85%)', // light blue
+  'hsl(45,  70%, 80%)', // soft yellow
+  'hsl(310, 50%, 85%)', // soft lavender
+  'hsl(200, 50%, 85%)', // sky blue
 ]
 
 export function getAvatarColor(index: number): string {
@@ -65,42 +66,111 @@ export function getAvatarColor(index: number): string {
 
 // ──────────────────────────────────────────────────────────────────────────────
 // BALANCE CALCULATION
-// Supports all split types: equal, custom, percentage, quantity, room
 // ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Maps participant IDs (which could be unit IDs or member IDs) into a flat list
+ * of actual member IDs. Also returns the total weight.
+ */
+function resolveParticipants(
+  participants: string[],
+  memberUnits: MemberUnit[],
+  members: Member[]
+): { memberWeights: Record<string, number>, totalWeight: number } {
+  const memberWeights: Record<string, number> = {}
+  let totalWeight = 0
+
+  participants.forEach(pid => {
+    const unit = memberUnits.find(u => u.id === pid)
+    if (unit) {
+      // A unit acts as 1 entity in splits, so we divide that 1 weight equally among its members.
+      const weightPerMember = 1 / unit.memberIds.length
+      unit.memberIds.forEach(mid => {
+        memberWeights[mid] = (memberWeights[mid] || 0) + weightPerMember
+      })
+      totalWeight += 1 // the whole unit counts as 1
+    } else {
+      // It's a regular member
+      memberWeights[pid] = (memberWeights[pid] || 0) + 1
+      totalWeight += 1
+    }
+  })
+
+  return { memberWeights, totalWeight }
+}
 
 /**
  * Resolves the actual per-member share amounts for a single expense.
  * Returns a map of memberId → share amount.
  */
-export function resolveExpenseSplits(expense: Expense): Record<string, number> {
+export function resolveExpenseSplits(
+  expense: Expense,
+  memberUnits: MemberUnit[],
+  members: Member[]
+): Record<string, number> {
   const shares: Record<string, number> = {}
+
+  if (expense.splitType === 'room' && expense.rooms) {
+    // Hotel/Room split
+    expense.rooms.forEach(room => {
+      if (room.occupantIds.length === 0) return
+      
+      const { memberWeights, totalWeight } = resolveParticipants(room.occupantIds, memberUnits, members)
+      
+      if (totalWeight > 0) {
+        const costPerUnit = room.cost / totalWeight
+        Object.entries(memberWeights).forEach(([mid, weight]) => {
+          shares[mid] = (shares[mid] || 0) + (costPerUnit * weight)
+        })
+      }
+    })
+    return shares
+  }
 
   if (expense.participants.length === 0) return shares
 
+  const { memberWeights, totalWeight } = resolveParticipants(expense.participants, memberUnits, members)
+
   switch (expense.splitType) {
     case 'equal': {
-      const share = expense.amount / expense.participants.length
-      expense.participants.forEach(pid => { shares[pid] = share })
+      if (totalWeight > 0) {
+        const costPerUnit = expense.amount / totalWeight
+        Object.entries(memberWeights).forEach(([mid, weight]) => {
+          shares[mid] = (shares[mid] || 0) + (costPerUnit * weight)
+        })
+      }
       break
     }
 
     case 'custom': {
-      // splits[i].value is the direct amount for that member
-      const splitMap: Record<string, number> = {}
-      expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
-      expense.participants.forEach(pid => {
-        shares[pid] = splitMap[pid] ?? 0
+      // splits[i].value is the direct amount for that member/unit
+      expense.splits.forEach(s => {
+        const unit = memberUnits.find(u => u.id === s.memberId)
+        if (unit) {
+          const perMember = s.value / unit.memberIds.length
+          unit.memberIds.forEach(mid => {
+            shares[mid] = (shares[mid] || 0) + perMember
+          })
+        } else {
+          shares[s.memberId] = (shares[s.memberId] || 0) + s.value
+        }
       })
       break
     }
 
     case 'percentage': {
       // splits[i].value is the percentage (0–100)
-      const splitMap: Record<string, number> = {}
-      expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
-      expense.participants.forEach(pid => {
-        const pct = splitMap[pid] ?? 0
-        shares[pid] = (pct / 100) * expense.amount
+      expense.splits.forEach(s => {
+        const val = (s.value / 100) * expense.amount
+        const unit = memberUnits.find(u => u.id === s.memberId)
+        if (unit) {
+          const perMember = val / unit.memberIds.length
+          unit.memberIds.forEach(mid => {
+            shares[mid] = (shares[mid] || 0) + perMember
+          })
+        } else {
+          shares[s.memberId] = (shares[s.memberId] || 0) + val
+        }
       })
       break
     }
@@ -108,12 +178,18 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
     case 'quantity': {
       // splits[i].value is the quantity (e.g. bottles, items)
       const totalQty = expense.splits.reduce((sum, s) => sum + s.value, 0)
-      const splitMap: Record<string, number> = {}
-      expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
       if (totalQty > 0) {
-        expense.participants.forEach(pid => {
-          const qty = splitMap[pid] ?? 0
-          shares[pid] = (qty / totalQty) * expense.amount
+        expense.splits.forEach(s => {
+          const val = (s.value / totalQty) * expense.amount
+          const unit = memberUnits.find(u => u.id === s.memberId)
+          if (unit) {
+            const perMember = val / unit.memberIds.length
+            unit.memberIds.forEach(mid => {
+              shares[mid] = (shares[mid] || 0) + perMember
+            })
+          } else {
+            shares[s.memberId] = (shares[s.memberId] || 0) + val
+          }
         })
       }
       break
@@ -121,8 +197,12 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
 
     default: {
       // fallback to equal
-      const share = expense.amount / expense.participants.length
-      expense.participants.forEach(pid => { shares[pid] = share })
+      if (totalWeight > 0) {
+        const costPerUnit = expense.amount / totalWeight
+        Object.entries(memberWeights).forEach(([mid, weight]) => {
+          shares[mid] = (shares[mid] || 0) + (costPerUnit * weight)
+        })
+      }
     }
   }
 
@@ -130,56 +210,28 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
 }
 
 /**
- * Resolves per-member shares for hotel rooms.
- * Returns a map of memberId → total room cost owed.
- */
-export function resolveHotelSplits(hotel: HotelExpense): Record<string, number> {
-  const shares: Record<string, number> = {}
-
-  hotel.rooms.forEach(room => {
-    if (room.occupantIds.length === 0) return
-    const perPerson = room.cost / room.occupantIds.length
-    room.occupantIds.forEach(oid => {
-      shares[oid] = (shares[oid] ?? 0) + perPerson
-    })
-  })
-
-  return shares
-}
-
-/**
  * Main balance calculator.
- * Processes regular expenses + hotel expenses + applies splits correctly.
  */
 export function calculateBalances(
   expenses: Expense[],
-  hotelExpenses: HotelExpense[],
-  members: Member[]
+  members: Member[],
+  memberUnits: MemberUnit[]
 ): MemberBalance[] {
   // Initialize
   const paid: Record<string, number> = {}
   const owed: Record<string, number> = {}
   members.forEach(m => { paid[m.id] = 0; owed[m.id] = 0 })
 
-  // Regular expenses
   expenses.forEach(expense => {
-    // Payer gets credit
-    paid[expense.paidBy] = (paid[expense.paidBy] ?? 0) + expense.amount
+    // Process multiple payers
+    if (expense.paidBy) {
+      Object.entries(expense.paidBy).forEach(([pid, amount]) => {
+        paid[pid] = (paid[pid] ?? 0) + amount
+      })
+    }
 
-    // Each participant owes their share
-    const shares = resolveExpenseSplits(expense)
-    Object.entries(shares).forEach(([pid, share]) => {
-      owed[pid] = (owed[pid] ?? 0) + share
-    })
-  })
-
-  // Hotel expenses
-  hotelExpenses.forEach(hotel => {
-    // Payer gets credit for total
-    paid[hotel.paidBy] = (paid[hotel.paidBy] ?? 0) + hotel.totalAmount
-
-    // Each room occupant owes their share
-    const shares = resolveHotelSplits(hotel)
+    // Process shares
+    const shares = resolveExpenseSplits(expense, memberUnits, members)
     Object.entries(shares).forEach(([pid, share]) => {
       owed[pid] = (owed[pid] ?? 0) + share
     })
@@ -228,14 +280,13 @@ export function applySponshorships(
 
 /**
  * Minimized debt settlement algorithm.
- * Accounts for settlement groups (group members treated as one entity).
- * Returns final settlement routes.
  */
 export function calculateSettlements(
   rawBalances: MemberBalance[],
   members: Member[],
   groups: SettlementGroup[],
-  sponsorships: Sponsorship[]
+  sponsorships: Sponsorship[],
+  memberUnits: MemberUnit[]
 ): SettlementRoute[] {
   // Step 1: Apply sponsorships
   const balancesAfterSponsorship = applySponshorships(rawBalances, sponsorships)
@@ -244,15 +295,25 @@ export function calculateSettlements(
   const memberMap: Record<string, Member> = {}
   members.forEach(m => { memberMap[m.id] = m })
 
-  // Step 2: Apply settlement groups
-  // Merge group members' balances into a single virtual "group" balance
+  // Step 2: Apply settlement groups AND member units
+  // Merge grouped members' balances into a single virtual "group" balance
   const groupedBalances: Record<string, number> = {} // entityKey → net balance
   const entityToMembers: Record<string, string[]> = {} // entityKey → member ids
 
-  // Map each member to their group (if any)
+  // Map each member to their group or unit (if any)
   const memberToGroup: Record<string, string> = {}
+  
+  // Member Units take precedence, or we can just treat them as groups
+  memberUnits.forEach(u => {
+    u.memberIds.forEach(mid => { memberToGroup[mid] = u.id })
+  })
+  
   groups.forEach(g => {
-    g.memberIds.forEach(mid => { memberToGroup[mid] = g.id })
+    g.memberIds.forEach(mid => { 
+      // If already in a unit, it overrides groups or vice-versa.
+      // For simplicity, we just assign to group.
+      memberToGroup[mid] = g.id 
+    })
   })
 
   balancesAfterSponsorship.forEach(b => {
@@ -292,23 +353,26 @@ export function calculateSettlements(
       const fromMembers = entityToMembers[debt.key] || [debt.key]
       const toMembers   = entityToMembers[cred.key] || [cred.key]
 
-      // Pick the first "real" member as representative (skip zero-balance sponsored)
+      // Pick the first "real" member as representative
       const fromId = fromMembers[0]
       const toId   = toMembers[0]
       const fromM  = memberMap[fromId]
       const toM    = memberMap[toId]
+      
+      const fromUnitName = memberUnits.find(u => u.id === debt.key)?.name || groups.find(g => g.id === debt.key)?.name
+      const toUnitName = memberUnits.find(u => u.id === cred.key)?.name || groups.find(g => g.id === cred.key)?.name
 
       if (fromM && toM) {
         routes.push({
           id: generateId(),
           fromMemberId: fromId,
           toMemberId:   toId,
-          fromName:     fromMembers.length > 1
+          fromName:     fromUnitName || (fromMembers.length > 1
             ? fromMembers.map(id => memberMap[id]?.name || id).join(' & ')
-            : fromM.name,
-          toName:       toMembers.length > 1
+            : fromM.name),
+          toName:       toUnitName || (toMembers.length > 1
             ? toMembers.map(id => memberMap[id]?.name || id).join(' & ')
-            : toM.name,
+            : toM.name),
           fromColor:    fromM.avatarColor,
           toColor:      toM.avatarColor,
           fromUpiId:    fromM.upiId,
@@ -327,6 +391,22 @@ export function calculateSettlements(
   return routes
 }
 
+// Light theme colors for categories
+export function getCategoryColor(category: string): string {
+  const colors: Record<string, string> = {
+    food:          'hsl(25, 60%, 75%)',
+    travel:        'hsl(195, 50%, 75%)',
+    stay:          'hsl(158, 40%, 75%)',
+    entertainment: 'hsl(280, 60%, 80%)',
+    shopping:      'hsl(340, 60%, 80%)',
+    alcohol:       'hsl(38, 70%, 75%)',
+    fuel:          'hsl(15, 60%, 75%)',
+    tickets:       'hsl(260, 60%, 80%)',
+    misc:          'hsl(240, 60%, 80%)',
+  }
+  return colors[category] || 'hsl(240, 60%, 80%)'
+}
+
 export function getCategoryIcon(category: string): string {
   const icons: Record<string, string> = {
     food:          '🍽️',
@@ -340,21 +420,6 @@ export function getCategoryIcon(category: string): string {
     misc:          '📌',
   }
   return icons[category] || '📌'
-}
-
-export function getCategoryColor(category: string): string {
-  const colors: Record<string, string> = {
-    food:          'hsl(25, 80%, 55%)',
-    travel:        'hsl(195, 70%, 48%)',
-    stay:          'hsl(158, 60%, 45%)',
-    entertainment: 'hsl(280, 78%, 55%)',
-    shopping:      'hsl(340, 75%, 55%)',
-    alcohol:       'hsl(38, 85%, 52%)',
-    fuel:          'hsl(15, 80%, 52%)',
-    tickets:       'hsl(260, 78%, 60%)',
-    misc:          'hsl(240, 78%, 58%)',
-  }
-  return colors[category] || 'hsl(240, 78%, 58%)'
 }
 
 export function getSplitTypeLabel(type: string): string {
