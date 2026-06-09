@@ -19,13 +19,14 @@ export default function MembersPage({ params }: MembersPageProps) {
   const { tripId } = React.use(params)
   const members = useStore(s => s.getMembersByTrip(tripId))
   const expenses = useStore(s => s.getExpensesByTrip(tripId))
+  const hotelExpenses = useStore(s => s.getHotelExpensesByTrip(tripId))
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const session = useStore(s => s.session)
 
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
   const [upiInput, setUpiInput] = useState('')
 
-  const balances = useMemo(() => calculateBalances(expenses, members), [expenses, members])
+  const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
 
   const handleSaveUpi = (memberId: string) => {
     updateMemberUpi(memberId, upiInput.trim())
