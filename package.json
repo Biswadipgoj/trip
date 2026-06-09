@@ -31,7 +31,7 @@
     "jspdf": "^3.0.1",
     "lucide-react": "^0.511.0",
     "nanoid": "^5.1.5",
-    "next": "15.3.3",
+    "next": "15.3.8",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
