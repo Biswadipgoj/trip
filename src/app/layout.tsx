@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -6,13 +6,18 @@ export const metadata: Metadata = {
   description:
     'Split trip expenses effortlessly with friends. Track payments, settle debts with UPI, and close trips automatically when everyone is settled.',
   keywords: ['trip expense', 'split expenses', 'group travel', 'UPI payments', 'expense tracker'],
-  viewport: 'width=device-width, initial-scale=1, viewport-fit=cover',
-  themeColor: '#0a0e1a',
   openGraph: {
     title: 'TripSplit — Smart Group Expense Manager',
     description: 'Split trip expenses effortlessly with friends.',
     type: 'website',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0a0e1a',
 }
 
 export default function RootLayout({
