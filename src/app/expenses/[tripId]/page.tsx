@@ -1,3 +1,4 @@
+import React from 'react';
 'use client'
 
 import { useState, useMemo } from 'react'
@@ -17,7 +18,7 @@ import {
 } from 'lucide-react'
 
 interface ExpensesPageProps {
-  params: { tripId: string }
+  params: Promise<{ tripId: string }>
 }
 
 const CATEGORIES: ExpenseCategory[] = [
@@ -28,7 +29,7 @@ const CATEGORIES: ExpenseCategory[] = [
 const SPLIT_TYPES: SplitType[] = ['equal', 'custom', 'percentage', 'quantity']
 
 export default function ExpensesPage({ params }: ExpensesPageProps) {
-  const { tripId } = params
+  const { tripId } = React.use(params)
   const expenses     = useStore(s => s.getExpensesByTrip(tripId))
   const members      = useStore(s => s.getMembersByTrip(tripId))
   const addExpense   = useStore(s => s.addExpense)

@@ -1,3 +1,4 @@
+import React from 'react';
 'use client'
 
 import { useMemo, useState } from 'react'
@@ -11,11 +12,11 @@ import { FadeIn, StaggerList } from '@/components/animations/FadeIn'
 import { Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 
 interface MembersPageProps {
-  params: { tripId: string }
+  params: Promise<{ tripId: string }>
 }
 
 export default function MembersPage({ params }: MembersPageProps) {
-  const { tripId } = params
+  const { tripId } = React.use(params)
   const members = useStore(s => s.getMembersByTrip(tripId))
   const expenses = useStore(s => s.getExpensesByTrip(tripId))
   const updateMemberUpi = useStore(s => s.updateMemberUpi)

@@ -10,7 +10,7 @@ export default function RouteLayout({
   params,
 }: {
   children: React.ReactNode
-  params: { tripId: string }
+  params: Promise<{ tripId: string }>
 }) {
   const router = useRouter()
   const session = useStore(s => s.session)

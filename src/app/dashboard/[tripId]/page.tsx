@@ -1,3 +1,4 @@
+import React from 'react';
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
@@ -22,11 +23,11 @@ import Link from 'next/link'
 import { formatDate } from '@/lib/utils'
 
 interface DashboardPageProps {
-  params: { tripId: string }
+  params: Promise<{ tripId: string }>
 }
 
 export default function DashboardPage({ params }: DashboardPageProps) {
-  const { tripId } = params
+  const { tripId } = React.use(params)
   const router = useRouter()
 
   const trip = useStore(s => s.getTripById(tripId))
