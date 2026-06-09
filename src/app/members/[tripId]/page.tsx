@@ -20,7 +20,7 @@ export default function MembersPage({ params }: MembersPageProps) {
   const allExpenses = useStore(s => s.expenses)
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const addMemberUnit = useStore(s => s.addMemberUnit)
-  const deleteMemberUnit = useStore(s => s.deleteMemberUnit)
+  const removeMemberUnit = useStore(s => s.removeMemberUnit)
   const session = useStore(s => s.session)
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
@@ -43,11 +43,11 @@ export default function MembersPage({ params }: MembersPageProps) {
 
   const handleCreateUnit = () => {
     if (!unitName.trim() || selectedMembersForUnit.length < 2) return
-    addMemberUnit({
+    addMemberUnit(
       tripId,
-      name: unitName.trim(),
-      memberIds: selectedMembersForUnit
-    })
+      unitName.trim(),
+      selectedMembersForUnit
+    )
     setShowUnitModal(false)
     setUnitName('')
     setSelectedMembersForUnit([])
@@ -125,7 +125,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                         <h3 className="font-semibold text-slate-800">{displayName}</h3>
                       </div>
                       {isUnit && (
-                        <button onClick={() => deleteMemberUnit(balance.memberId)} className="text-xs text-red-500 hover:underline">
+                        <button onClick={() => removeMemberUnit(balance.memberId)} className="text-xs text-red-500 hover:underline">
                           Delete
                         </button>
                       )}

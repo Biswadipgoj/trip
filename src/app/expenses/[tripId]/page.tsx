@@ -368,7 +368,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                         </span>
                                       )}
                                       <span className="text-xs font-medium text-slate-800">
-                                        {formatCurrency(split.resolvedAmount)}
+                                        {formatCurrency(split.resolvedAmount ?? 0)}
                                       </span>
                                     </div>
                                   )
