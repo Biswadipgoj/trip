@@ -7,7 +7,7 @@ import { AppNav } from '@/components/shared/AppNav'
 
 interface AppLayoutProps {
   children: React.ReactNode
-  params: { tripId: string }
+  params: Promise<{ tripId: string }>
 }
 
 // This is a client component that wraps each trip sub-route
