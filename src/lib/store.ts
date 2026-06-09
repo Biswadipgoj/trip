@@ -313,7 +313,8 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'trip-expense-store',
-      version: 2, // bump version to clear old data structure
+      version: 2,
+      skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
     }
   )
 )

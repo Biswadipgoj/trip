@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { StoreProvider } from '@/components/StoreProvider'
 
 export const metadata: Metadata = {
   title: 'TripSplit — Smart Group Expense Manager',
@@ -44,7 +45,9 @@ export default function RootLayout({
             style={{ background: 'hsl(195, 70%, 48%)' }}
           />
         </div>
-        <div className="relative z-10">{children}</div>
+        <StoreProvider>
+          <div className="relative z-10">{children}</div>
+        </StoreProvider>
       </body>
     </html>
   )
