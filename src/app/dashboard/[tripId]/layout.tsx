@@ -1,4 +1,5 @@
 'use client'
+import React from 'react';
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -12,6 +13,7 @@ interface AppLayoutProps {
 
 // This is a client component that wraps each trip sub-route
 export default function AppLayout({ children, params }: AppLayoutProps) {
+  const { tripId } = React.use(params);
   const router = useRouter()
   const session = useStore(s => s.session)
 
@@ -25,7 +27,7 @@ export default function AppLayout({ children, params }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen">
-      <AppNav tripId={params.tripId} />
+      <AppNav tripId={tripId} />
 
       {/* Content area - offset for nav */}
       <div className="lg:pl-64 pb-24 lg:pb-0">
