@@ -21,7 +21,7 @@ const sizeMap = {
 
 export function Avatar({ name, color, size = 'md', animate = false, className }: AvatarProps) {
   const initials = getInitials(name)
-  const bg = color || 'hsl(240, 78%, 58%)'
+  const bg = color || 'hsl(258, 65%, 58%)'
 
   const Component = animate ? motion.div : 'div'
   const animProps = animate
@@ -35,12 +35,12 @@ export function Avatar({ name, color, size = 'md', animate = false, className }:
   return (
     <Component
       className={cn(
-        'flex items-center justify-center rounded-full font-semibold text-white',
-        'ring-2 ring-white/10 shrink-0',
+        'flex items-center justify-center rounded-full font-semibold',
+        'ring-2 ring-pure-white/60 shrink-0',
         sizeMap[size],
         className
       )}
-      style={{ background: bg, boxShadow: `0 4px 16px ${bg}50` }}
+      style={{ background: bg, boxShadow: `0 4px 16px ${bg}50`, color: '#ffffff' }}
       {...animProps}
     >
       {initials}

@@ -4,12 +4,15 @@ import React from 'react';
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateBalances, formatCurrency } from '@/lib/utils'
+import { calculateBalances, formatCurrency, formatDate, createInviteLink } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { CountUp } from '@/components/animations/CountUp'
 import { FadeIn } from '@/components/animations/FadeIn'
-import { Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight } from 'lucide-react'
+import {
+  Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight,
+  Link2, Crown, Heart, Trash2, Plus
+} from 'lucide-react'
 
 interface MembersPageProps {
   params: Promise<{ tripId: string }>
@@ -17,20 +20,35 @@ interface MembersPageProps {
 
 export default function MembersPage({ params }: MembersPageProps) {
   const { tripId } = React.use(params)
+  const trip = useStore(s => s.trips.find(t => t.id === tripId))
   const allMembers = useStore(s => s.members)
   const allExpenses = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
+  const allGroups = useStore(s => s.settlementGroups)
+  const addSettlementGroup = useStore(s => s.addSettlementGroup)
+  const removeSettlementGroup = useStore(s => s.removeSettlementGroup)
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const session = useStore(s => s.session)
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
   const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
+  const units = useMemo(() => allGroups.filter(g => g.tripId === tripId), [allGroups, tripId])
 
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
   const [upiInput, setUpiInput] = useState('')
+  const [copiedInvite, setCopiedInvite] = useState(false)
+  const [showUnitForm, setShowUnitForm] = useState(false)
+  const [unitName, setUnitName] = useState('')
+  const [unitMembers, setUnitMembers] = useState<string[]>([])
+  const [expandedUnit, setExpandedUnit] = useState<string | null>(null)
 
   const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
+  const balanceMap = useMemo(() => {
+    const map: Record<string, typeof balances[0]> = {}
+    balances.forEach(b => { map[b.memberId] = b })
+    return map
+  }, [balances])
 
   const handleSaveUpi = (memberId: string) => {
     updateMemberUpi(memberId, upiInput.trim())
@@ -38,7 +56,27 @@ export default function MembersPage({ params }: MembersPageProps) {
     setUpiInput('')
   }
 
+  const copyInviteLink = () => {
+    if (!trip) return
+    navigator.clipboard.writeText(createInviteLink(trip, window.location.origin))
+    setCopiedInvite(true)
+    setTimeout(() => setCopiedInvite(false), 2000)
+  }
+
+  const toggleUnitMember = (id: string) => {
+    setUnitMembers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const handleCreateUnit = () => {
+    if (!unitName.trim() || unitMembers.length < 2) return
+    addSettlementGroup(tripId, unitName.trim(), unitMembers)
+    setUnitName('')
+    setUnitMembers([])
+    setShowUnitForm(false)
+  }
+
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0)
+    + hotelExpenses.reduce((s, h) => s + h.totalAmount, 0)
 
   return (
     <div className="space-y-6">
@@ -54,6 +92,37 @@ export default function MembersPage({ params }: MembersPageProps) {
           </div>
         </div>
       </FadeIn>
+
+      {/* Invite friends */}
+      {trip && (
+        <FadeIn delay={0.05}>
+          <GlassCard className="p-4" hover={false}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  <Link2 className="w-4 h-4 text-brand-400" />
+                  Invite friends
+                </p>
+                <p className="text-xs text-white/40 mt-0.5 truncate">
+                  Share the join link — works on any device, valid 30 days
+                </p>
+              </div>
+              <button
+                id="copy-invite-link-btn"
+                onClick={copyInviteLink}
+                className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
+                  copiedInvite
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-brand-600/20 text-brand-400 border border-brand-500/30 hover:bg-brand-600/30'
+                }`}
+              >
+                {copiedInvite ? <Check className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+                {copiedInvite ? 'Copied!' : 'Copy Link'}
+              </button>
+            </div>
+          </GlassCard>
+        </FadeIn>
+      )}
 
       {/* Member Cards */}
       <div className="grid grid-cols-1 gap-4">
@@ -71,7 +140,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <div className="relative">
                     <Avatar name={balance.name} color={balance.avatarColor} size="lg" animate />
                     {isMe && (
-                      <div className="absolute -bottom-1 -right-1 bg-brand-500 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white border border-surface-0">
+                      <div className="absolute -bottom-1 -right-1 bg-brand-500 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-pure-white border border-surface-0">
                         You
                       </div>
                     )}
@@ -79,10 +148,18 @@ export default function MembersPage({ params }: MembersPageProps) {
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <h3 className="font-semibold text-white">{balance.name}</h3>
+                      {trip?.creatorId === member.id && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                          <Crown className="w-2.5 h-2.5" />
+                          Admin
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-white/40 mb-3">{member.mobile}</p>
+                    <p className="text-xs text-white/40 mb-3">
+                      {member.mobile} · Joined {formatDate(member.joinedAt)}
+                    </p>
 
                     {/* Balance stats */}
                     <div className="grid grid-cols-3 gap-3">
@@ -207,6 +284,161 @@ export default function MembersPage({ params }: MembersPageProps) {
           )
         })}
       </div>
+
+      {/* Units — members merged into one settlement entity (e.g. a couple) */}
+      {members.length >= 2 && (
+        <FadeIn delay={0.15}>
+          <GlassCard className="p-5" hover={false}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                <Heart className="w-4 h-4 text-accent-400" />
+                Units
+              </p>
+              {!showUnitForm && (
+                <button
+                  id="add-unit-btn"
+                  onClick={() => setShowUnitForm(true)}
+                  className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  Create unit
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-white/40 mb-4">
+              Group members (e.g. a couple) into one unit — they settle as a single entity
+            </p>
+
+            {/* Existing units */}
+            <div className="space-y-2">
+              {units.map(unit => {
+                const unitMemberList = members.filter(m => unit.memberIds.includes(m.id))
+                const combined = unit.memberIds.reduce((s, id) => s + (balanceMap[id]?.netBalance ?? 0), 0)
+                const isExpanded = expandedUnit === unit.id
+                return (
+                  <div key={unit.id} className="rounded-xl bg-white/5 border border-white/10 p-3">
+                    <div
+                      className="flex items-center gap-2 cursor-pointer"
+                      onClick={() => setExpandedUnit(isExpanded ? null : unit.id)}
+                    >
+                      <div className="flex -space-x-2">
+                        {unitMemberList.map(m => (
+                          <Avatar key={m.id} name={m.name} color={m.avatarColor} size="xs" />
+                        ))}
+                      </div>
+                      <span className="text-sm font-medium text-white flex-1 truncate">{unit.name}</span>
+                      <span className={`text-xs font-semibold ${
+                        combined > 0.01 ? 'text-emerald-400' : combined < -0.01 ? 'text-red-400' : 'text-white/40'
+                      }`}>
+                        {combined > 0 ? '+' : ''}{formatCurrency(combined)}
+                      </span>
+                      <button
+                        id={`remove-unit-${unit.id}`}
+                        onClick={e => { e.stopPropagation(); removeSettlementGroup(unit.id) }}
+                        className="text-white/30 hover:text-red-400 transition-colors"
+                        aria-label="Remove unit"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    {/* Internal split hidden unless expanded */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
+                            {unitMemberList.map(m => {
+                              const b = balanceMap[m.id]
+                              return (
+                                <div key={m.id} className="flex items-center justify-between text-xs">
+                                  <span className="text-white/50">{m.name}</span>
+                                  <span className={b && b.netBalance > 0.01 ? 'text-emerald-400' : b && b.netBalance < -0.01 ? 'text-red-400' : 'text-white/40'}>
+                                    {b && b.netBalance > 0 ? '+' : ''}{formatCurrency(b?.netBalance ?? 0)}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )
+              })}
+              {units.length === 0 && !showUnitForm && (
+                <p className="text-xs text-white/30 italic">No units yet</p>
+              )}
+            </div>
+
+            {/* Create unit form */}
+            <AnimatePresence>
+              {showUnitForm && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-3 rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                    <input
+                      id="unit-name-input"
+                      className="input-glass text-sm py-2"
+                      placeholder='Unit name, e.g. "Rahul & Priya"'
+                      value={unitName}
+                      onChange={e => setUnitName(e.target.value)}
+                      maxLength={40}
+                    />
+                    <div className="flex flex-wrap gap-1.5">
+                      {members.map(m => {
+                        const inAnotherUnit = units.some(u => u.memberIds.includes(m.id))
+                        const selected = unitMembers.includes(m.id)
+                        return (
+                          <button
+                            key={m.id}
+                            id={`unit-member-${m.id}`}
+                            disabled={inAnotherUnit}
+                            onClick={() => toggleUnitMember(m.id)}
+                            className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-all disabled:opacity-30 ${
+                              selected
+                                ? 'bg-brand-600/30 border border-brand-500/40 text-white'
+                                : 'bg-white/5 border border-white/10 text-white/50'
+                            }`}
+                          >
+                            <Avatar name={m.name} color={m.avatarColor} size="xs" />
+                            {m.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        id="cancel-unit-btn"
+                        onClick={() => { setShowUnitForm(false); setUnitName(''); setUnitMembers([]) }}
+                        className="btn-ghost flex-1 text-xs py-2"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        id="create-unit-btn"
+                        onClick={handleCreateUnit}
+                        disabled={!unitName.trim() || unitMembers.length < 2}
+                        className="btn-brand flex-1 text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        Create Unit
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-white/30">Pick at least 2 members. A member can only belong to one unit.</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </GlassCard>
+        </FadeIn>
+      )}
 
       {members.length === 0 && (
         <div className="text-center py-20">

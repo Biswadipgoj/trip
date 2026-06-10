@@ -49,7 +49,7 @@ export function PhysicsButton({
   }
 
   const variantStyles = {
-    brand:   'bg-gradient-to-br from-brand-500 to-accent-500 text-white shadow-glow-sm',
+    brand:   'bg-gradient-to-br from-brand-500 to-accent-500 text-pure-white shadow-glow-sm',
     ghost:   'bg-white/8 border border-white/12 text-white/80',
     danger:  'bg-red-500/20 border border-red-500/30 text-red-400',
     success: 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400',
@@ -85,7 +85,7 @@ export function PhysicsButton({
       {ripples.map(rp => (
         <span
           key={rp.id}
-          className="absolute rounded-full bg-white/25 pointer-events-none animate-ripple-expand"
+          className="absolute rounded-full bg-pure-white/40 pointer-events-none animate-ripple-expand"
           style={{
             left: rp.x,
             top: rp.y,

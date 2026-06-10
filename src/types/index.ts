@@ -28,12 +28,19 @@ export interface Member {
   joinedAt: string
 }
 
+// One payer's contribution when an expense has multiple payers
+export interface ExpensePayer {
+  memberId: string
+  amount: number
+}
+
 export interface Expense {
   id: string
   tripId: string
   title: string
   amount: number
-  paidBy: string // member id
+  paidBy: string // primary payer member id (kept for backward compat)
+  payers?: ExpensePayer[] // when present, overrides paidBy (multi-payer support)
   category: ExpenseCategory
   participants: string[] // member ids who share this expense
   splitType: SplitType
@@ -109,6 +116,20 @@ export interface TripSession {
   memberId: string
   tripCode: string
 }
+
+// Invite link payload — carried in the join URL so links work across devices.
+// Never contains the trip password: `sig` is a hash of (tripCode + password)
+// that the joining device verifies against the password the user types in.
+export interface InvitePayload {
+  v: number              // payload version
+  trip: Omit<Trip, 'password'>
+  exp: number            // expiry (unix ms)
+  sig: string            // hash(tripCode|password) — proves a correct password without exposing it
+}
+
+export type InviteParseResult =
+  | { ok: true; payload: InvitePayload }
+  | { ok: false; reason: 'invalid' | 'expired' }
 
 // Computed types
 export interface MemberBalance {

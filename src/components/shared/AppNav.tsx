@@ -8,10 +8,8 @@ import {
   LayoutDashboard,
   Users,
   Receipt,
-  ArrowLeftRight,
   CreditCard,
   BarChart3,
-  ChevronLeft,
   MapPin,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
@@ -24,12 +22,11 @@ interface NavItem {
 
 function getNavItems(tripId: string): NavItem[] {
   return [
-    { href: `/dashboard/${tripId}`,   label: 'Dashboard',   icon: LayoutDashboard },
-    { href: `/members/${tripId}`,     label: 'Members',     icon: Users },
-    { href: `/expenses/${tripId}`,    label: 'Expenses',    icon: Receipt },
-    { href: `/settlements/${tripId}`, label: 'Settle',      icon: ArrowLeftRight },
-    { href: `/payments/${tripId}`,    label: 'Payments',    icon: CreditCard },
-    { href: `/report/${tripId}`,      label: 'Report',      icon: BarChart3 },
+    { href: `/dashboard/${tripId}`, label: 'Dashboard', icon: LayoutDashboard },
+    { href: `/members/${tripId}`,   label: 'Members',   icon: Users },
+    { href: `/expenses/${tripId}`,  label: 'Expenses',  icon: Receipt },
+    { href: `/payments/${tripId}`,  label: 'Payments',  icon: CreditCard },
+    { href: `/report/${tripId}`,    label: 'Report',    icon: BarChart3 },
   ]
 }
 
@@ -50,7 +47,7 @@ export function AppNav({ tripId }: AppNavProps) {
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-2 py-3 mb-6">
           <div className="w-8 h-8 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-sm">
-            <MapPin className="w-4 h-4 text-white" />
+            <MapPin className="w-4 h-4 text-pure-white" />
           </div>
           <div>
             <p className="text-xs text-white/40 font-medium">Trip</p>
@@ -100,8 +97,11 @@ export function AppNav({ tripId }: AppNavProps) {
         </div>
       </aside>
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-white/10 bg-surface-1/90 backdrop-blur-xl">
+      {/* Mobile bottom nav — safe-area aware so it stays stable on notched phones */}
+      <nav
+        className="lg:hidden fixed bottom-0 inset-x-0 z-50 border-t border-white/10 bg-pure-white/85 backdrop-blur-xl shadow-elevated"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="flex items-center justify-around px-2 py-2">
           {navItems.map(item => {
             const isActive = pathname === item.href

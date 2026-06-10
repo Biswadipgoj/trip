@@ -1,22 +1,23 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2 } from 'lucide-react'
+import { parseInviteToken, inviteSignature } from '@/lib/utils'
+import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import Link from 'next/link'
-import type { Trip } from '@/types'
+import type { Trip, InvitePayload } from '@/types'
 
 type Step = 'find' | 'join' | 'pin' | 'success'
 
-export default function JoinTripPage() {
+function JoinTripContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const getTripByCode = useStore(s => s.getTripByCode)
   const joinTrip = useStore(s => s.joinTrip)
   const setSession = useStore(s => s.setSession)
-
   const importTrip = useStore(s => s.importTrip)
 
   const [step, setStep] = useState<Step>('find')
@@ -28,42 +29,88 @@ export default function JoinTripPage() {
   const [pinConfirm, setPinConfirm] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [foundTrip, setFoundTrip] = useState<{ name: string; id: string } | null>(null)
+  const [invite, setInvite] = useState<InvitePayload | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
   const [importedFromLink, setImportedFromLink] = useState(false)
   const [confetti, setConfetti] = useState(false)
 
-  // Import trip from share link — supports both new ?code= format and legacy ?d=<base64-trip>
+  // ── Deep-link handling ───────────────────────────────────────────────────────
+  // Supports three formats (newest first):
+  //   ?invite=<base64url signed payload>  → full cross-device join
+  //   ?code=TRP-XXXX                      → prefills the trip code
+  //   ?d=<base64 trip>                    → legacy full-trip import
+  // Re-runs safely on refresh/reopen since it only reads from the URL.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
+    const inviteParam = searchParams.get('invite')
+    if (inviteParam) {
+      const result = parseInviteToken(inviteParam)
+      if (result.ok) {
+        setInvite(result.payload)
+        setTripCode(result.payload.trip.tripCode.toUpperCase())
+        setImportedFromLink(true)
+        setInviteError(null)
+      } else {
+        setInviteError(
+          result.reason === 'expired'
+            ? 'This invite link has expired. Ask the trip creator for a new invite.'
+            : 'Invalid or expired invite link. Try requesting a new invite from the trip creator.'
+        )
+      }
+      return
+    }
 
-    // New safe format: just the trip code
-    const codeParam = params.get('code')
+    const codeParam = searchParams.get('code')
     if (codeParam) {
-      setTripCode(codeParam.toUpperCase())
+      setTripCode(codeParam.trim().toUpperCase())
+      setImportedFromLink(true)
       return
     }
 
     // Legacy format: full base64-encoded trip object (kept for backward compat)
-    const encoded = params.get('d')
+    const encoded = searchParams.get('d')
     if (!encoded) return
     try {
-      const trip: Trip = JSON.parse(atob(encoded))
+      const trip: Trip = JSON.parse(atob(encoded.trim().replace(/\s/g, '+')))
       if (trip?.tripCode && trip?.id) {
         importTrip(trip)
-        setTripCode(trip.tripCode)
+        setTripCode(trip.tripCode.toUpperCase())
         setImportedFromLink(true)
       }
     } catch {
-      // invalid encoded data — silently ignore
+      setInviteError('Invalid or expired invite link. Try requesting a new invite from the trip creator.')
     }
-  }, [importTrip])
+  }, [searchParams, importTrip])
 
   const handleFind = () => {
-    const trip = getTripByCode(tripCode.trim().toUpperCase())
-    if (!trip) {
-      setErrors({ tripCode: 'Trip not found. Check the code and try again.' })
+    const code = tripCode.trim().toUpperCase()
+    const password = tripPassword
+
+    // 1. Invite-link path: trip data came from the link, verify password
+    //    against the link's signature (works even on a brand-new device).
+    if (invite && invite.trip.tripCode.toUpperCase() === code) {
+      if (inviteSignature(code, password) !== invite.sig) {
+        setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
+        return
+      }
+      // Password verified — store the trip locally so the rest of the flow works
+      importTrip({ ...invite.trip, password })
+      setErrors({})
+      setFoundTrip({ name: invite.trip.name, id: invite.trip.id })
+      setStep('join')
       return
     }
-    if (trip.password !== tripPassword) {
+
+    // 2. Local path: trip already exists on this device
+    const trip = getTripByCode(code)
+    if (!trip) {
+      setErrors({
+        tripCode: invite
+          ? 'This code doesn’t match your invite link. Use the code from the link or ask for a new invite.'
+          : 'Trip not found on this device. Ask your friend for an invite link instead of just the code.',
+      })
+      return
+    }
+    if (trip.password !== password) {
       setErrors({ tripPassword: 'Wrong trip password.' })
       return
     }
@@ -87,12 +134,12 @@ export default function JoinTripPage() {
     setErrors(errs)
     if (Object.keys(errs).length > 0) return
 
-    const member = joinTrip(tripCode.toUpperCase(), tripPassword, name, mobile, pin)
+    const member = joinTrip(tripCode.trim().toUpperCase(), tripPassword, name, mobile, pin)
     if (!member) {
-      setErrors({ general: 'Could not join trip. Try again.' })
+      setErrors({ general: 'Could not join trip. Try again or request a new invite link.' })
       return
     }
-    setSession({ tripId: foundTrip!.id, memberId: member.id, tripCode: tripCode.toUpperCase() })
+    setSession({ tripId: foundTrip!.id, memberId: member.id, tripCode: tripCode.trim().toUpperCase() })
     setStep('success')
     setConfetti(true)
   }
@@ -122,10 +169,30 @@ export default function JoinTripPage() {
             >
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">Join a Trip</h1>
-                <p className="text-white/50 text-sm">Enter the trip code shared by your friend</p>
+                <p className="text-white/50 text-sm">
+                  {invite ? 'You’ve been invited — confirm to join' : 'Enter the trip code shared by your friend'}
+                </p>
               </div>
 
-              {importedFromLink && (
+              {inviteError && (
+                <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-red-400">{inviteError}</p>
+                </div>
+              )}
+
+              {invite && (
+                <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                    <p className="text-xs text-emerald-400 font-medium">Invite found</p>
+                  </div>
+                  <p className="text-base font-semibold text-white">{invite.trip.name}</p>
+                  <p className="text-xs text-white/40 mt-0.5">Enter the trip password to confirm joining</p>
+                </div>
+              )}
+
+              {importedFromLink && !invite && !inviteError && (
                 <div className="flex items-center gap-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-3 py-2">
                   <Link2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
                   <p className="text-xs text-emerald-400">Trip found via link — just enter the password to join</p>
@@ -167,8 +234,8 @@ export default function JoinTripPage() {
               </div>
 
               <button id="find-trip-btn" onClick={handleFind} className="btn-brand w-full flex items-center justify-center gap-2">
-                Find Trip
-                <Search className="w-4 h-4" />
+                {invite ? 'Confirm & Continue' : 'Find Trip'}
+                {invite ? <ArrowRight className="w-4 h-4" /> : <Search className="w-4 h-4" />}
               </button>
             </motion.div>
           )}
@@ -333,5 +400,13 @@ export default function JoinTripPage() {
         </AnimatePresence>
       </div>
     </main>
+  )
+}
+
+export default function JoinTripPage() {
+  return (
+    <Suspense fallback={null}>
+      <JoinTripContent />
+    </Suspense>
   )
 }
