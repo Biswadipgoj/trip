@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { createInviteLink } from '@/lib/utils'
-import { MapPin, ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2 } from 'lucide-react'
+import { MapPin, ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2, IndianRupee } from 'lucide-react'
 import type { Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import Link from 'next/link'
@@ -16,11 +16,13 @@ export default function CreateTripPage() {
   const router = useRouter()
   const createTrip = useStore(s => s.createTrip)
   const setSession = useStore(s => s.setSession)
+  const setTripBudget = useStore(s => s.setTripBudget)
 
   const [step, setStep] = useState<Step>('details')
   const [tripName, setTripName] = useState('')
   const [creatorName, setCreatorName] = useState('')
   const [mobile, setMobile] = useState('')
+  const [budget, setBudget] = useState('')
   const [password, setPassword] = useState('')
   const [pin, setPin] = useState('')
   const [pinConfirm, setPinConfirm] = useState('')
@@ -57,6 +59,8 @@ export default function CreateTripPage() {
   const handleCreate = () => {
     if (!validatePin()) return
     const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
+    const budgetNum = parseFloat(budget)
+    if (budgetNum > 0) setTripBudget(trip.id, budgetNum)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
     setCreatedTrip(trip)
     // Invite link carries the trip data (never the password) plus a signature,
@@ -186,6 +190,22 @@ export default function CreateTripPage() {
                     type="tel"
                   />
                   {errors.mobile && <p className="mt-1 text-xs text-red-400">{errors.mobile}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    <IndianRupee className="w-3.5 h-3.5 inline mr-1.5" />
+                    Trip Budget in ₹ (optional)
+                  </label>
+                  <input
+                    id="trip-budget-input"
+                    className="input-glass"
+                    placeholder="e.g. 50000"
+                    type="number"
+                    inputMode="decimal"
+                    value={budget}
+                    onChange={e => setBudget(e.target.value)}
+                  />
                 </div>
 
                 <div>

@@ -13,6 +13,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import { useTripSync } from '@/hooks/useTripSync'
 
 interface NavItem {
   href: string
@@ -39,6 +40,9 @@ export function AppNav({ tripId }: AppNavProps) {
   const session = useStore(s => s.session)
   const trip = useStore(s => s.getTripById(tripId))
   const navItems = getNavItems(tripId)
+
+  // Cross-device sync: pull this trip's data from the cloud while in the app
+  useTripSync(tripId)
 
   return (
     <>
