@@ -58,11 +58,11 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
     [settlements]
   )
 
-  // Expenses → Balance Engine, adjusted by confirmed transfers, so the
-  // settlement minimizer always runs on the LIVE residual debt.
+  // Expenses → Balance Engine, adjusted by confirmed transfers (group-aware),
+  // so the settlement minimizer always runs on the LIVE residual debt.
   const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements, groups, sponsorships),
+    [expenses, hotelExpenses, members, settlements, groups, sponsorships]
   )
 
   // Balance Engine → Settlement Engine (minimum transactions still due)

@@ -154,4 +154,9 @@ export interface SettlementRoute {
   fromUpiId?: string
   toUpiId?: string
   amount: number
+  // All members behind each side (>1 when a settlement group pays/receives
+  // as one entity). Snapshotted onto the Settlement so a confirmed couple
+  // payment keeps settling both members even if the group is later deleted.
+  fromMemberIds?: string[]
+  toMemberIds?: string[]
 }

@@ -332,24 +332,94 @@ export function calculateBalances(
  * the payer's net balance rises by the amount and the receiver's falls.
  * Pending/paid (unconfirmed) settlements are ignored — no cash moved yet.
  *
+ * Settlement groups ("couples") and sponsorships matter here: their combined
+ * payment is routed through ONE representative member, but it settles the
+ * WHOLE entity's debt. The transfer is therefore spread across the entity —
+ * clearing the largest debts first — instead of piling onto the representative
+ * and leaving phantom +/− balances inside the couple.
+ *
  * This is what makes balances and the settlement minimizer react to payment
  * confirmations: they always run on the LIVE residual debt, never on a stale
  * pre-payment snapshot.
  */
+export type ConfirmedTransfer = Pick<
+  Settlement,
+  'fromMemberId' | 'toMemberId' | 'amount' | 'status' | 'fromGroupIds' | 'toGroupIds'
+>
+
 export function applyConfirmedTransfers(
   balances: MemberBalance[],
-  settlements: Pick<Settlement, 'fromMemberId' | 'toMemberId' | 'amount' | 'status'>[]
+  settlements: ConfirmedTransfer[],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
 ): MemberBalance[] {
   const result = balances.map(b => ({ ...b }))
   const balanceMap: Record<string, MemberBalance> = {}
   result.forEach(b => { balanceMap[b.memberId] = b })
 
+  // Union-find: members of the same settlement group, and sponsor+sponsored
+  // pairs, form one payment entity.
+  const parent: Record<string, string> = {}
+  result.forEach(b => { parent[b.memberId] = b.memberId })
+  const find = (x: string): string => (parent[x] === x ? x : (parent[x] = find(parent[x])))
+  const union = (a: string, b: string) => {
+    if (!(a in parent) || !(b in parent)) return
+    parent[find(a)] = find(b)
+  }
+  groups.forEach(g => {
+    const present = g.memberIds.filter(id => id in parent)
+    for (let i = 1; i < present.length; i++) union(present[0], present[i])
+  })
+  sponsorships.forEach(sp => union(sp.sponsorMemberId, sp.sponsoredMemberId))
+
+  // Prefer the member set snapshotted on the settlement at generation time
+  // (survives later group deletion); otherwise resolve the live entity.
+  const entityMembers = (memberId: string, snapshot?: string[]): MemberBalance[] => {
+    if (snapshot && snapshot.length > 0) {
+      const fromSnapshot = result.filter(b => snapshot.includes(b.memberId))
+      if (fromSnapshot.length > 0) return fromSnapshot
+    }
+    if (!(memberId in parent)) return []
+    const root = find(memberId)
+    return result.filter(b => find(b.memberId) === root)
+  }
+
   settlements.forEach(s => {
     if (s.status !== 'confirmed') return
-    const from = balanceMap[s.fromMemberId]
-    const to = balanceMap[s.toMemberId]
-    if (from) from.netBalance = roundMoney(from.netBalance + s.amount)
-    if (to) to.netBalance = roundMoney(to.netBalance - s.amount)
+
+    // Payer side: the cash clears the entity's debts (largest first);
+    // anything beyond the entity's debt is credit owned by the payer.
+    let remaining = s.amount
+    entityMembers(s.fromMemberId, s.fromGroupIds)
+      .filter(b => b.netBalance < 0)
+      .sort((a, b) => a.netBalance - b.netBalance)
+      .forEach(b => {
+        if (remaining <= 0) return
+        const pay = Math.min(remaining, -b.netBalance)
+        b.netBalance = roundMoney(b.netBalance + pay)
+        remaining = roundMoney(remaining - pay)
+      })
+    if (remaining > 0 && balanceMap[s.fromMemberId]) {
+      balanceMap[s.fromMemberId].netBalance =
+        roundMoney(balanceMap[s.fromMemberId].netBalance + remaining)
+    }
+
+    // Receiver side: the cash consumes the entity's credits (largest first);
+    // any excess received becomes the receiver's own debt.
+    let incoming = s.amount
+    entityMembers(s.toMemberId, s.toGroupIds)
+      .filter(b => b.netBalance > 0)
+      .sort((a, b) => b.netBalance - a.netBalance)
+      .forEach(b => {
+        if (incoming <= 0) return
+        const take = Math.min(incoming, b.netBalance)
+        b.netBalance = roundMoney(b.netBalance - take)
+        incoming = roundMoney(incoming - take)
+      })
+    if (incoming > 0 && balanceMap[s.toMemberId]) {
+      balanceMap[s.toMemberId].netBalance =
+        roundMoney(balanceMap[s.toMemberId].netBalance - incoming)
+    }
   })
 
   return result
@@ -365,11 +435,15 @@ export function calculateNetBalances(
   expenses: Expense[],
   hotelExpenses: HotelExpense[],
   members: Member[],
-  settlements: Pick<Settlement, 'fromMemberId' | 'toMemberId' | 'amount' | 'status'>[]
+  settlements: ConfirmedTransfer[],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
 ): MemberBalance[] {
   return applyConfirmedTransfers(
     calculateBalances(expenses, hotelExpenses, members),
-    settlements
+    settlements,
+    groups,
+    sponsorships
   )
 }
 
@@ -492,6 +566,8 @@ export function calculateSettlements(
           fromUpiId:    fromM.upiId,
           toUpiId:      toM.upiId,
           amount:       Math.round(amount * 100) / 100,
+          fromMemberIds: [...fromMembers],
+          toMemberIds:   [...toMembers],
         })
       }
     }

@@ -202,6 +202,8 @@ describe('remote merge keeps confirmed payments authoritative', () => {
       members: state.members.filter(m => m.tripId === trip.id),
       expenses: state.expenses.filter(e => e.tripId === trip.id),
       hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
       settlementStatuses: [{
         id: crypto.randomUUID(),
         fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
@@ -221,6 +223,8 @@ describe('remote merge keeps confirmed payments authoritative', () => {
       members: useStore.getState().members.filter(m => m.tripId === trip.id),
       expenses: useStore.getState().expenses.filter(e => e.tripId === trip.id),
       hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
       settlementStatuses: [{
         id: crypto.randomUUID(),
         fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
@@ -242,6 +246,8 @@ describe('remote merge keeps confirmed payments authoritative', () => {
       members: useStore.getState().members.filter(m => m.tripId === trip.id),
       expenses: useStore.getState().expenses.filter(e => e.tripId === trip.id),
       hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
       settlementStatuses: [{
         id: manuDue.id,
         fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
@@ -252,5 +258,126 @@ describe('remote merge keeps confirmed payments authoritative', () => {
     const records = confirmed(trip.id)
     expect(records).toHaveLength(1)
     expect(records[0].status).toBe('confirmed') // monotonic — never rolled back
+  })
+})
+
+describe('couple groups — confirmed payments settle the whole unit', () => {
+  function seedCouple() {
+    const { trip, dip, manu, pari } = seedTrip()
+    useStore.getState().addSettlementGroup(trip.id, 'Manu & Parijit', [manu.id, pari.id])
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    return { trip, dip, manu, pari }
+  }
+
+  const liveNet = (tripId: string) => {
+    const state = useStore.getState()
+    return calculateNetBalances(
+      state.expenses.filter(e => e.tripId === tripId), [],
+      state.members.filter(m => m.tripId === tripId),
+      state.settlements.filter(x => x.tripId === tripId),
+      state.settlementGroups.filter(g => g.tripId === tripId),
+      state.sponsorships.filter(sp => sp.tripId === tripId)
+    )
+  }
+
+  it('routes the couple as ONE combined payment', () => {
+    const { trip, dip } = seedCouple()
+    const dues = due(trip.id)
+    expect(dues).toHaveLength(1)
+    expect(dues[0].amount).toBe(2000)
+    expect(dues[0].toMemberId).toBe(dip.id)
+    expect(dues[0].fromGroupIds).toHaveLength(2) // snapshot of both members
+  })
+
+  it('confirming the couple payment zeroes BOTH members — no phantom +/− inside the couple', () => {
+    const { trip } = seedCouple()
+    const d = due(trip.id)[0]
+    useStore.getState().updateSettlementStatus(d.id, 'paid')
+    useStore.getState().updateSettlementStatus(d.id, 'confirmed')
+
+    liveNet(trip.id).forEach(b => expect(b.netBalance).toBe(0))
+    expect(due(trip.id)).toHaveLength(0)
+    expect(confirmed(trip.id)).toHaveLength(1)
+  })
+
+  it('deleting the couple AFTER settlement creates no phantom dues between them', () => {
+    const { trip } = seedCouple()
+    const d = due(trip.id)[0]
+    useStore.getState().updateSettlementStatus(d.id, 'paid')
+    useStore.getState().updateSettlementStatus(d.id, 'confirmed')
+
+    const group = useStore.getState().settlementGroups.find(g => g.tripId === trip.id)!
+    useStore.getState().removeSettlementGroup(group.id)
+
+    expect(due(trip.id)).toHaveLength(0) // snapshot keeps the history correct
+    liveNet(trip.id).forEach(b => expect(b.netBalance).toBe(0))
+  })
+
+  it('a new expense after the couple settled produces fresh dues for the couple only', () => {
+    const { trip, dip, manu, pari } = seedCouple()
+    const d = due(trip.id)[0]
+    useStore.getState().updateSettlementStatus(d.id, 'paid')
+    useStore.getState().updateSettlementStatus(d.id, 'confirmed')
+
+    addEqualExpense(trip.id, 300, dip.id, [dip.id, manu.id, pari.id])
+
+    expect(confirmed(trip.id)[0].amount).toBe(2000) // history untouched
+    const dues = due(trip.id)
+    expect(dues).toHaveLength(1)
+    expect(dues[0].amount).toBe(200) // the couple's combined new share
+    expect(dues[0].status).toBe('pending')
+  })
+})
+
+describe('sponsorships — confirmed sponsor payments clear the sponsored member too', () => {
+  it('zeroes both sponsor and sponsored after confirmation', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    useStore.getState().addSponsorship(trip.id, manu.id, pari.id) // Manu sponsors Parijit
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+
+    const dues = due(trip.id)
+    expect(dues).toHaveLength(1) // sponsor pays the combined 2000
+    expect(dues[0].amount).toBe(2000)
+
+    useStore.getState().updateSettlementStatus(dues[0].id, 'paid')
+    useStore.getState().updateSettlementStatus(dues[0].id, 'confirmed')
+
+    const state = useStore.getState()
+    const net = calculateNetBalances(
+      state.expenses.filter(e => e.tripId === trip.id), [],
+      state.members.filter(m => m.tripId === trip.id),
+      state.settlements.filter(x => x.tripId === trip.id),
+      state.settlementGroups.filter(g => g.tripId === trip.id),
+      state.sponsorships.filter(sp => sp.tripId === trip.id)
+    )
+    net.forEach(b => expect(b.netBalance).toBe(0))
+    expect(due(trip.id)).toHaveLength(0)
+  })
+})
+
+describe('remote merge syncs couples and sponsorships across devices', () => {
+  it('imports remote settlement groups and uses them in the minimizer', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    expect(due(trip.id)).toHaveLength(2) // no group locally yet
+
+    const state = useStore.getState()
+    state.mergeRemoteTrip({
+      trip,
+      members: state.members.filter(m => m.tripId === trip.id),
+      expenses: state.expenses.filter(e => e.tripId === trip.id),
+      hotelExpenses: [],
+      settlementGroups: [{
+        id: crypto.randomUUID(), tripId: trip.id,
+        name: 'Manu & Parijit', memberIds: [manu.id, pari.id],
+      }],
+      sponsorships: [],
+      settlementStatuses: [],
+    })
+
+    expect(useStore.getState().settlementGroups.filter(g => g.tripId === trip.id)).toHaveLength(1)
+    const dues = due(trip.id)
+    expect(dues).toHaveLength(1) // couple now pays as one entity on this device too
+    expect(dues[0].amount).toBe(2000)
   })
 })

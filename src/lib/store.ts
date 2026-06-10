@@ -11,7 +11,8 @@ import {
 import {
   remoteCreateTrip, remoteCloseTrip, remoteAddManualMember, remoteUpdateMemberUpi,
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
-  remotePushSettlementStatus, TripBundle,
+  remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
+  remotePushSponsorship, remoteDeleteSponsorship, TripBundle,
 } from '@/lib/remote'
 
 // Remote pushes are best-effort: cloud sync must never block or break local UX.
@@ -191,7 +192,7 @@ export const useStore = create<AppState>()(
       // local store. Remote wins on shared ids; local-only items (not yet
       // pushed, e.g. created offline) are kept.
       mergeRemoteTrip: (bundle) => {
-        const { trip, members, expenses, hotelExpenses, settlementStatuses } = bundle
+        const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
         set(s => {
           const localTrip = s.trips.find(t => t.id === trip.id)
           const mergedTrip: Trip = { ...trip, budget: localTrip?.budget }
@@ -211,6 +212,8 @@ export const useStore = create<AppState>()(
             members: mergeById(s.members, members, m => m.tripId === trip.id),
             expenses: mergeById(s.expenses, expenses, e => e.tripId === trip.id),
             hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
+            settlementGroups: mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id),
+            sponsorships: mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id),
           }
         })
 
@@ -364,6 +367,7 @@ export const useStore = create<AppState>()(
         const group: SettlementGroup = { id: generateId(), tripId, name, memberIds }
         set(s => ({ settlementGroups: [...s.settlementGroups, group] }))
         get().generateSettlements(tripId)
+        fireAndForget(remotePushSettlementGroup(group))
         return group
       },
 
@@ -371,6 +375,7 @@ export const useStore = create<AppState>()(
         const group = get().settlementGroups.find(g => g.id === id)
         set(s => ({ settlementGroups: s.settlementGroups.filter(g => g.id !== id) }))
         if (group) get().generateSettlements(group.tripId)
+        fireAndForget(remoteDeleteSettlementGroup(id))
       },
 
       getGroupsByTrip: (tripId) =>
@@ -390,6 +395,7 @@ export const useStore = create<AppState>()(
         const sp: Sponsorship = { id: generateId(), tripId, sponsorMemberId, sponsoredMemberId }
         set(s => ({ sponsorships: [...s.sponsorships, sp] }))
         get().generateSettlements(tripId)
+        fireAndForget(remotePushSponsorship(sp))
         return sp
       },
 
@@ -397,6 +403,7 @@ export const useStore = create<AppState>()(
         const sp = get().sponsorships.find(s => s.id === id)
         set(s => ({ sponsorships: s.sponsorships.filter(x => x.id !== id) }))
         if (sp) get().generateSettlements(sp.tripId)
+        fireAndForget(remoteDeleteSponsorship(id))
       },
 
       getSponsorshipsByTrip: (tripId) =>
@@ -420,10 +427,14 @@ export const useStore = create<AppState>()(
         const prevSettlements  = state.settlements.filter(s => s.tripId === tripId)
         const confirmedRecords = prevSettlements.filter(s => s.status === 'confirmed')
 
-        // 1. Raw expense balances, minus cash already moved by confirmed payments
+        // 1. Raw expense balances, minus cash already moved by confirmed
+        //    payments. Groups/sponsorships are passed so a couple's combined
+        //    payment clears BOTH members' balances, not just the payer's.
         const balances = applyConfirmedTransfers(
           calculateBalances(expenses, hotelExpenses, members),
-          confirmedRecords
+          confirmedRecords,
+          groups,
+          sponsorships
         )
 
         // 2. Minimal-transaction routes over the residual debt
@@ -451,6 +462,10 @@ export const useStore = create<AppState>()(
             amount:       route.amount,
             status:       samePayment ? ('paid' as const) : ('pending' as const),
             paidAt:       samePayment ? prev.paidAt : undefined,
+            // Snapshot the members behind each side so a confirmed couple
+            // payment keeps settling everyone even if the group is deleted.
+            fromGroupIds: route.fromMemberIds && route.fromMemberIds.length > 1 ? route.fromMemberIds : undefined,
+            toGroupIds:   route.toMemberIds && route.toMemberIds.length > 1 ? route.toMemberIds : undefined,
           }
         })
 
