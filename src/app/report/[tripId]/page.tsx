@@ -743,8 +743,8 @@ export default function ReportPage({ params }: ReportPageProps) {
                     <span className="text-xs text-white/40">→</span>
                     <span className="text-xs text-white flex-1 truncate text-right">{r.toName}</span>
                     <Avatar name={r.toName} color={r.toColor} size="xs" />
-                    <span className={`text-[10px] ml-1 ${s?.status === 'confirmed' ? 'text-emerald-400' : s?.status === 'paid' ? 'text-brand-400' : 'text-white/30'}`}>
-                      {s?.status || 'pending'}
+                    <span className={`text-[10px] ml-1 capitalize ${s?.status === 'confirmed' ? 'text-emerald-400' : s?.status === 'paid' ? 'text-brand-400' : 'text-white/30'}`}>
+                      {s?.status === 'paid' ? 'paid' : s?.status === 'confirmed' ? 'confirmed' : 'due'}
                     </span>
                   </div>
                 )

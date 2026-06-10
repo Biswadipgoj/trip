@@ -36,19 +36,64 @@
   body {
     @apply antialiased;
     font-family: var(--font-inter);
-    /* Iridescent aurora mesh — violet / cyan / pink / orange glows, like light
-       refracting through liquid glass */
-    background:
-      radial-gradient(60% 50% at 5% 0%, hsla(262, 95%, 82%, 0.65) 0%, transparent 64%),
-      radial-gradient(50% 42% at 98% 5%, hsla(190, 95%, 78%, 0.55) 0%, transparent 62%),
-      radial-gradient(46% 40% at 85% 92%, hsla(310, 95%, 84%, 0.55) 0%, transparent 60%),
-      radial-gradient(42% 36% at 8% 90%, hsla(24, 100%, 80%, 0.5) 0%, transparent 60%),
-      radial-gradient(36% 30% at 50% 50%, hsla(230, 90%, 88%, 0.4) 0%, transparent 70%),
-      var(--surface-0);
-    background-attachment: fixed;
+    background: var(--surface-0);
     color: var(--ink);
     min-height: 100vh;
     overflow-x: hidden;
+    position: relative;
+  }
+
+  /* ── Dynamic liquid-gradient backdrop ──────────────────────────────────────
+     A slow-flowing blob field drawn from the TripMate logo palette — vibrant
+     purples, magentas, corals, oranges and sky blues. Kept translucent over the
+     warm cream base so dark ink text stays crisp and legible. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: -25%;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(38% 34% at 12% 18%, hsla(262, 96%, 72%, 0.60) 0%, transparent 60%),
+      radial-gradient(34% 30% at 88% 12%, hsla(196, 98%, 70%, 0.58) 0%, transparent 60%),
+      radial-gradient(36% 32% at 82% 86%, hsla(322, 95%, 72%, 0.55) 0%, transparent 60%),
+      radial-gradient(34% 30% at 14% 84%, hsla(20, 100%, 70%, 0.52) 0%, transparent 60%),
+      radial-gradient(40% 36% at 50% 52%, hsla(286, 92%, 78%, 0.45) 0%, transparent 64%),
+      radial-gradient(30% 26% at 64% 30%, hsla(38, 100%, 72%, 0.40) 0%, transparent 62%);
+    background-color: var(--surface-0);
+    filter: blur(46px) saturate(1.25);
+    animation: liquidDrift 24s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+  /* Second, counter-rotating layer for a richer "liquid" parallax */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: -25%;
+    z-index: -2;
+    pointer-events: none;
+    background:
+      radial-gradient(30% 28% at 30% 70%, hsla(310, 96%, 74%, 0.42) 0%, transparent 60%),
+      radial-gradient(28% 26% at 72% 64%, hsla(210, 96%, 72%, 0.40) 0%, transparent 60%),
+      radial-gradient(26% 24% at 24% 36%, hsla(8, 100%, 72%, 0.38) 0%, transparent 60%);
+    filter: blur(54px) saturate(1.2);
+    animation: liquidDrift2 30s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+
+  @keyframes liquidDrift {
+    0%   { transform: translate3d(-4%, -3%, 0) rotate(0deg)   scale(1.12); }
+    50%  { transform: translate3d(4%, 2%, 0)   rotate(7deg)   scale(1.28); }
+    100% { transform: translate3d(-2%, 5%, 0)  rotate(-6deg)  scale(1.16); }
+  }
+  @keyframes liquidDrift2 {
+    0%   { transform: translate3d(3%, 4%, 0)   rotate(0deg)   scale(1.18); }
+    50%  { transform: translate3d(-4%, -2%, 0) rotate(-9deg)  scale(1.30); }
+    100% { transform: translate3d(2%, -4%, 0)  rotate(6deg)   scale(1.20); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::before, body::after { animation: none; }
   }
 
   * {
@@ -78,16 +123,21 @@
 }
 
 @layer components {
-  /* Liquid-glass card — frosted, saturated blur with a soft iridescent tint
-     (translucent but never see-through-plain) */
+  /* Liquid-glass card — Apple "Liquid Display" frosted panel: a semi-transparent,
+     gradient-tinted backdrop blur. Translucent enough to let the liquid backdrop
+     glow through, never plain see-through. */
   .glass {
-    background: linear-gradient(135deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.66) 100%);
-    backdrop-filter: blur(24px) saturate(1.6);
-    -webkit-backdrop-filter: blur(24px) saturate(1.6);
-    border: 1px solid rgba(139, 78, 245, 0.14);
+    background: linear-gradient(135deg,
+      rgba(255,255,255,0.82) 0%,
+      rgba(247,242,255,0.70) 48%,
+      rgba(240,248,255,0.72) 100%);
+    backdrop-filter: blur(20px) saturate(1.7);
+    -webkit-backdrop-filter: blur(20px) saturate(1.7);
+    border: 1px solid rgba(255, 255, 255, 0.55);
     box-shadow:
-      0 8px 32px rgba(108, 62, 200, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      0 8px 32px rgba(108, 62, 200, 0.14),
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      inset 0 -1px 0 rgba(139, 78, 245, 0.05);
   }
 
   /* ── Premium gradient stat cards (Indian fintech style) ─────────────────── */
@@ -144,11 +194,16 @@
   }
 
   .glass-strong {
-    background: linear-gradient(135deg, rgba(255,255,255,0.99) 0%, rgba(255,255,255,0.93) 100%);
-    backdrop-filter: blur(32px);
-    -webkit-backdrop-filter: blur(32px);
-    border: 1px solid rgba(139, 78, 245, 0.14);
-    box-shadow: 0 18px 52px rgba(108, 62, 200, 0.18);
+    background: linear-gradient(135deg,
+      rgba(255,255,255,0.95) 0%,
+      rgba(248,244,255,0.90) 55%,
+      rgba(243,249,255,0.92) 100%);
+    backdrop-filter: blur(28px) saturate(1.5);
+    -webkit-backdrop-filter: blur(28px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow:
+      0 18px 52px rgba(108, 62, 200, 0.20),
+      inset 0 1px 0 rgba(255, 255, 255, 0.95);
   }
 
   /* Gradient brand button — vivid violet → fuchsia */
@@ -241,6 +296,78 @@
     background: linear-gradient(90deg, rgba(139,78,245,0.06) 25%, rgba(139,78,245,0.14) 50%, rgba(139,78,245,0.06) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.8s linear infinite;
+  }
+}
+
+@layer components {
+  /* ── Interactive brand footer — each word its own vibrant gradient ────────── */
+  .tm-word {
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    font-weight: 800;
+  }
+  .tm-w1 { background-image: linear-gradient(120deg, hsl(262,90%,60%), hsl(286,88%,62%)); }
+  .tm-w2 { background-image: linear-gradient(120deg, hsl(322,92%,60%), hsl(348,90%,62%)); }
+  .tm-w3 { background-image: linear-gradient(120deg, hsl(20,100%,58%),  hsl(36,100%,56%)); }
+  .tm-w4 { background-image: linear-gradient(120deg, hsl(168,80%,42%),  hsl(196,92%,48%)); }
+  .tm-w5 { background-image: linear-gradient(120deg, hsl(210,96%,56%),  hsl(262,88%,60%)); }
+  .tm-w6 { background-image: linear-gradient(120deg, hsl(286,90%,60%),  hsl(322,92%,60%)); }
+
+  /* Whole-page shake when the footer signature is tapped */
+  .tm-shake {
+    animation: tmPageShake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+  }
+  @keyframes tmPageShake {
+    10%, 90% { transform: translate3d(-2px, 0, 0) rotate(-0.4deg); }
+    20%, 80% { transform: translate3d(4px, 0, 0)  rotate(0.6deg); }
+    30%, 50%, 70% { transform: translate3d(-8px, 0, 0) rotate(-0.8deg); }
+    40%, 60% { transform: translate3d(8px, 0, 0)  rotate(0.8deg); }
+  }
+
+  /* Paper crumble — a full-screen sheet that wrinkles, scrunches into a ball
+     and tumbles away, revealing the nameplate beneath. */
+  .tm-paper {
+    background:
+      radial-gradient(120% 120% at 30% 20%, #ffffff 0%, #f3eef9 45%, #e7def2 100%);
+    box-shadow: inset 0 0 180px rgba(108,62,200,0.18);
+  }
+  .tm-paper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    /* Crease lines — soft diagonal folds for a crumpled-paper feel */
+    background:
+      repeating-linear-gradient(58deg,  rgba(108,62,200,0.05) 0 2px, transparent 2px 46px),
+      repeating-linear-gradient(-34deg, rgba(0,0,0,0.045) 0 2px, transparent 2px 62px),
+      repeating-linear-gradient(122deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 38px);
+    mix-blend-mode: multiply;
+  }
+  .tm-paper::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='5' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+  }
+  @keyframes tmCrumble {
+    0%   { transform: scale(1)    rotate(0deg);   border-radius: 0;     opacity: 1; filter: contrast(1); }
+    35%  { transform: scale(0.9)  rotate(-3deg);  border-radius: 14% 22% 18% 26%; opacity: 1; filter: contrast(1.25); }
+    70%  { transform: scale(0.34) rotate(16deg) translateY(6vh); border-radius: 46% 54% 40% 60%; opacity: 1; }
+    100% { transform: scale(0.04) rotate(140deg) translate(36vw, 70vh); border-radius: 50%; opacity: 0; }
+  }
+  .tm-crumble { animation: tmCrumble 1.5s cubic-bezier(.5,.05,.5,.95) forwards; }
+
+  @keyframes tmNameplateIn {
+    0%   { opacity: 0; transform: scale(0.6) translateY(20px); filter: blur(10px); }
+    60%  { opacity: 1; transform: scale(1.06) translateY(0);   filter: blur(0); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .tm-nameplate { animation: tmNameplateIn 0.9s cubic-bezier(.21,.9,.3,1.2) forwards; }
+
+  @keyframes tmSheen {
+    0%   { background-position: -160% 0; }
+    100% { background-position:  260% 0; }
   }
 }
 

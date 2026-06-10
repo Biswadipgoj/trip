@@ -1,6 +1,6 @@
 @echo off
 echo ============================================================
-echo  TripSplit - Setup Script
+echo  TripMate - Setup Script
 echo ============================================================
 echo.
 

@@ -1,16 +1,25 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { StoreProvider } from '@/components/StoreProvider'
+import { BrandFooter } from '@/components/shared/BrandFooter'
 
 export const metadata: Metadata = {
-  title: 'TripSplit — Smart Group Expense Manager',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  title: 'TripMate — Smart Group Expense Manager',
   description:
     'Split trip expenses effortlessly with friends. Track payments, settle debts with UPI, and close trips automatically when everyone is settled.',
-  keywords: ['trip expense', 'split expenses', 'group travel', 'UPI payments', 'expense tracker'],
+  keywords: ['trip expense', 'split expenses', 'group travel', 'UPI payments', 'expense tracker', 'TripMate'],
+  applicationName: 'TripMate',
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
+    shortcut: '/icon.png',
+  },
   openGraph: {
-    title: 'TripSplit — Smart Group Expense Manager',
+    title: 'TripMate — Smart Group Expense Manager',
     description: 'Split trip expenses effortlessly with friends.',
     type: 'website',
+    images: ['/logo.png'],
   },
 }
 
@@ -50,7 +59,10 @@ export default function RootLayout({
           />
         </div>
         <StoreProvider>
-          <div className="relative z-10">{children}</div>
+          <div className="relative z-10">
+            {children}
+            <BrandFooter />
+          </div>
         </StoreProvider>
       </body>
     </html>

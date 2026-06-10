@@ -1,8 +1,8 @@
-# TripSplit — Premium Group Expense Manager
+# TripMate — Premium Group Expense Manager
 
 A modern, premium, production-ready trip expense management application built with Next.js 15, Tailwind CSS, Framer Motion, and Supabase.
 
-![TripSplit Banner](https://img.shields.io/badge/TripSplit-Premium%20Expense%20Manager-6366f1?style=for-the-badge)
+![TripMate Banner](https://img.shields.io/badge/TripMate-Premium%20Expense%20Manager-6366f1?style=for-the-badge)
 
 ---
 
