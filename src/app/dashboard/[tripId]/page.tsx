@@ -4,7 +4,7 @@ import React from 'react';
 import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateBalances, formatCurrency, formatCompactINR, getCategoryColor, getCategoryIcon, getCategoryLabel } from '@/lib/utils'
+import { calculateNetBalances, formatCurrency, formatCompactINR, getCategoryColor, getCategoryIcon, getCategoryLabel } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { StatusBadge } from '@/components/shared/StatusBadge'
@@ -96,7 +96,12 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
 
-  const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
+  // Live balances: expense math minus confirmed transfers, so confirming a
+  // payment immediately updates every figure on this screen.
+  const balances = useMemo(
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
+    [expenses, hotelExpenses, members, settlements]
+  )
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
     + hotelExpenses.reduce((sum, h) => sum + h.totalAmount, 0)
@@ -544,7 +549,7 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
           <p className="text-white/60 text-sm mb-2">
             <strong className="text-white">{tripName}</strong> is fully settled!
           </p>
-          <p className="text-white/40 text-xs mb-8">Everyone's accounts are balanced. Great trip! 🎉</p>
+          <p className="text-white/40 text-xs mb-8">Everyone&apos;s accounts are balanced. Great trip! 🎉</p>
         </motion.div>
 
         <motion.div

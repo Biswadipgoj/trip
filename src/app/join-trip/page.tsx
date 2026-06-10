@@ -7,7 +7,7 @@ import { useStore } from '@/lib/store'
 import { parseInviteToken, inviteSignature, getAvatarColor } from '@/lib/utils'
 import {
   isRemoteEnabled, joinLog, remoteFindTripByCode, remoteGetMembers,
-  remoteJoinTrip, remoteFetchTripBundle,
+  remoteJoinTrip, remoteFetchTripBundle, remoteEnsureTrip,
 } from '@/lib/remote'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
@@ -202,23 +202,33 @@ function JoinTripContent() {
 
     setBusy(true)
     try {
-      if (foundViaRemote && isRemoteEnabled()) {
-        const avatarColor = getAvatarColor(memberCount ?? 0)
-        const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
-          name: name.trim(), mobile, pin, avatarColor,
-        })
-        // Pull the full existing trip (members, expenses, stays, settlements)
-        // so the dashboard shows the real trip — not an empty copy.
-        const bundle = await remoteFetchTripBundle(foundTrip.id)
-        if (bundle) mergeRemoteTrip(bundle)
-        else upsertMember(member)
+      if (isRemoteEnabled()) {
+        // The trip was verified via invite link or found locally but is not on
+        // the server yet (created before cloud sync). Provision the SAME trip
+        // row (same id + code) so the join attaches to the one shared trip —
+        // never a parallel device-local copy with the same name.
+        const remoteReady = foundViaRemote || await remoteEnsureTrip(foundTrip)
 
-        setAlreadyMember(existed)
-        setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-        joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
-        setStep('success')
-        setConfetti(true)
-        return
+        if (remoteReady) {
+          const avatarColor = getAvatarColor(memberCount ?? 0)
+          const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
+            name: name.trim(), mobile, pin, avatarColor,
+          })
+          // Pull the full existing trip (members, expenses, stays, settlements)
+          // so the dashboard shows the real trip — not an empty copy.
+          const bundle = await remoteFetchTripBundle(foundTrip.id)
+          if (bundle) mergeRemoteTrip(bundle)
+          else upsertMember(member)
+
+          setAlreadyMember(existed)
+          setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
+          joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
+          setStep('success')
+          setConfetti(true)
+          return
+        }
+        joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
+        // fall through to the local join below
       }
 
       // Local fallback (no cloud configured): joinTrip only adds a member to
@@ -430,7 +440,7 @@ function JoinTripContent() {
             >
               <div>
                 <h2 className="text-2xl font-bold text-white mb-1">Set Your PIN</h2>
-                <p className="text-white/50 text-sm">You'll use this to log in</p>
+                <p className="text-white/50 text-sm">You&apos;ll use this to log in</p>
               </div>
 
               <div className="space-y-4">
