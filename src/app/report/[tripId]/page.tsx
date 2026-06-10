@@ -9,10 +9,13 @@ import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { FadeIn } from '@/components/animations/FadeIn'
 import {
-  BarChart3, Download, Users, Receipt, ArrowLeftRight,
-  CheckCircle2, TrendingUp, Hotel
+  BarChart3, Download, Users, Receipt,
+  CheckCircle2, TrendingUp, Flame, Trophy, CalendarDays, Tag
 } from 'lucide-react'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
+import {
+  PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
+  AreaChart, Area
+} from 'recharts'
 
 interface ReportPageProps {
   params: Promise<{ tripId: string }>
@@ -68,6 +71,43 @@ export default function ReportPage({ params }: ReportPageProps) {
   const totalSpend     = totalExpenses + totalHotel
   const settledCount   = settlements.filter(s => s.status === 'confirmed').length
   const perPersonAvg   = members.length > 0 ? totalSpend / members.length : 0
+
+  // ── Trip analysis: spending per day + highlights ─────────────────────────────
+  const dailySpend = useMemo(() => {
+    const days: Record<string, number> = {}
+    const add = (dateStr: string, amt: number) => {
+      const key = new Date(dateStr).toISOString().slice(0, 10)
+      days[key] = (days[key] || 0) + amt
+    }
+    expenses.forEach(e => add(e.createdAt, e.amount))
+    hotelExpenses.forEach(h => add(h.createdAt, h.totalAmount))
+    return Object.entries(days)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, total]) => ({
+        date: new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+        total,
+      }))
+  }, [expenses, hotelExpenses])
+
+  const analysis = useMemo(() => {
+    const biggestExpense = [...expenses].sort((a, b) => b.amount - a.amount)[0]
+    const biggestHotel   = [...hotelExpenses].sort((a, b) => b.totalAmount - a.totalAmount)[0]
+    const biggest =
+      biggestHotel && (!biggestExpense || biggestHotel.totalAmount > biggestExpense.amount)
+        ? { title: biggestHotel.title, amount: biggestHotel.totalAmount }
+        : biggestExpense
+        ? { title: biggestExpense.title, amount: biggestExpense.amount }
+        : null
+    const topSpender = [...balances].sort((a, b) => b.totalPaid - a.totalPaid)[0]
+    const activeDays = dailySpend.length
+    return {
+      biggest,
+      topCategory: categoryData[0] ?? null,
+      topSpender: topSpender && topSpender.totalPaid > 0 ? topSpender : null,
+      activeDays,
+      avgPerDay: activeDays > 0 ? totalSpend / activeDays : 0,
+    }
+  }, [expenses, hotelExpenses, balances, categoryData, dailySpend, totalSpend])
 
   const handleExport = async () => {
     const { default: jsPDF } = await import('jspdf')
@@ -135,10 +175,10 @@ export default function ReportPage({ params }: ReportPageProps) {
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: Receipt,       label: 'Total Spend',   value: formatCurrency(totalSpend),          color: 'hsl(258,65%,58%)' },
-          { icon: Users,         label: 'Members',       value: String(members.length),              color: 'hsl(280,60%,55%)' },
+          { icon: Receipt,       label: 'Total Spend',   value: formatCurrency(totalSpend),          color: 'hsl(262,83%,58%)' },
+          { icon: Users,         label: 'Members',       value: String(members.length),              color: 'hsl(310,75%,55%)' },
           { icon: TrendingUp,    label: 'Per Person',    value: formatCurrency(perPersonAvg),        color: 'hsl(25,80%,55%)' },
-          { icon: CheckCircle2,  label: 'Settled',       value: `${settledCount}/${routes.length}`,  color: 'hsl(160,52%,42%)' },
+          { icon: CheckCircle2,  label: 'Settled',       value: `${settledCount}/${routes.length}`,  color: 'hsl(168,76%,38%)' },
         ].map((kpi, i) => (
           <FadeIn key={kpi.label} delay={i * 0.07}>
             <GlassCard className="p-4">
@@ -153,6 +193,88 @@ export default function ReportPage({ params }: ReportPageProps) {
           </FadeIn>
         ))}
       </div>
+
+      {/* Trip Analysis */}
+      {totalSpend > 0 && (
+        <FadeIn delay={0.2}>
+          <GlassCard className="p-5">
+            <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-1.5">
+              <Flame className="w-4 h-4 text-brand-400" />
+              Trip Analysis
+            </h2>
+
+            {/* Highlights */}
+            <div className="grid grid-cols-2 gap-3 mb-5">
+              {analysis.biggest && (
+                <div className="rounded-xl bg-brand-600/10 border border-brand-500/20 p-3">
+                  <p className="text-[10px] text-white/40 mb-1 flex items-center gap-1">
+                    <Flame className="w-3 h-3 text-brand-400" /> Biggest spend
+                  </p>
+                  <p className="text-sm font-bold text-white truncate">{analysis.biggest.title}</p>
+                  <p className="text-xs font-semibold text-brand-400">{formatCurrency(analysis.biggest.amount)}</p>
+                </div>
+              )}
+              {analysis.topCategory && (
+                <div className="rounded-xl bg-accent-500/10 border border-accent-500/20 p-3">
+                  <p className="text-[10px] text-white/40 mb-1 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-accent-400" /> Top category
+                  </p>
+                  <p className="text-sm font-bold text-white capitalize truncate">
+                    {analysis.topCategory.icon} {analysis.topCategory.name}
+                  </p>
+                  <p className="text-xs font-semibold text-accent-500">{formatCurrency(analysis.topCategory.value)}</p>
+                </div>
+              )}
+              {analysis.topSpender && (
+                <div className="rounded-xl bg-amber-400/10 border border-amber-400/20 p-3">
+                  <p className="text-[10px] text-white/40 mb-1 flex items-center gap-1">
+                    <Trophy className="w-3 h-3 text-amber-500" /> Top spender
+                  </p>
+                  <p className="text-sm font-bold text-white truncate">{analysis.topSpender.name}</p>
+                  <p className="text-xs font-semibold text-amber-600">paid {formatCurrency(analysis.topSpender.totalPaid)}</p>
+                </div>
+              )}
+              <div className="rounded-xl bg-white/5 border border-white/10 p-3">
+                <p className="text-[10px] text-white/40 mb-1 flex items-center gap-1">
+                  <CalendarDays className="w-3 h-3 text-white/50" /> Avg per day
+                </p>
+                <p className="text-sm font-bold text-white">{formatCurrency(analysis.avgPerDay)}</p>
+                <p className="text-xs text-white/40">{analysis.activeDays} spending day{analysis.activeDays !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+
+            {/* Daily spending trend */}
+            {dailySpend.length > 1 && (
+              <>
+                <p className="text-xs font-medium text-white/50 mb-2">Spending per day (₹)</p>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={dailySpend}>
+                    <defs>
+                      <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(262,83%,58%)" stopOpacity={0.45} />
+                        <stop offset="100%" stopColor="hsl(262,83%,58%)" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" tick={{ fill: 'rgba(58,40,110,0.6)', fontSize: 10 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip
+                      formatter={(v: number) => [formatCurrency(v), 'Spent']}
+                      contentStyle={{ background: '#fffdf8', border: '1px solid rgba(139,78,245,0.16)', borderRadius: 12, color: 'hsl(262, 32%, 18%)', fontSize: 12 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="total"
+                      stroke="hsl(262,83%,58%)"
+                      strokeWidth={2.5}
+                      fill="url(#spendGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </>
+            )}
+          </GlassCard>
+        </FadeIn>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Category breakdown */}
@@ -169,7 +291,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                   </Pie>
                   <Tooltip
                     formatter={(v: number) => formatCurrency(v)}
-                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(93,70,160,0.12)', borderRadius: 12, color: 'hsl(258, 25%, 24%)', fontSize: 12 }}
+                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(139,78,245,0.16)', borderRadius: 12, color: 'hsl(262, 32%, 18%)', fontSize: 12 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -196,14 +318,14 @@ export default function ReportPage({ params }: ReportPageProps) {
               <h2 className="text-sm font-semibold text-white mb-4">Paid vs Owed per Member</h2>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={memberSpendData} barCategoryGap="30%">
-                  <XAxis dataKey="name" tick={{ fill: 'rgba(62,49,98,0.55)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="name" tick={{ fill: 'rgba(58,40,110,0.6)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip
                     formatter={(v: number) => formatCurrency(v)}
-                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(93,70,160,0.12)', borderRadius: 12, color: 'hsl(258, 25%, 24%)', fontSize: 12 }}
+                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(139,78,245,0.16)', borderRadius: 12, color: 'hsl(262, 32%, 18%)', fontSize: 12 }}
                   />
-                  <Bar dataKey="paid" fill="hsl(258,65%,58%)" radius={[4, 4, 0, 0]} name="Paid" />
-                  <Bar dataKey="owed" fill="hsl(160,52%,42%)" radius={[4, 4, 0, 0]} name="Owed" />
+                  <Bar dataKey="paid" fill="hsl(262,83%,58%)" radius={[4, 4, 0, 0]} name="Paid" />
+                  <Bar dataKey="owed" fill="hsl(168,76%,38%)" radius={[4, 4, 0, 0]} name="Owed" />
                 </BarChart>
               </ResponsiveContainer>
             </GlassCard>

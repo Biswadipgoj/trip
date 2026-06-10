@@ -91,7 +91,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Wallet,
       label: 'Total Spent',
       value: totalSpent,
-      color: 'hsl(258, 65%, 58%)',
+      color: 'hsl(262, 83%, 58%)',
       prefix: '₹',
     },
     {
@@ -99,7 +99,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Users,
       label: 'Members',
       value: members.length,
-      color: 'hsl(280, 60%, 55%)',
+      color: 'hsl(310, 75%, 55%)',
       prefix: '',
     },
     {
@@ -115,7 +115,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: CheckCircle2,
       label: 'Settled',
       value: settledCount,
-      color: 'hsl(160, 52%, 42%)',
+      color: 'hsl(168, 76%, 38%)',
       prefix: '',
       suffix: `/${totalSettlements}`,
     },
@@ -192,7 +192,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 animate={{ width: `${(settledCount / totalSettlements) * 100}%` }}
                 transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
                 className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, hsl(258,65%,58%), hsl(160,52%,42%))' }}
+                style={{ background: 'linear-gradient(90deg, hsl(262,83%,58%), hsl(168,76%,38%))' }}
               />
             </div>
             {isFullySettled && (
@@ -236,11 +236,11 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
                       background: '#fffdf8',
-                      border: '1px solid rgba(93,70,160,0.12)',
+                      border: '1px solid rgba(139,78,245,0.16)',
                       borderRadius: 12,
-                      color: 'hsl(258, 25%, 24%)',
+                      color: 'hsl(262, 32%, 18%)',
                       fontSize: 12,
-                      boxShadow: '0 8px 24px rgba(93,70,160,0.12)',
+                      boxShadow: '0 8px 24px rgba(139,78,245,0.16)',
                     }}
                   />
                 </PieChart>

@@ -21,7 +21,7 @@ const sizeMap = {
 
 export function Avatar({ name, color, size = 'md', animate = false, className }: AvatarProps) {
   const initials = getInitials(name)
-  const bg = color || 'hsl(258, 65%, 58%)'
+  const bg = color || 'hsl(262, 83%, 58%)'
 
   const Component = animate ? motion.div : 'div'
   const animProps = animate
