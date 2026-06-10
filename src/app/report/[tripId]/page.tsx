@@ -3,7 +3,7 @@ import React, { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import {
-  calculateBalances, calculateSettlements, formatCurrency, formatCompactINR,
+  calculateNetBalances, calculateSettlements, formatCurrency, formatCompactINR,
   formatDate, getCategoryColor, getCategoryIcon, getCategoryLabel,
   getCategoryGradient, getSubcategoryLabel, SUBCATEGORIES,
 } from '@/lib/utils'
@@ -71,9 +71,11 @@ export default function ReportPage({ params }: ReportPageProps) {
   const sponsorships  = useMemo(() => allSponsorships.filter(s => s.tripId === tripId), [allSponsorships, tripId])
   const settlements   = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
 
+  // totalPaid/totalOwed stay expense-based; netBalance is adjusted by
+  // confirmed payments so the report matches the live settlement state.
   const balances = useMemo(
-    () => calculateBalances(expenses, hotelExpenses, members),
-    [expenses, hotelExpenses, members]
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
+    [expenses, hotelExpenses, members, settlements]
   )
 
   const routes = useMemo(

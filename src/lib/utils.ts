@@ -3,7 +3,7 @@ import { twMerge } from 'tailwind-merge'
 import {
   MemberBalance, Expense, Member, SettlementRoute,
   SettlementGroup, Sponsorship, HotelExpense, ParticipantSplit,
-  Trip, InvitePayload, InviteParseResult
+  Trip, InvitePayload, InviteParseResult, Settlement
 } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
@@ -324,6 +324,53 @@ export function calculateBalances(
     totalOwed: roundMoney(owed[m.id] ?? 0),
     netBalance: roundMoney((paid[m.id] ?? 0) - (owed[m.id] ?? 0)),
   }))
+}
+
+/**
+ * Applies CONFIRMED settlement payments as real cash transfers on top of the
+ * expense balances. A confirmed payment means money actually moved hands, so
+ * the payer's net balance rises by the amount and the receiver's falls.
+ * Pending/paid (unconfirmed) settlements are ignored — no cash moved yet.
+ *
+ * This is what makes balances and the settlement minimizer react to payment
+ * confirmations: they always run on the LIVE residual debt, never on a stale
+ * pre-payment snapshot.
+ */
+export function applyConfirmedTransfers(
+  balances: MemberBalance[],
+  settlements: Pick<Settlement, 'fromMemberId' | 'toMemberId' | 'amount' | 'status'>[]
+): MemberBalance[] {
+  const result = balances.map(b => ({ ...b }))
+  const balanceMap: Record<string, MemberBalance> = {}
+  result.forEach(b => { balanceMap[b.memberId] = b })
+
+  settlements.forEach(s => {
+    if (s.status !== 'confirmed') return
+    const from = balanceMap[s.fromMemberId]
+    const to = balanceMap[s.toMemberId]
+    if (from) from.netBalance = roundMoney(from.netBalance + s.amount)
+    if (to) to.netBalance = roundMoney(to.netBalance - s.amount)
+  })
+
+  return result
+}
+
+/**
+ * Live net balances: expense balances minus money already moved by confirmed
+ * payments. totalPaid/totalOwed stay expense-based; only netBalance reflects
+ * settlements. Every screen (Dashboard, Members, Payments, Report) derives
+ * from this single source so they can never disagree.
+ */
+export function calculateNetBalances(
+  expenses: Expense[],
+  hotelExpenses: HotelExpense[],
+  members: Member[],
+  settlements: Pick<Settlement, 'fromMemberId' | 'toMemberId' | 'amount' | 'status'>[]
+): MemberBalance[] {
+  return applyConfirmedTransfers(
+    calculateBalances(expenses, hotelExpenses, members),
+    settlements
+  )
 }
 
 /**

@@ -6,7 +6,7 @@ import {
 } from '@/types'
 import {
   generateId, generateTripCode, getAvatarColor,
-  calculateBalances, calculateSettlements, resolveHotelSplits
+  calculateBalances, calculateSettlements, applyConfirmedTransfers
 } from '@/lib/utils'
 import {
   remoteCreateTrip, remoteCloseTrip, remoteAddManualMember, remoteUpdateMemberUpi,
@@ -19,15 +19,8 @@ function fireAndForget(p: Promise<unknown>) {
   p.catch(err => console.warn('[sync] push failed (local data is safe):', err))
 }
 
-// Payment status only ever moves forward: pending → paid → confirmed.
-// Background sync (useTripSync, every 15s) can fire BEFORE a freshly-confirmed
-// status reaches Supabase — without this guard a stale remote row would
-// downgrade a local "confirmed" back to "paid"/"pending", making the UI snap
-// back to "DUE". Comparing ranks keeps the most-progressed status authoritative.
-const STATUS_RANK: Record<PaymentStatus, number> = { pending: 0, paid: 1, confirmed: 2 }
-function maxStatus(a: PaymentStatus, b: PaymentStatus): PaymentStatus {
-  return STATUS_RANK[a] >= STATUS_RANK[b] ? a : b
-}
+// Two paise-tolerant amounts are "the same payment".
+const sameAmount = (a: number, b: number) => Math.abs(a - b) < 0.01
 
 interface AppState {
   // ─── Data ───────────────────────────────────────────────────────────────────
@@ -221,28 +214,73 @@ export const useStore = create<AppState>()(
           }
         })
 
-        // Recompute settlements from the merged data, then overlay any remote
-        // paid/confirmed statuses so payment state survives across devices.
+        // Overlay remote payment state, then recompute dues from merged data.
         // The overlay is MONOTONIC: it only advances a status (pending→paid→
-        // confirmed), never rolls one back. This is the fix for confirmed
-        // payments snapping back to "DUE" when a stale remote sync lands.
+        // confirmed), never rolls one back, so a stale remote row can never
+        // snap a freshly-confirmed payment back to "DUE".
+        //
+        // CONFIRMED payments are immutable transaction records (cash actually
+        // moved), so they are imported BEFORE regeneration — the settlement
+        // minimizer then runs on the residual balances.
+        const remoteConfirmed = settlementStatuses.filter(r => r.status === 'confirmed')
+        if (remoteConfirmed.length > 0) {
+          set(s => {
+            let tripRows = s.settlements.filter(x => x.tripId === trip.id)
+            const otherRows = s.settlements.filter(x => x.tripId !== trip.id)
+            remoteConfirmed.forEach(r => {
+              const match = tripRows.find(x => x.id === r.id) ?? tripRows.find(
+                x =>
+                  x.fromMemberId === r.fromMemberId &&
+                  x.toMemberId === r.toMemberId &&
+                  sameAmount(x.amount, r.amount)
+              )
+              if (match?.status === 'confirmed') return // already recorded
+              if (match) {
+                tripRows = tripRows.map(x =>
+                  x === match
+                    ? {
+                        ...x,
+                        amount: r.amount, // trust the amount that was actually paid
+                        status: 'confirmed' as const,
+                        paidAt: x.paidAt ?? r.paidAt,
+                        confirmedAt: x.confirmedAt ?? r.confirmedAt,
+                      }
+                    : x
+                )
+              } else {
+                tripRows = [...tripRows, {
+                  id: r.id,
+                  tripId: trip.id,
+                  fromMemberId: r.fromMemberId,
+                  toMemberId: r.toMemberId,
+                  amount: r.amount,
+                  status: 'confirmed' as const,
+                  paidAt: r.paidAt,
+                  confirmedAt: r.confirmedAt,
+                }]
+              }
+            })
+            return { settlements: [...otherRows, ...tripRows] }
+          })
+        }
+
         get().generateSettlements(trip.id)
-        if (settlementStatuses.length > 0) {
+
+        // Advance matching dues to "paid". Amount must match — a remote "paid"
+        // for an outdated amount refers to a payment that no longer exists.
+        const remotePaid = settlementStatuses.filter(r => r.status === 'paid')
+        if (remotePaid.length > 0) {
           set(s => ({
             settlements: s.settlements.map(x => {
-              if (x.tripId !== trip.id) return x
-              const remote = settlementStatuses.find(
-                r => r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId
+              if (x.tripId !== trip.id || x.status !== 'pending') return x
+              const remote = remotePaid.find(
+                r =>
+                  (r.id === x.id ||
+                    (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId)) &&
+                  sameAmount(r.amount, x.amount)
               )
               if (!remote) return x
-              const merged = maxStatus(x.status, remote.status)
-              if (merged === x.status) return x // local is already as/more progressed
-              return {
-                ...x,
-                status: merged,
-                paidAt: x.paidAt ?? remote.paidAt,
-                confirmedAt: x.confirmedAt ?? remote.confirmedAt,
-              }
+              return { ...x, status: 'paid' as const, paidAt: x.paidAt ?? remote.paidAt }
             }),
           }))
         }
@@ -365,6 +403,12 @@ export const useStore = create<AppState>()(
         get().sponsorships.filter(sp => sp.tripId === tripId),
 
       // ─── Settlement Generation ───────────────────────────────────────────────
+      // Confirmed settlements are IMMUTABLE transaction records — money that
+      // actually changed hands. They are never re-amounted or regenerated.
+      // Dues (pending/paid) are recomputed from the live residual balances:
+      //   residual = expense balances − confirmed transfers
+      // so adding/editing/deleting an expense or confirming a payment always
+      // cascades into a fresh minimal-transaction set.
       generateSettlements: (tripId) => {
         const state = get()
         const expenses      = state.expenses.filter(e => e.tripId === tripId)
@@ -373,50 +417,48 @@ export const useStore = create<AppState>()(
         const groups        = state.settlementGroups.filter(g => g.tripId === tripId)
         const sponsorships  = state.sponsorships.filter(sp => sp.tripId === tripId)
 
-        // 1. Calculate raw balances
-        const balances = calculateBalances(expenses, hotelExpenses, members)
+        const prevSettlements  = state.settlements.filter(s => s.tripId === tripId)
+        const confirmedRecords = prevSettlements.filter(s => s.status === 'confirmed')
 
-        // 2 & 3. Generate settlement routes (applies sponsorships + groups internally)
+        // 1. Raw expense balances, minus cash already moved by confirmed payments
+        const balances = applyConfirmedTransfers(
+          calculateBalances(expenses, hotelExpenses, members),
+          confirmedRecords
+        )
+
+        // 2. Minimal-transaction routes over the residual debt
+        //    (applies sponsorships + settlement groups internally)
         const routes = calculateSettlements(balances, members, groups, sponsorships)
 
-        // Preserve confirmed statuses
-        const prevSettlements = state.settlements.filter(s => s.tripId === tripId)
-        const confirmedMap: Record<string, Settlement> = {}
-        prevSettlements
-          .filter(s => s.status === 'confirmed')
-          .forEach(s => {
-            const key = `${s.fromMemberId}→${s.toMemberId}`
-            confirmedMap[key] = s
-          })
-        const paidMap: Record<string, Settlement> = {}
-        prevSettlements
-          .filter(s => s.status === 'paid')
-          .forEach(s => {
-            const key = `${s.fromMemberId}→${s.toMemberId}`
-            paidMap[key] = s
-          })
+        // Keep due ids stable across regenerations (background sync re-runs
+        // this every 15s — unstable ids would break "Mark Paid" clicks and
+        // remote status pushes). The "paid" marker only survives when it is
+        // the SAME payment: same direction AND same amount. If the amount
+        // changed, it is a different due and returns to pending.
+        const prevDueByKey: Record<string, Settlement> = {}
+        prevSettlements.forEach(s => {
+          if (s.status !== 'confirmed') prevDueByKey[`${s.fromMemberId}→${s.toMemberId}`] = s
+        })
 
-        const newSettlements: Settlement[] = routes.map(route => {
-          const key = `${route.fromMemberId}→${route.toMemberId}`
-          const confirmed = confirmedMap[key]
-          const paid = paidMap[key]
-
+        const dues: Settlement[] = routes.map(route => {
+          const prev = prevDueByKey[`${route.fromMemberId}→${route.toMemberId}`]
+          const samePayment = !!prev && prev.status === 'paid' && sameAmount(prev.amount, route.amount)
           return {
-            id:            confirmed?.id || paid?.id || generateId(),
+            id:           prev?.id ?? generateId(),
             tripId,
-            fromMemberId:  route.fromMemberId,
-            toMemberId:    route.toMemberId,
-            amount:        route.amount,
-            status:        confirmed?.status || paid?.status || 'pending',
-            paidAt:        confirmed?.paidAt || paid?.paidAt,
-            confirmedAt:   confirmed?.confirmedAt,
+            fromMemberId: route.fromMemberId,
+            toMemberId:   route.toMemberId,
+            amount:       route.amount,
+            status:       samePayment ? ('paid' as const) : ('pending' as const),
+            paidAt:       samePayment ? prev.paidAt : undefined,
           }
         })
 
         set(s => ({
           settlements: [
             ...s.settlements.filter(x => x.tripId !== tripId),
-            ...newSettlements,
+            ...confirmedRecords,
+            ...dues,
           ],
         }))
       },
@@ -439,7 +481,12 @@ export const useStore = create<AppState>()(
           ),
         }))
         const updated = get().settlements.find(x => x.id === settlementId)
-        if (updated) fireAndForget(remotePushSettlementStatus(updated))
+        if (updated) {
+          fireAndForget(remotePushSettlementStatus(updated))
+          // Confirming means cash moved — recompute the residual dues so the
+          // change cascades across Dashboard, Payments, Members and Report.
+          if (status === 'confirmed') get().generateSettlements(updated.tripId)
+        }
       },
 
       // ─── Session ─────────────────────────────────────────────────────────────

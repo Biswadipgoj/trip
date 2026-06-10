@@ -829,7 +829,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {!isStay && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-white/60">Who's sharing this?</label>
+                    <label className="text-xs font-medium text-white/60">Who&apos;s sharing this?</label>
                     <div className="flex gap-3 text-xs">
                       <button id="select-all" onClick={() => setParticipants(members.map(m => m.id))} className="text-brand-400">All</button>
                       <button id="clear-all"  onClick={() => setParticipants([])} className="text-white/40">None</button>
