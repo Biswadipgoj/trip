@@ -8,22 +8,23 @@
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-space-grotesk: 'Space Grotesk', system-ui, sans-serif;
 
-  /* Brand palette — soft purple + mint green on warm beige */
-  --brand-400: hsl(258, 75%, 66%);
-  --brand-500: hsl(258, 65%, 58%);
-  --brand-600: hsl(258, 58%, 50%);
-  --accent-400: hsl(160, 48%, 52%);
-  --accent-500: hsl(160, 52%, 42%);
+  /* Brand palette — vivid violet + fuchsia + mint on warm cream */
+  --brand-400: hsl(262, 85%, 68%);
+  --brand-500: hsl(262, 83%, 58%);
+  --brand-600: hsl(262, 75%, 50%);
+  --fuchsia-500: hsl(310, 80%, 56%);
+  --accent-400: hsl(168, 70%, 45%);
+  --accent-500: hsl(168, 76%, 36%);
 
   /* Ink (text) color */
-  --ink: hsl(258, 25%, 24%);
+  --ink: hsl(262, 32%, 18%);
 
-  /* Surface palette (light beige) */
-  --surface-0: hsl(40, 45%, 96%);
-  --surface-1: hsl(40, 42%, 93%);
-  --surface-2: hsl(40, 38%, 90%);
-  --surface-3: hsl(40, 32%, 86%);
-  --surface-4: hsl(40, 28%, 82%);
+  /* Surface palette (warm cream) */
+  --surface-0: hsl(42, 70%, 97%);
+  --surface-1: hsl(42, 60%, 94%);
+  --surface-2: hsl(42, 50%, 91%);
+  --surface-3: hsl(42, 42%, 87%);
+  --surface-4: hsl(42, 36%, 83%);
 }
 
 @layer base {
@@ -35,7 +36,14 @@
   body {
     @apply antialiased;
     font-family: var(--font-inter);
-    background: var(--surface-0);
+    /* Aurora mesh background — violet / mint / pink glows over warm cream */
+    background:
+      radial-gradient(55% 45% at 8% 0%, hsla(262, 90%, 86%, 0.55) 0%, transparent 65%),
+      radial-gradient(45% 38% at 96% 8%, hsla(168, 75%, 82%, 0.5) 0%, transparent 62%),
+      radial-gradient(42% 36% at 80% 95%, hsla(310, 85%, 88%, 0.45) 0%, transparent 60%),
+      radial-gradient(38% 32% at 12% 88%, hsla(42, 95%, 82%, 0.5) 0%, transparent 60%),
+      var(--surface-0);
+    background-attachment: fixed;
     color: var(--ink);
     min-height: 100vh;
     overflow-x: hidden;
@@ -46,7 +54,7 @@
   }
 
   ::selection {
-    background: hsl(258, 65%, 58%, 0.25);
+    background: hsl(262, 83%, 58%, 0.25);
     color: var(--ink);
   }
 
@@ -59,43 +67,43 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(93, 70, 160, 0.18);
+    background: rgba(108, 62, 200, 0.2);
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(93, 70, 160, 0.32);
+    background: rgba(108, 62, 200, 0.35);
   }
 }
 
 @layer components {
   /* Soft card utility (was glass) — airy white cards with gentle shadows */
   .glass {
-    background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.72) 100%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.76) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(93, 70, 160, 0.08);
-    box-shadow: 0 4px 24px rgba(93, 70, 160, 0.07);
+    border: 1px solid rgba(139, 78, 245, 0.12);
+    box-shadow: 0 6px 28px rgba(108, 62, 200, 0.1);
   }
 
   .glass-strong {
-    background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.9) 100%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.99) 0%, rgba(255,255,255,0.93) 100%);
     backdrop-filter: blur(32px);
     -webkit-backdrop-filter: blur(32px);
-    border: 1px solid rgba(93, 70, 160, 0.1);
-    box-shadow: 0 16px 48px rgba(93, 70, 160, 0.14);
+    border: 1px solid rgba(139, 78, 245, 0.14);
+    box-shadow: 0 18px 52px rgba(108, 62, 200, 0.18);
   }
 
-  /* Gradient brand button — soft purple → mint */
+  /* Gradient brand button — vivid violet → fuchsia */
   .btn-brand {
     @apply relative overflow-hidden rounded-xl px-5 py-2.5 text-sm font-semibold;
     color: #ffffff;
-    background: linear-gradient(135deg, var(--brand-500), var(--accent-500));
-    box-shadow: 0 4px 18px rgba(124, 92, 220, 0.3);
+    background: linear-gradient(135deg, var(--brand-500), var(--fuchsia-500));
+    box-shadow: 0 6px 22px rgba(139, 78, 245, 0.4);
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .btn-brand:hover {
     transform: translateY(-1px);
-    box-shadow: 0 8px 28px rgba(124, 92, 220, 0.4);
+    box-shadow: 0 10px 32px rgba(139, 78, 245, 0.5);
   }
   .btn-brand:active {
     transform: translateY(0) scale(0.96);
@@ -103,13 +111,13 @@
 
   .btn-ghost {
     @apply relative rounded-xl px-5 py-2.5 text-sm font-medium;
-    color: hsl(258, 25%, 24%, 0.75);
-    background: rgba(93, 70, 160, 0.05);
-    border: 1px solid rgba(93, 70, 160, 0.12);
+    color: hsl(262, 32%, 18%, 0.75);
+    background: rgba(139, 78, 245, 0.06);
+    border: 1px solid rgba(139, 78, 245, 0.16);
     transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .btn-ghost:hover {
-    background: rgba(93, 70, 160, 0.09);
+    background: rgba(139, 78, 245, 0.12);
     color: var(--ink);
   }
   .btn-ghost:active {
@@ -120,18 +128,18 @@
   .input-glass {
     @apply w-full rounded-xl px-4 py-3 text-sm;
     color: var(--ink);
-    background: rgba(255, 255, 255, 0.85);
-    border: 1px solid rgba(93, 70, 160, 0.14);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(139, 78, 245, 0.18);
     outline: none;
     transition: all 0.2s ease;
   }
   .input-glass::placeholder {
-    color: hsl(258, 20%, 24%, 0.35);
+    color: hsl(262, 25%, 18%, 0.35);
   }
   .input-glass:focus {
     border-color: var(--brand-500);
     background: #ffffff;
-    box-shadow: 0 0 0 3px rgba(124, 92, 220, 0.14);
+    box-shadow: 0 0 0 3px rgba(139, 78, 245, 0.18);
   }
 
   /* KPI card gradient borders */
@@ -142,7 +150,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(124,92,220,0.18), rgba(124,92,220,0.04), rgba(94,186,151,0.18));
+    background: linear-gradient(135deg, rgba(139,78,245,0.22), rgba(139,78,245,0.05), rgba(46,196,158,0.22));
     border-radius: inherit;
     pointer-events: none;
   }
@@ -172,7 +180,7 @@
     100% { background-position:  200% 0; }
   }
   .animate-shimmer {
-    background: linear-gradient(90deg, rgba(93,70,160,0.05) 25%, rgba(93,70,160,0.12) 50%, rgba(93,70,160,0.05) 75%);
+    background: linear-gradient(90deg, rgba(139,78,245,0.06) 25%, rgba(139,78,245,0.14) 50%, rgba(139,78,245,0.06) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.8s linear infinite;
   }
@@ -180,7 +188,7 @@
 
 @layer utilities {
   .text-gradient-brand {
-    background: linear-gradient(135deg, var(--brand-500), var(--accent-500));
+    background: linear-gradient(120deg, var(--brand-500) 0%, var(--fuchsia-500) 55%, var(--accent-400) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

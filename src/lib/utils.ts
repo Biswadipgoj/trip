@@ -50,11 +50,11 @@ export function getInitials(name: string): string {
 }
 
 export const AVATAR_COLORS = [
-  'hsl(258, 65%, 58%)',
-  'hsl(280, 60%, 55%)',
+  'hsl(262, 83%, 58%)',
+  'hsl(310, 75%, 55%)',
   'hsl(340, 70%, 58%)',
   'hsl(25, 80%, 55%)',
-  'hsl(160, 52%, 42%)',
+  'hsl(168, 76%, 38%)',
   'hsl(195, 65%, 45%)',
   'hsl(42, 80%, 48%)',
   'hsl(310, 55%, 52%)',
@@ -461,9 +461,9 @@ export function getCategoryColor(category: string): string {
     alcohol:       'hsl(38, 85%, 48%)',
     fuel:          'hsl(15, 80%, 52%)',
     tickets:       'hsl(260, 65%, 58%)',
-    misc:          'hsl(258, 65%, 58%)',
+    misc:          'hsl(262, 83%, 58%)',
   }
-  return colors[category] || 'hsl(258, 65%, 58%)'
+  return colors[category] || 'hsl(262, 83%, 58%)'
 }
 
 export function getSplitTypeLabel(type: string): string {

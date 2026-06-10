@@ -14,7 +14,7 @@ import { FadeIn } from '@/components/animations/FadeIn'
 import { ExpenseCategory, SplitType, ParticipantSplit, ExpensePayer, Room } from '@/types'
 import {
   Plus, Receipt, Trash2, ChevronDown, X, Check,
-  Users, DollarSign, Tag, Info, Hotel, BedDouble
+  Users, IndianRupee, Tag, Info, Hotel, BedDouble
 } from 'lucide-react'
 
 interface ExpensesPageProps {
@@ -26,7 +26,7 @@ const CATEGORIES: ExpenseCategory[] = [
   'shopping', 'alcohol', 'fuel', 'tickets', 'misc'
 ]
 
-const SPLIT_TYPES: SplitType[] = ['equal', 'custom', 'percentage', 'quantity']
+const SPLIT_TYPES: SplitType[] = ['equal', 'custom']
 
 export default function ExpensesPage({ params }: ExpensesPageProps) {
   const { tripId } = React.use(params)
@@ -55,10 +55,9 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   )
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
 
-  const [showModal, setShowModal]           = useState(false)
-  const [showHotelModal, setShowHotelModal] = useState(false)
-  const [expandedId, setExpandedId]         = useState<string | null>(null)
-  const [swipedId, setSwipedId]             = useState<string | null>(null)
+  const [showModal, setShowModal]   = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [swipedId, setSwipedId]     = useState<string | null>(null)
 
   // ── Expense form state ───────────────────────────────────────────────────────
   const [title, setTitle]           = useState('')
@@ -73,13 +72,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const [notes, setNotes]           = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  // ── Hotel form state ─────────────────────────────────────────────────────────
-  const [hotelTitle, setHotelTitle]   = useState('')
-  const [hotelPaidBy, setHotelPaidBy] = useState(session?.memberId || '')
-  const [rooms, setRooms]             = useState<Room[]>([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
+  // ── Room state — used when category is "stay" (hotel booking mode) ──────────
+  const [rooms, setRooms] = useState<Room[]>([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
 
-  const totalAmt = parseFloat(amount) || 0
+  const isStay = category === 'stay'
   const totalRoomCost = rooms.reduce((s, r) => s + (r.cost || 0), 0)
+  const totalAmt = isStay ? totalRoomCost : (parseFloat(amount) || 0)
 
   // ── Live share preview ───────────────────────────────────────────────────────
   const resolvedShares = useMemo(() => {
@@ -123,11 +121,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
     setCategory('misc'); setSplitType('equal')
     setParticipants(members.map(m => m.id))
     setSplitValues({}); setNotes(''); setFormErrors({})
-  }
-
-  const resetHotelForm = () => {
-    setHotelTitle('')
-    setHotelPaidBy(session?.memberId || '')
     setRooms([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
   }
 
@@ -138,6 +131,21 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   }
 
   const handleAdd = () => {
+    // "Stay" category = hotel booking with room-based splitting
+    if (isStay) {
+      const errs: Record<string, string> = {}
+      if (!title.trim())      errs.title = 'Hotel / stay name is required'
+      if (totalRoomCost <= 0) errs.amount = 'Add at least one room with a cost'
+      if (!paidBy)            errs.paidBy = 'Select who paid'
+      setFormErrors(errs)
+      if (Object.keys(errs).length > 0) return
+
+      addHotelExpense({ tripId, title: title.trim(), totalAmount: totalRoomCost, paidBy, rooms })
+      setShowModal(false)
+      resetForm()
+      return
+    }
+
     const errs: Record<string, string> = {}
     if (!title.trim())              errs.title = 'Title is required'
     if (!totalAmt || totalAmt <= 0) errs.amount = 'Enter a valid amount'
@@ -202,13 +210,6 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
     }))
   }
 
-  const handleAddHotel = () => {
-    if (!hotelTitle.trim() || totalRoomCost <= 0 || !hotelPaidBy) return
-    addHotelExpense({ tripId, title: hotelTitle.trim(), totalAmount: totalRoomCost, paidBy: hotelPaidBy, rooms })
-    setShowHotelModal(false)
-    resetHotelForm()
-  }
-
   const totalSpent = expenses.reduce((s, e) => s + e.amount, 0)
     + hotelExpenses.reduce((s, h) => s + h.totalAmount, 0)
 
@@ -240,24 +241,14 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              id="open-add-hotel-btn"
-              onClick={() => { resetHotelForm(); setShowHotelModal(true) }}
-              className="btn-ghost flex items-center gap-1.5 text-sm py-2 px-3"
-            >
-              <Hotel className="w-4 h-4" />
-              Hotel
-            </button>
-            <button
-              id="open-add-expense-btn"
-              onClick={() => { resetForm(); setShowModal(true) }}
-              className="btn-brand flex items-center gap-1.5 text-sm py-2 px-4"
-            >
-              <Plus className="w-4 h-4" />
-              Add
-            </button>
-          </div>
+          <button
+            id="open-add-expense-btn"
+            onClick={() => { resetForm(); setShowModal(true) }}
+            className="btn-brand flex items-center gap-1.5 text-sm py-2 px-4"
+          >
+            <Plus className="w-4 h-4" />
+            Add
+          </button>
         </div>
       </FadeIn>
 
@@ -586,7 +577,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
               className="glass-strong rounded-3xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto"
             >
               <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-white">Add Expense</h2>
+                <h2 className="text-lg font-bold text-white">{isStay ? 'Add Stay / Hotel' : 'Add Expense'}</h2>
                 <button
                   id="close-expense-modal"
                   onClick={() => setShowModal(false)}
@@ -601,35 +592,37 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 <div>
                   <label className="block text-xs font-medium text-white/60 mb-1.5">
                     <Tag className="w-3.5 h-3.5 inline mr-1" />
-                    Expense Title
+                    {isStay ? 'Hotel / Stay Name' : 'Expense Title'}
                   </label>
                   <input
                     id="expense-title"
                     className="input-glass"
-                    placeholder="e.g. Dinner at Olive Bar"
+                    placeholder={isStay ? 'e.g. Goa Beach Resort' : 'e.g. Dinner at Olive Bar'}
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                   />
                   {formErrors.title && <p className="mt-1 text-xs text-red-400">{formErrors.title}</p>}
                 </div>
 
-                {/* Amount */}
-                <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
-                    <DollarSign className="w-3.5 h-3.5 inline mr-1" />
-                    Amount (₹)
-                  </label>
-                  <input
-                    id="expense-amount"
-                    className="input-glass text-xl font-bold"
-                    placeholder="0"
-                    type="number"
-                    inputMode="decimal"
-                    value={amount}
-                    onChange={e => setAmount(e.target.value)}
-                  />
-                  {formErrors.amount && <p className="mt-1 text-xs text-red-400">{formErrors.amount}</p>}
-                </div>
+                {/* Amount (stay mode: auto-computed from rooms) */}
+                {!isStay && (
+                  <div>
+                    <label className="block text-xs font-medium text-white/60 mb-1.5">
+                      <IndianRupee className="w-3.5 h-3.5 inline mr-1" />
+                      Amount (₹)
+                    </label>
+                    <input
+                      id="expense-amount"
+                      className="input-glass text-xl font-bold"
+                      placeholder="0"
+                      type="number"
+                      inputMode="decimal"
+                      value={amount}
+                      onChange={e => setAmount(e.target.value)}
+                    />
+                    {formErrors.amount && <p className="mt-1 text-xs text-red-400">{formErrors.amount}</p>}
+                  </div>
+                )}
 
                 {/* Category */}
                 <div>
@@ -653,6 +646,80 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   </div>
                 </div>
 
+                {/* Stay mode: rooms + occupants (room-based splitting) */}
+                {isStay && (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs font-medium text-white/60">
+                        <BedDouble className="w-3.5 h-3.5 inline mr-1" />
+                        Rooms
+                      </label>
+                      <button onClick={addRoom} className="text-xs text-brand-400 flex items-center gap-1">
+                        <Plus className="w-3 h-3" /> Add room
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {rooms.map(room => (
+                        <div key={room.id} className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              className="input-glass flex-1 text-sm py-1.5"
+                              value={room.name}
+                              onChange={e => updateRoom(room.id, { name: e.target.value })}
+                              placeholder="Room name"
+                            />
+                            <input
+                              className="input-glass w-28 text-sm py-1.5 text-right"
+                              type="number"
+                              inputMode="decimal"
+                              placeholder="Cost ₹"
+                              value={room.cost || ''}
+                              onChange={e => updateRoom(room.id, { cost: parseFloat(e.target.value) || 0 })}
+                            />
+                            {rooms.length > 1 && (
+                              <button onClick={() => removeRoom(room.id)} className="text-red-400 hover:text-red-300">
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-white/40 mb-1.5">Occupants</p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {members.map(m => {
+                                const selected = room.occupantIds.includes(m.id)
+                                return (
+                                  <button
+                                    key={m.id}
+                                    onClick={() => toggleOccupant(room.id, m.id)}
+                                    className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-all ${
+                                      selected
+                                        ? 'bg-brand-600/30 border border-brand-500/40 text-white'
+                                        : 'bg-white/5 border border-white/10 text-white/50'
+                                    }`}
+                                  >
+                                    <Avatar name={m.name} color={m.avatarColor} size="xs" />
+                                    {m.name}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {totalRoomCost > 0 && (
+                      <div className="mt-3 rounded-xl bg-brand-600/10 border border-brand-500/20 px-3 py-2 flex items-center justify-between">
+                        <span className="text-xs text-white/60 flex items-center gap-1">
+                          <IndianRupee className="w-3 h-3" />
+                          Total stay cost
+                        </span>
+                        <span className="text-sm font-bold text-white">{formatCurrency(totalRoomCost)}</span>
+                      </div>
+                    )}
+                    {formErrors.amount && <p className="mt-1 text-xs text-red-400">{formErrors.amount}</p>}
+                  </div>
+                )}
+
                 {/* Paid By */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -660,20 +727,22 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       <Users className="w-3.5 h-3.5 inline mr-1" />
                       Paid By
                     </label>
-                    <button
-                      id="toggle-multi-payer"
-                      onClick={() => { setMultiPayer(v => !v); setPayerAmounts({}) }}
-                      className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
-                        multiPayer
-                          ? 'bg-brand-600/30 border-brand-500/50 text-brand-400'
-                          : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
-                      }`}
-                    >
-                      Multiple payers
-                    </button>
+                    {!isStay && (
+                      <button
+                        id="toggle-multi-payer"
+                        onClick={() => { setMultiPayer(v => !v); setPayerAmounts({}) }}
+                        className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
+                          multiPayer
+                            ? 'bg-brand-600/30 border-brand-500/50 text-brand-400'
+                            : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                        }`}
+                      >
+                        Multiple payers
+                      </button>
+                    )}
                   </div>
 
-                  {!multiPayer ? (
+                  {!multiPayer || isStay ? (
                     <div className="grid grid-cols-2 gap-2">
                       {members.map(m => (
                         <button
@@ -725,6 +794,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 </div>
 
                 {/* Participants */}
+                {!isStay && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-xs font-medium text-white/60">Who's sharing this?</label>
@@ -758,8 +828,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   </div>
                   {formErrors.participants && <p className="mt-1 text-xs text-red-400">{formErrors.participants}</p>}
                 </div>
+                )}
 
                 {/* Split Type */}
+                {!isStay && (
                 <div>
                   <label className="block text-xs font-medium text-white/60 mb-2">How to split?</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -780,10 +852,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     ))}
                   </div>
                 </div>
+                )}
 
                 {/* Custom split inputs */}
                 <AnimatePresence>
-                  {splitType !== 'equal' && participants.length > 0 && (
+                  {!isStay && splitType !== 'equal' && participants.length > 0 && (
                     <motion.div
                       key="split-inputs"
                       initial={{ opacity: 0, height: 0 }}
@@ -840,7 +913,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 </AnimatePresence>
 
                 {/* Equal split preview */}
-                {splitType === 'equal' && totalAmt > 0 && participants.length > 0 && (
+                {!isStay && splitType === 'equal' && totalAmt > 0 && participants.length > 0 && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -852,6 +925,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 )}
 
                 {/* Notes */}
+                {!isStay && (
                 <div>
                   <label className="block text-xs font-medium text-white/60 mb-1.5">Notes (optional)</label>
                   <input
@@ -862,6 +936,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     onChange={e => setNotes(e.target.value)}
                   />
                 </div>
+                )}
 
                 {/* Submit */}
                 <button
@@ -870,149 +945,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   className="btn-brand w-full flex items-center justify-center gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Expense
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Add Hotel Booking Modal (stay-based splitting) ─────────────────────── */}
-      <AnimatePresence>
-        {showHotelModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-4 sm:pb-0"
-            onClick={() => setShowHotelModal(false)}
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 60, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 60, scale: 0.95 }}
-              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-              onClick={e => e.stopPropagation()}
-              className="glass-strong rounded-3xl p-6 w-full max-w-lg max-h-[92vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-lg font-bold text-white">Add Hotel Booking</h2>
-                <button onClick={() => setShowHotelModal(false)} className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                  <X className="w-4 h-4 text-white/60" />
-                </button>
-              </div>
-
-              <div className="space-y-5">
-                {/* Hotel name */}
-                <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Hotel Name</label>
-                  <input
-                    className="input-glass"
-                    placeholder="e.g. Goa Beach Resort"
-                    value={hotelTitle}
-                    onChange={e => setHotelTitle(e.target.value)}
-                  />
-                </div>
-
-                {/* Paid By */}
-                <div>
-                  <label className="block text-xs font-medium text-white/60 mb-2">
-                    <Users className="w-3.5 h-3.5 inline mr-1" />
-                    Paid By
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {members.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => setHotelPaidBy(m.id)}
-                        className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all ${
-                          hotelPaidBy === m.id
-                            ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                            : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
-                        }`}
-                      >
-                        <Avatar name={m.name} color={m.avatarColor} size="xs" />
-                        <span className="truncate">{m.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Rooms */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-white/60">Rooms</label>
-                    <button onClick={addRoom} className="text-xs text-brand-400 flex items-center gap-1">
-                      <Plus className="w-3 h-3" /> Add room
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {rooms.map(room => (
-                      <div key={room.id} className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            className="input-glass flex-1 text-sm py-1.5"
-                            value={room.name}
-                            onChange={e => updateRoom(room.id, { name: e.target.value })}
-                            placeholder="Room name"
-                          />
-                          <input
-                            className="input-glass w-28 text-sm py-1.5 text-right"
-                            type="number"
-                            inputMode="decimal"
-                            placeholder="Cost ₹"
-                            value={room.cost || ''}
-                            onChange={e => updateRoom(room.id, { cost: parseFloat(e.target.value) || 0 })}
-                          />
-                          {rooms.length > 1 && (
-                            <button onClick={() => removeRoom(room.id)} className="text-red-400 hover:text-red-300">
-                              <X className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[10px] text-white/40 mb-1.5">Occupants</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {members.map(m => {
-                              const selected = room.occupantIds.includes(m.id)
-                              return (
-                                <button
-                                  key={m.id}
-                                  onClick={() => toggleOccupant(room.id, m.id)}
-                                  className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-all ${
-                                    selected
-                                      ? 'bg-brand-600/30 border border-brand-500/40 text-white'
-                                      : 'bg-white/5 border border-white/10 text-white/50'
-                                  }`}
-                                >
-                                  <Avatar name={m.name} color={m.avatarColor} size="xs" />
-                                  {m.name}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Total */}
-                {totalRoomCost > 0 && (
-                  <div className="rounded-xl bg-brand-600/10 border border-brand-500/20 px-3 py-2 flex items-center justify-between">
-                    <span className="text-xs text-white/60">Total</span>
-                    <span className="text-sm font-bold text-white">{formatCurrency(totalRoomCost)}</span>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleAddHotel}
-                  disabled={!hotelTitle.trim() || totalRoomCost <= 0 || !hotelPaidBy}
-                  className="btn-brand w-full flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Hotel Booking
+                  {isStay ? 'Add Stay' : 'Add Expense'}
                 </button>
               </div>
             </motion.div>

@@ -37,6 +37,7 @@ interface AppState {
   // ─── Member Actions ─────────────────────────────────────────────────────────
   getMembersByTrip: (tripId: string) => Member[]
   getMemberById:    (id: string) => Member | undefined
+  addMember:        (tripId: string, name: string) => Member
   updateMemberUpi:  (memberId: string, upiId: string, upiName?: string) => void
 
   // ─── Expense Actions ─────────────────────────────────────────────────────────
@@ -144,6 +145,19 @@ export const useStore = create<AppState>()(
       // ─── Members ────────────────────────────────────────────────────────────
       getMembersByTrip: (tripId) => get().members.filter(m => m.tripId === tripId),
       getMemberById:    (id)     => get().members.find(m => m.id === id),
+
+      // Admin adds a member by name only — they can't log in (no mobile/PIN)
+      // but participate fully in expenses and settlements.
+      addMember: (tripId, name) => {
+        const count = get().members.filter(m => m.tripId === tripId).length
+        const member: Member = {
+          id: generateId(), tripId, name: name.trim(), mobile: '', pin: '',
+          avatarColor: getAvatarColor(count),
+          joinedAt: new Date().toISOString(),
+        }
+        set(s => ({ members: [...s.members, member] }))
+        return member
+      },
 
       updateMemberUpi: (memberId, upiId, upiName) => {
         set(s => ({

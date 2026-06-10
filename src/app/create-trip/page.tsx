@@ -110,8 +110,8 @@ export default function CreateTripPage() {
                   className="h-1 rounded-full transition-all duration-500"
                   style={{
                     background: i <= stepIndex
-                      ? 'linear-gradient(90deg, hsl(258,65%,58%), hsl(160,52%,42%))'
-                      : 'rgba(93,70,160,0.12)',
+                      ? 'linear-gradient(90deg, hsl(262,83%,58%), hsl(168,76%,38%))'
+                      : 'rgba(139,78,245,0.16)',
                   }}
                 />
                 <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/30'}`}>

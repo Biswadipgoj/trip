@@ -11,7 +11,7 @@ import { CountUp } from '@/components/animations/CountUp'
 import { FadeIn } from '@/components/animations/FadeIn'
 import {
   Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight,
-  Link2, Crown, Heart, Trash2, Plus
+  Link2, Crown, Heart, Trash2, Plus, UserPlus
 } from 'lucide-react'
 
 interface MembersPageProps {
@@ -27,6 +27,7 @@ export default function MembersPage({ params }: MembersPageProps) {
   const allGroups = useStore(s => s.settlementGroups)
   const addSettlementGroup = useStore(s => s.addSettlementGroup)
   const removeSettlementGroup = useStore(s => s.removeSettlementGroup)
+  const addMember = useStore(s => s.addMember)
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const session = useStore(s => s.session)
 
@@ -38,6 +39,8 @@ export default function MembersPage({ params }: MembersPageProps) {
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
   const [upiInput, setUpiInput] = useState('')
   const [copiedInvite, setCopiedInvite] = useState(false)
+  const [showAddMember, setShowAddMember] = useState(false)
+  const [newMemberName, setNewMemberName] = useState('')
   const [showUnitForm, setShowUnitForm] = useState(false)
   const [unitName, setUnitName] = useState('')
   const [unitMembers, setUnitMembers] = useState<string[]>([])
@@ -61,6 +64,15 @@ export default function MembersPage({ params }: MembersPageProps) {
     navigator.clipboard.writeText(createInviteLink(trip, window.location.origin))
     setCopiedInvite(true)
     setTimeout(() => setCopiedInvite(false), 2000)
+  }
+
+  const isAdmin = !!trip && session?.memberId === trip.creatorId
+
+  const handleAddMember = () => {
+    if (!newMemberName.trim()) return
+    addMember(tripId, newMemberName)
+    setNewMemberName('')
+    setShowAddMember(false)
   }
 
   const toggleUnitMember = (id: string) => {
@@ -124,6 +136,73 @@ export default function MembersPage({ params }: MembersPageProps) {
         </FadeIn>
       )}
 
+      {/* Admin: add member manually by name */}
+      {isAdmin && (
+        <FadeIn delay={0.08}>
+          <GlassCard className="p-4" hover={false}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white flex items-center gap-1.5">
+                  <UserPlus className="w-4 h-4 text-accent-400" />
+                  Add member
+                </p>
+                <p className="text-xs text-white/40 mt-0.5 truncate">
+                  Add friends by name — they can join with the link later
+                </p>
+              </div>
+              {!showAddMember && (
+                <button
+                  id="show-add-member-btn"
+                  onClick={() => setShowAddMember(true)}
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-accent-500/15 text-accent-500 border border-accent-500/25 hover:bg-accent-500/25 transition-all"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Add
+                </button>
+              )}
+            </div>
+            <AnimatePresence>
+              {showAddMember && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="flex gap-2 mt-3">
+                    <input
+                      id="new-member-name-input"
+                      className="input-glass flex-1 text-sm py-2"
+                      placeholder="Member name, e.g. Aman"
+                      value={newMemberName}
+                      onChange={e => setNewMemberName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddMember() }}
+                      maxLength={40}
+                      autoFocus
+                    />
+                    <button
+                      id="add-member-btn"
+                      onClick={handleAddMember}
+                      disabled={!newMemberName.trim()}
+                      className="btn-brand text-xs py-2 px-4 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Add
+                    </button>
+                    <button
+                      id="cancel-add-member-btn"
+                      onClick={() => { setShowAddMember(false); setNewMemberName('') }}
+                      className="btn-ghost text-xs py-2 px-3"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </GlassCard>
+        </FadeIn>
+      )}
+
       {/* Member Cards */}
       <div className="grid grid-cols-1 gap-4">
         {balances.map((balance, i) => {
@@ -158,7 +237,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                       )}
                     </div>
                     <p className="text-xs text-white/40 mb-3">
-                      {member.mobile} · Joined {formatDate(member.joinedAt)}
+                      {member.mobile || 'Added by admin'} · Joined {formatDate(member.joinedAt)}
                     </p>
 
                     {/* Balance stats */}
