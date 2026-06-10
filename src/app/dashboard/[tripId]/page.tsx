@@ -77,9 +77,12 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const allExpenses = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
   const allSettlements = useStore(s => s.settlements)
+  const allGroups = useStore(s => s.settlementGroups)
+  const allSponsorships = useStore(s => s.sponsorships)
   const session = useStore(s => s.session)
   const closeTrip = useStore(s => s.closeTrip)
   const setTripBudget = useStore(s => s.setTripBudget)
+  const generateSettlements = useStore(s => s.generateSettlements)
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() =>
@@ -90,17 +93,25 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   )
   const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
   const settlements = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
+  const groups = useMemo(() => allGroups.filter(g => g.tripId === tripId), [allGroups, tripId])
+  const sponsorships = useMemo(() => allSponsorships.filter(s => s.tripId === tripId), [allSponsorships, tripId])
+
+  // Recompute dues from the live data on entry — heals stale persisted
+  // settlements from before the engine fix without waiting for a sync tick.
+  useEffect(() => {
+    generateSettlements(tripId)
+  }, [tripId, generateSettlements])
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [confettiFired, setConfettiFired] = useState(false)
   const [editingBudget, setEditingBudget] = useState(false)
   const [budgetInput, setBudgetInput] = useState('')
 
-  // Live balances: expense math minus confirmed transfers, so confirming a
-  // payment immediately updates every figure on this screen.
+  // Live balances: expense math minus confirmed transfers (group-aware), so
+  // confirming a payment immediately updates every figure on this screen.
   const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements, groups, sponsorships),
+    [expenses, hotelExpenses, members, settlements, groups, sponsorships]
   )
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)

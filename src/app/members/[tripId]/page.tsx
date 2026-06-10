@@ -26,6 +26,7 @@ export default function MembersPage({ params }: MembersPageProps) {
   const allHotelExpenses = useStore(s => s.hotelExpenses)
   const allSettlements = useStore(s => s.settlements)
   const allGroups = useStore(s => s.settlementGroups)
+  const allSponsorships = useStore(s => s.sponsorships)
   const addSettlementGroup = useStore(s => s.addSettlementGroup)
   const removeSettlementGroup = useStore(s => s.removeSettlementGroup)
   const addMember = useStore(s => s.addMember)
@@ -37,6 +38,7 @@ export default function MembersPage({ params }: MembersPageProps) {
   const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
   const settlements = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
   const units = useMemo(() => allGroups.filter(g => g.tripId === tripId), [allGroups, tripId])
+  const sponsorships = useMemo(() => allSponsorships.filter(s => s.tripId === tripId), [allSponsorships, tripId])
 
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
   const [upiInput, setUpiInput] = useState('')
@@ -48,10 +50,11 @@ export default function MembersPage({ params }: MembersPageProps) {
   const [unitMembers, setUnitMembers] = useState<string[]>([])
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null)
 
-  // Net balances reflect confirmed payments, not just raw expense math
+  // Net balances reflect confirmed payments (group-aware), not just raw
+  // expense math — a couple's combined payment settles both members.
   const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements, units, sponsorships),
+    [expenses, hotelExpenses, members, settlements, units, sponsorships]
   )
   const balanceMap = useMemo(() => {
     const map: Record<string, typeof balances[0]> = {}

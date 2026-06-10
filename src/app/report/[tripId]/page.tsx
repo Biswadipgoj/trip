@@ -72,10 +72,10 @@ export default function ReportPage({ params }: ReportPageProps) {
   const settlements   = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
 
   // totalPaid/totalOwed stay expense-based; netBalance is adjusted by
-  // confirmed payments so the report matches the live settlement state.
+  // confirmed payments (group-aware) so the report matches the live state.
   const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
+    () => calculateNetBalances(expenses, hotelExpenses, members, settlements, groups, sponsorships),
+    [expenses, hotelExpenses, members, settlements, groups, sponsorships]
   )
 
   const routes = useMemo(

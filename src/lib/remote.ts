@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase'
 import { isUuid } from '@/lib/utils'
 import type {
   Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus,
-  ExpenseCategory, SplitType, Room,
+  ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
 } from '@/types'
 
 export function isRemoteEnabled(): boolean {
@@ -322,6 +322,46 @@ export async function remoteDeleteHotelExpense(hotelId: string): Promise<void> {
   await supabase.from('hotel_expenses').delete().eq('id', hotelId)
 }
 
+// ─── Settlement groups & sponsorships ─────────────────────────────────────────
+// Couples/units and sponsorships affect how settlements are computed, so they
+// must live on the server too — otherwise each device sees a different
+// "who pays whom" for the same trip.
+
+export async function remotePushSettlementGroup(group: SettlementGroup): Promise<void> {
+  if (!supabase || !isUuid(group.id) || !isUuid(group.tripId)) return
+  const { error } = await supabase.from('settlement_groups').insert({
+    id: group.id,
+    trip_id: group.tripId,
+    name: group.name,
+  })
+  if (error) return
+  const rows = group.memberIds.filter(isUuid).map(member_id => ({
+    group_id: group.id,
+    member_id,
+  }))
+  if (rows.length > 0) await supabase.from('settlement_group_members').insert(rows)
+}
+
+export async function remoteDeleteSettlementGroup(groupId: string): Promise<void> {
+  if (!supabase || !isUuid(groupId)) return
+  await supabase.from('settlement_groups').delete().eq('id', groupId)
+}
+
+export async function remotePushSponsorship(sp: Sponsorship): Promise<void> {
+  if (!supabase || !isUuid(sp.id) || !isUuid(sp.tripId)) return
+  await supabase.from('sponsorships').insert({
+    id: sp.id,
+    trip_id: sp.tripId,
+    sponsor_member_id: sp.sponsorMemberId,
+    sponsored_member_id: sp.sponsoredMemberId,
+  })
+}
+
+export async function remoteDeleteSponsorship(sponsorshipId: string): Promise<void> {
+  if (!supabase || !isUuid(sponsorshipId)) return
+  await supabase.from('sponsorships').delete().eq('id', sponsorshipId)
+}
+
 // ─── Settlement status ────────────────────────────────────────────────────────
 
 export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
@@ -379,6 +419,8 @@ export interface TripBundle {
   members: Member[]
   expenses: Expense[]
   hotelExpenses: HotelExpense[]
+  settlementGroups: SettlementGroup[]
+  sponsorships: Sponsorship[]
   settlementStatuses: Array<{
     id: string
     fromMemberId: string
@@ -394,7 +436,7 @@ export interface TripBundle {
 export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle | null> {
   if (!supabase || !isUuid(tripId)) return null
 
-  const [tripRes, membersRes, expensesRes, participantsRes, hotelsRes, roomsRes, occupantsRes, settlementsRes] =
+  const [tripRes, membersRes, expensesRes, participantsRes, hotelsRes, roomsRes, occupantsRes, settlementsRes, groupsRes, groupMembersRes, sponsorshipsRes] =
     await Promise.all([
       supabase.from('trips').select('*').eq('id', tripId).maybeSingle(),
       supabase.from('members').select('*').eq('trip_id', tripId).order('joined_at', { ascending: true }),
@@ -404,6 +446,9 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
       supabase.from('rooms').select('*').eq('trip_id', tripId),
       supabase.from('room_occupants').select('*, rooms!inner(trip_id)').eq('rooms.trip_id', tripId),
       supabase.from('settlements').select('*').eq('trip_id', tripId),
+      supabase.from('settlement_groups').select('*').eq('trip_id', tripId),
+      supabase.from('settlement_group_members').select('*, settlement_groups!inner(trip_id)').eq('settlement_groups.trip_id', tripId),
+      supabase.from('sponsorships').select('*').eq('trip_id', tripId),
     ])
 
   if (tripRes.error || !tripRes.data) return null
@@ -464,6 +509,24 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
     createdAt: row.created_at,
   }))
 
+  const membersByGroup: Record<string, string[]> = {}
+  ;(groupMembersRes.data || []).forEach((gm: any) => {
+    ;(membersByGroup[gm.group_id] ||= []).push(gm.member_id)
+  })
+  const settlementGroups: SettlementGroup[] = (groupsRes.data || []).map((row: any) => ({
+    id: row.id,
+    tripId: row.trip_id,
+    name: row.name,
+    memberIds: membersByGroup[row.id] || [],
+  }))
+
+  const sponsorships: Sponsorship[] = (sponsorshipsRes.data || []).map((row: any) => ({
+    id: row.id,
+    tripId: row.trip_id,
+    sponsorMemberId: row.sponsor_member_id,
+    sponsoredMemberId: row.sponsored_member_id,
+  }))
+
   const settlementStatuses = (settlementsRes.data || []).map((row: any) => ({
     id: row.id,
     fromMemberId: row.from_member_id,
@@ -474,5 +537,5 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
     confirmedAt: row.confirmed_at || undefined,
   }))
 
-  return { trip, members, expenses, hotelExpenses, settlementStatuses }
+  return { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses }
 }
