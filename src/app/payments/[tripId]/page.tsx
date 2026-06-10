@@ -91,7 +91,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Payments</h1>
-            <p className="text-white/40 text-sm">
+            <p className="text-white/60 text-sm">
               {routes.length === 0
                 ? confirmedCount > 0
                   ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
@@ -121,7 +121,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-white/30 mt-3 flex items-center gap-1">
+            <p className="text-[10px] text-white/50 mt-3 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               Optimized to the minimum number of transactions
             </p>
@@ -137,7 +137,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
             <p className="text-white/60 mb-1">
               {confirmedCount > 0 ? 'Everything is settled 🎉' : 'No payments needed'}
             </p>
-            <p className="text-white/30 text-sm">
+            <p className="text-white/50 text-sm">
               {confirmedCount > 0
                 ? 'All confirmed payments are recorded below'
                 : 'Add expenses to see who pays whom'}
@@ -173,7 +173,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                   <Avatar name={route.fromName} color={route.fromColor} size="md" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-white truncate">{route.fromName}</p>
-                    <p className="text-xs text-white/40">pays</p>
+                    <p className="text-xs text-white/60">pays</p>
                   </div>
                   <div className="flex flex-col items-center px-2">
                     <p className="text-lg font-bold text-white">{formatCurrency(route.amount)}</p>
@@ -195,7 +195,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
                       : status === 'paid'
                       ? 'bg-brand-600/20 text-brand-400 border border-brand-500/20'
-                      : 'bg-white/5 text-white/40 border border-white/10'
+                      : 'bg-white/5 text-white/60 border border-white/10'
                   }`}>
                     {status === 'confirmed'
                       ? <><CheckCircle2 className="w-3 h-3" /> Confirmed</>
@@ -210,7 +210,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     {upiLink && (
                       <button
                         onClick={() => setShowQr(isShowingQr ? null : route.id)}
-                        className="flex items-center gap-1 text-xs text-white/40 hover:text-white transition-colors"
+                        className="flex items-center gap-1 text-xs text-white/60 hover:text-white transition-colors"
                       >
                         <QrCode className="w-3.5 h-3.5" />
                         UPI
@@ -250,7 +250,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                         <div className="rounded-2xl p-3" style={{ background: '#ffffff' }}>
                           <QRCodeSVG value={upiLink} size={140} />
                         </div>
-                        <p className="text-xs text-white/40">Scan to pay via UPI</p>
+                        <p className="text-xs text-white/60">Scan to pay via UPI</p>
                         <a
                           href={upiLink}
                           className="text-xs text-brand-400 underline underline-offset-2"
@@ -286,11 +286,11 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">
                         <span className="font-semibold">{fromM.name}</span>
-                        <span className="text-white/40"> paid </span>
+                        <span className="text-white/60"> paid </span>
                         <span className="font-semibold">{toM.name}</span>
                       </p>
                       {payment.confirmedAt && (
-                        <p className="text-xs text-white/40">{formatDate(payment.confirmedAt)}</p>
+                        <p className="text-xs text-white/60">{formatDate(payment.confirmedAt)}</p>
                       )}
                     </div>
                     <span className="text-sm font-bold text-emerald-400 flex-shrink-0">

@@ -126,7 +126,7 @@ export default function Home() {
               <feat.icon className="w-5 h-5 text-brand-400" />
             </div>
             <h3 className="text-sm font-semibold text-white mb-1">{feat.title}</h3>
-            <p className="text-xs text-white/50">{feat.desc}</p>
+            <p className="text-xs text-white/65">{feat.desc}</p>
           </motion.div>
         ))}
       </motion.div>

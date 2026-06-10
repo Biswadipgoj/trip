@@ -56,7 +56,7 @@ const config: Config = {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-brand': 'linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(310, 80%, 56%) 100%)',
         'gradient-dark':  'linear-gradient(135deg, hsl(42, 70%, 97%) 0%, hsl(262, 60%, 95%) 100%)',
-        'gradient-glass': 'linear-gradient(135deg, rgba(255,255,255,0.82) 0%, rgba(247,242,255,0.70) 48%, rgba(240,248,255,0.72) 100%)',
+        'gradient-glass': 'linear-gradient(135deg, rgba(255,255,255,0.88) 0%, rgba(247,242,255,0.78) 48%, rgba(240,248,255,0.80) 100%)',
       },
       borderRadius: {
         '4xl': '2rem',

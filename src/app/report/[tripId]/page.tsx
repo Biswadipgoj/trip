@@ -339,7 +339,7 @@ export default function ReportPage({ params }: ReportPageProps) {
               <h1 className="text-xl font-bold text-gradient-brand" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Trip Analytics
               </h1>
-              <p className="text-white/40 text-sm">{trip?.name}</p>
+              <p className="text-white/60 text-sm">{trip?.name}</p>
             </div>
           </div>
           <button
@@ -408,7 +408,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                 }}
               />
             </div>
-            <div className="flex justify-between text-xs text-white/40">
+            <div className="flex justify-between text-xs text-white/60">
               <span>Spent: <strong className="text-white">{formatCurrency(totalSpend)}</strong></span>
               <span>Budget: <strong className="text-white">{formatCurrency(budget)}</strong></span>
             </div>
@@ -460,7 +460,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                  <p className="text-[10px] text-white/40 uppercase tracking-wider">Total</p>
+                  <p className="text-[10px] text-white/60 uppercase tracking-wider">Total</p>
                   <p className="text-lg font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                     {formatCompactINR(totalSpend)}
                   </p>
@@ -472,7 +472,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                     <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: cat.color }} />
                     <span className="text-xs text-white/60 flex-1">{cat.icon} {getCategoryLabel(cat.name)}</span>
                     <span className="text-xs font-medium text-white">{formatCurrency(cat.value)}</span>
-                    <span className="text-[10px] text-white/30 w-10 text-right">
+                    <span className="text-[10px] text-white/50 w-10 text-right">
                       {totalSpend > 0 ? `${((cat.value / totalSpend) * 100).toFixed(0)}%` : '0%'}
                     </span>
                   </div>
@@ -532,7 +532,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-white">{formatCompactINR(cat.total)}</p>
-                      <p className="text-[10px] text-white/30">{totalSpend > 0 ? ((cat.total / totalSpend) * 100).toFixed(0) : 0}% of trip</p>
+                      <p className="text-[10px] text-white/50">{totalSpend > 0 ? ((cat.total / totalSpend) * 100).toFixed(0) : 0}% of trip</p>
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -556,7 +556,7 @@ export default function ReportPage({ params }: ReportPageProps) {
               ))}
             </div>
             {expenses.every(e => !e.subcategory) && expenses.length > 0 && (
-              <p className="mt-3 text-[10px] text-white/30">
+              <p className="mt-3 text-[10px] text-white/50">
                 Tip: pick a subcategory (Breakfast, Train, Hotel…) when adding expenses for a finer breakdown.
               </p>
             )}
@@ -657,23 +657,23 @@ export default function ReportPage({ params }: ReportPageProps) {
                       <p className="text-sm font-semibold text-white truncate flex items-center gap-1.5">
                         {m.name} {i === 0 && m.totalPaid > 0 && <Crown className="w-3.5 h-3.5 text-amber-500" />}
                       </p>
-                      <p className="text-[11px] text-white/40">
+                      <p className="text-[11px] text-white/60">
                         <CountUp end={m.contributionPct} decimals={0} duration={1.2} />% contribution · {m.expenseCount} expense{m.expenseCount !== 1 ? 's' : ''}
                       </p>
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
                     <div className="rounded-xl bg-white/5 py-2">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wide mb-0.5">Paid</p>
+                      <p className="text-[9px] text-white/60 uppercase tracking-wide mb-0.5">Paid</p>
                       <p className="text-xs font-bold text-white">{formatCompactINR(m.totalPaid)}</p>
                     </div>
                     <div className="rounded-xl bg-white/5 py-2">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wide mb-0.5">Owes</p>
+                      <p className="text-[9px] text-white/60 uppercase tracking-wide mb-0.5">Owes</p>
                       <p className="text-xs font-bold text-white">{formatCompactINR(m.totalOwed)}</p>
                     </div>
                     <div className="rounded-xl bg-white/5 py-2">
-                      <p className="text-[9px] text-white/40 uppercase tracking-wide mb-0.5">Net</p>
-                      <p className={`text-xs font-bold ${m.netBalance > 0 ? 'text-emerald-400' : m.netBalance < 0 ? 'text-red-400' : 'text-white/50'}`}>
+                      <p className="text-[9px] text-white/60 uppercase tracking-wide mb-0.5">Net</p>
+                      <p className={`text-xs font-bold ${m.netBalance > 0 ? 'text-emerald-400' : m.netBalance < 0 ? 'text-red-400' : 'text-white/65'}`}>
                         {m.netBalance > 0 ? '+' : ''}{formatCompactINR(m.netBalance)}
                       </p>
                     </div>
@@ -711,7 +711,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                             <span className="text-sm flex-shrink-0">{getCategoryIcon(item.category)}</span>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-medium text-white truncate">{item.title}</p>
-                              <p className="text-[10px] text-white/35">
+                              <p className="text-[10px] text-white/55">
                                 {payer?.name}{item.subcategory ? ` · ${getSubcategoryLabel(item.category, item.subcategory)}` : ''}
                               </p>
                             </div>
@@ -740,12 +740,12 @@ export default function ReportPage({ params }: ReportPageProps) {
                   <div key={r.id} className="flex items-center gap-3">
                     <Avatar name={r.fromName} color={r.fromColor} size="xs" />
                     <span className="text-xs text-white flex-1 truncate">{r.fromName}</span>
-                    <span className="text-xs text-white/40">→</span>
+                    <span className="text-xs text-white/60">→</span>
                     <span className="text-xs font-medium text-white">{formatCurrency(r.amount)}</span>
-                    <span className="text-xs text-white/40">→</span>
+                    <span className="text-xs text-white/60">→</span>
                     <span className="text-xs text-white flex-1 truncate text-right">{r.toName}</span>
                     <Avatar name={r.toName} color={r.toColor} size="xs" />
-                    <span className={`text-[10px] ml-1 capitalize ${s?.status === 'confirmed' ? 'text-emerald-400' : s?.status === 'paid' ? 'text-brand-400' : 'text-white/30'}`}>
+                    <span className={`text-[10px] ml-1 capitalize ${s?.status === 'confirmed' ? 'text-emerald-400' : s?.status === 'paid' ? 'text-brand-400' : 'text-white/50'}`}>
                       {s?.status === 'paid' ? 'paid' : s?.status === 'confirmed' ? 'confirmed' : 'due'}
                     </span>
                   </div>
@@ -758,9 +758,9 @@ export default function ReportPage({ params }: ReportPageProps) {
 
       {totalSpend === 0 && (
         <div className="text-center py-16">
-          <BarChart3 className="w-12 h-12 text-white/20 mx-auto mb-3" />
-          <p className="text-white/40 mb-1">No data to analyse yet</p>
-          <p className="text-white/30 text-sm">Add a few expenses and the magic happens here ✨</p>
+          <BarChart3 className="w-12 h-12 text-white/40 mx-auto mb-3" />
+          <p className="text-white/60 mb-1">No data to analyse yet</p>
+          <p className="text-white/50 text-sm">Add a few expenses and the magic happens here ✨</p>
         </div>
       )}
     </div>

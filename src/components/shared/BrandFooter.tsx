@@ -37,7 +37,7 @@ export function BrandFooter() {
           <span className="tm-word tm-w5">Biswodip</span>
           <span className="tm-word tm-w6">Goj</span>
         </motion.button>
-        <p className="mt-1.5 text-[11px] text-white/30">Tap the signature ✨</p>
+        <p className="mt-1.5 text-[11px] text-white/50">Tap the signature ✨</p>
       </footer>
 
       <AnimatePresence>
@@ -112,7 +112,7 @@ function Nameplate() {
           <span className="text-base">✦</span>
           <span className="h-px w-10 bg-gradient-to-l from-transparent to-fuchsia-400/60" />
         </div>
-        <p className="mt-3 text-xs text-white/40">Tap anywhere to close</p>
+        <p className="mt-3 text-xs text-white/60">Tap anywhere to close</p>
       </motion.div>
     </div>
   )

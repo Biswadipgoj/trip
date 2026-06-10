@@ -193,7 +193,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
               </h1>
               <StatusBadge status={trip.status} />
             </div>
-            <p className="text-white/40 text-sm">
+            <p className="text-white/60 text-sm">
               Code: <span className="font-mono text-brand-400">{trip.tripCode}</span>
               <span className="mx-1.5">·</span>{members.length} member{members.length !== 1 ? 's' : ''}
             </p>
@@ -344,7 +344,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 <TrendingUp className="w-4 h-4 text-brand-400" />
                 <span className="text-sm font-semibold text-white">Settlement Progress</span>
               </div>
-              <span className="text-xs text-white/40">{settledCount} of {totalSettlements} confirmed</span>
+              <span className="text-xs text-white/60">{settledCount} of {totalSettlements} confirmed</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
               <motion.div
@@ -431,8 +431,8 @@ export default function DashboardPage({ params }: DashboardPageProps) {
             </div>
             {expenses.length === 0 ? (
               <div className="text-center py-6">
-                <Receipt className="w-8 h-8 text-white/20 mx-auto mb-2" />
-                <p className="text-white/40 text-sm">No expenses yet</p>
+                <Receipt className="w-8 h-8 text-white/40 mx-auto mb-2" />
+                <p className="text-white/60 text-sm">No expenses yet</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -454,7 +454,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{expense.title}</p>
-                        <p className="text-xs text-white/40">{payer?.name}</p>
+                        <p className="text-xs text-white/60">{payer?.name}</p>
                       </div>
                       <span className="text-sm font-semibold text-white">{formatCurrency(expense.amount)}</span>
                     </motion.div>
@@ -496,13 +496,13 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                           ? 'text-emerald-400'
                           : b.netBalance < 0
                           ? 'text-red-400'
-                          : 'text-white/40'
+                          : 'text-white/60'
                       }`}
                     >
                       {b.netBalance > 0 ? '+' : ''}
                       {formatCurrency(b.netBalance)}
                     </p>
-                    <p className="text-[10px] text-white/30">
+                    <p className="text-[10px] text-white/50">
                       {b.netBalance > 0 ? 'gets back' : b.netBalance < 0 ? 'owes' : 'settled'}
                     </p>
                   </div>
@@ -560,7 +560,7 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
           <p className="text-white/60 text-sm mb-2">
             <strong className="text-white">{tripName}</strong> is fully settled!
           </p>
-          <p className="text-white/40 text-xs mb-8">Everyone&apos;s accounts are balanced. Great trip! 🎉</p>
+          <p className="text-white/60 text-xs mb-8">Everyone&apos;s accounts are balanced. Great trip! 🎉</p>
         </motion.div>
 
         <motion.div

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -11,6 +11,7 @@ import {
   Receipt,
   CreditCard,
   BarChart3,
+  LogOut,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useTripSync } from '@/hooks/useTripSync'
@@ -37,15 +38,50 @@ interface AppNavProps {
 
 export function AppNav({ tripId }: AppNavProps) {
   const pathname = usePathname()
+  const router = useRouter()
   const session = useStore(s => s.session)
   const trip = useStore(s => s.getTripById(tripId))
+  const me = useStore(s => s.members.find(m => m.id === s.session?.memberId))
+  const setSession = useStore(s => s.setSession)
   const navItems = getNavItems(tripId)
 
   // Cross-device sync: pull this trip's data from the cloud while in the app
   useTripSync(tripId)
 
+  const handleLogout = () => {
+    setSession(null)
+    router.replace('/login')
+  }
+
   return (
     <>
+      {/* Mobile top bar — trip identity + logout */}
+      <header className="lg:hidden fixed top-0 inset-x-0 z-50 border-b border-white/10 bg-pure-white/85 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5 px-4 h-14">
+          <div className="w-8 h-8 rounded-xl overflow-hidden ring-1 ring-white/30 flex-shrink-0">
+            <Image src="/logo.png" alt="TripMate" width={32} height={32} className="w-full h-full object-cover" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-white truncate leading-tight">
+              {trip?.name || 'TripMate'}
+            </p>
+            <p className="text-[11px] text-white/65 truncate leading-tight">
+              {me?.name ? `${me.name} · ` : ''}{session?.tripCode || ''}
+            </p>
+          </div>
+          <button
+            id="logout-btn-mobile"
+            onClick={handleLogout}
+            aria-label="Log out"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium text-red-500 bg-red-500/10 border border-red-500/20 active:scale-95 transition-transform"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
+      </header>
+      {/* In-flow spacer so page content clears the fixed mobile top bar */}
+      <div className="lg:hidden h-14" />
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 border-r border-white/10 bg-surface-1/80 backdrop-blur-xl z-50 p-4">
         {/* Brand */}
@@ -54,7 +90,7 @@ export function AppNav({ tripId }: AppNavProps) {
             <Image src="/logo.png" alt="TripMate" width={36} height={36} className="w-full h-full object-cover" />
           </div>
           <div>
-            <p className="text-xs text-white/40 font-medium">TripMate</p>
+            <p className="text-xs text-white/60 font-medium">TripMate</p>
             <p className="text-sm font-semibold text-white truncate max-w-[140px]">
               {trip?.name || 'Loading...'}
             </p>
@@ -73,7 +109,7 @@ export function AppNav({ tripId }: AppNavProps) {
                   'relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors',
                   isActive
                     ? 'text-white'
-                    : 'text-white/50 hover:text-white hover:bg-white/5'
+                    : 'text-white/65 hover:text-white hover:bg-white/5'
                 )}
               >
                 {isActive && (
@@ -91,13 +127,21 @@ export function AppNav({ tripId }: AppNavProps) {
         </nav>
 
         {/* Footer */}
-        <div className="border-t border-white/10 pt-4 mt-4">
-          <div className="px-3 py-2">
-            <p className="text-xs text-white/30">Logged in as</p>
-            <p className="text-sm font-medium text-white/70 truncate">
-              {session?.tripCode || '—'}
+        <div className="border-t border-white/10 pt-4 mt-4 space-y-2">
+          <div className="px-3">
+            <p className="text-xs text-white/65">Logged in as</p>
+            <p className="text-sm font-medium text-white truncate">
+              {me?.name || session?.tripCode || '—'}
             </p>
           </div>
+          <button
+            id="logout-btn"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Log out
+          </button>
         </div>
       </aside>
 
@@ -117,7 +161,7 @@ export function AppNav({ tripId }: AppNavProps) {
                 className={cn(
                   'relative flex flex-col items-center gap-1 px-2 py-1.5 rounded-xl min-w-[52px]',
                   'transition-colors',
-                  isActive ? 'text-white' : 'text-white/40 hover:text-white/70'
+                  isActive ? 'text-white' : 'text-white/60 hover:text-white/70'
                 )}
               >
                 {isActive && (

@@ -209,26 +209,33 @@ function JoinTripContent() {
         // never a parallel device-local copy with the same name.
         const remoteReady = foundViaRemote || await remoteEnsureTrip(foundTrip)
 
-        if (remoteReady) {
-          const avatarColor = getAvatarColor(memberCount ?? 0)
-          const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
-            name: name.trim(), mobile, pin, avatarColor,
+        if (!remoteReady) {
+          // Joining locally anyway would create a disconnected same-named copy
+          // (the exact bug this flow exists to prevent) — fail loudly instead.
+          joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
+          setErrors({
+            general:
+              'Could not attach you to the shared trip on the server. Check your internet connection and try again — joining offline would create a disconnected copy.',
           })
-          // Pull the full existing trip (members, expenses, stays, settlements)
-          // so the dashboard shows the real trip — not an empty copy.
-          const bundle = await remoteFetchTripBundle(foundTrip.id)
-          if (bundle) mergeRemoteTrip(bundle)
-          else upsertMember(member)
-
-          setAlreadyMember(existed)
-          setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-          joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
-          setStep('success')
-          setConfetti(true)
           return
         }
-        joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
-        // fall through to the local join below
+
+        const avatarColor = getAvatarColor(memberCount ?? 0)
+        const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
+          name: name.trim(), mobile, pin, avatarColor,
+        })
+        // Pull the full existing trip (members, expenses, stays, settlements)
+        // so the dashboard shows the real trip — not an empty copy.
+        const bundle = await remoteFetchTripBundle(foundTrip.id)
+        if (bundle) mergeRemoteTrip(bundle)
+        else upsertMember(member)
+
+        setAlreadyMember(existed)
+        setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
+        joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
+        setStep('success')
+        setConfetti(true)
+        return
       }
 
       // Local fallback (no cloud configured): joinTrip only adds a member to
@@ -256,7 +263,7 @@ function JoinTripContent() {
 
       <div className="w-full max-w-md">
         {step !== 'success' && (
-          <Link href="/" className="inline-flex items-center gap-2 text-white/50 hover:text-white text-sm mb-8 transition-colors">
+          <Link href="/" className="inline-flex items-center gap-2 text-white/65 hover:text-white text-sm mb-8 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             Back
           </Link>
@@ -275,7 +282,7 @@ function JoinTripContent() {
             >
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">Join a Trip</h1>
-                <p className="text-white/50 text-sm">
+                <p className="text-white/65 text-sm">
                   {invite ? 'You’ve been invited — confirm to join' : 'Enter the trip code shared by your friend'}
                 </p>
               </div>
@@ -287,6 +294,17 @@ function JoinTripContent() {
                 </div>
               )}
 
+              {!isRemoteEnabled() && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-3 py-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700">
+                    Cloud sync is not configured on this deployment, so joining only works on the
+                    device where the trip was created. Ask the admin to set the Supabase environment
+                    variables on Vercel.
+                  </p>
+                </div>
+              )}
+
               {invite && (
                 <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4">
                   <div className="flex items-center gap-2 mb-1">
@@ -294,7 +312,7 @@ function JoinTripContent() {
                     <p className="text-xs text-emerald-400 font-medium">Invite found</p>
                   </div>
                   <p className="text-base font-semibold text-white">{invite.trip.name}</p>
-                  <p className="text-xs text-white/40 mt-0.5">Enter the trip password to confirm joining</p>
+                  <p className="text-xs text-white/60 mt-0.5">Enter the trip password to confirm joining</p>
                 </div>
               )}
 
@@ -371,10 +389,10 @@ function JoinTripContent() {
                   <Check className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-white/40">Existing trip verified</p>
+                  <p className="text-xs text-white/60">Existing trip verified</p>
                   <p className="font-semibold text-white">{foundTrip.name}</p>
                   {memberCount !== null && memberCount > 0 && (
-                    <p className="text-xs text-white/40">{memberCount} member{memberCount !== 1 ? 's' : ''} already in</p>
+                    <p className="text-xs text-white/60">{memberCount} member{memberCount !== 1 ? 's' : ''} already in</p>
                   )}
                 </div>
               </div>
@@ -382,7 +400,7 @@ function JoinTripContent() {
               <div className="glass rounded-3xl p-7 space-y-5">
                 <div>
                   <h2 className="text-xl font-bold text-white mb-1">Your Details</h2>
-                  <p className="text-white/50 text-sm">How should your friends identify you?</p>
+                  <p className="text-white/65 text-sm">How should your friends identify you?</p>
                 </div>
 
                 <div className="space-y-4">
@@ -440,7 +458,7 @@ function JoinTripContent() {
             >
               <div>
                 <h2 className="text-2xl font-bold text-white mb-1">Set Your PIN</h2>
-                <p className="text-white/50 text-sm">You&apos;ll use this to log in</p>
+                <p className="text-white/65 text-sm">You&apos;ll use this to log in</p>
               </div>
 
               <div className="space-y-4">
@@ -513,7 +531,7 @@ function JoinTripContent() {
                 {alreadyMember ? 'You were already a member of ' : 'Joined '}
                 <strong className="text-white">{foundTrip.name}</strong>
               </p>
-              <p className="text-white/40 text-xs mb-8">Time to start tracking expenses</p>
+              <p className="text-white/60 text-xs mb-8">Time to start tracking expenses</p>
 
               <button
                 id="join-go-dashboard-btn"
