@@ -129,9 +129,9 @@
      glow through, never plain see-through. */
   .glass {
     background: linear-gradient(135deg,
-      rgba(255,255,255,0.82) 0%,
-      rgba(247,242,255,0.70) 48%,
-      rgba(240,248,255,0.72) 100%);
+      rgba(255,255,255,0.88) 0%,
+      rgba(247,242,255,0.78) 48%,
+      rgba(240,248,255,0.80) 100%);
     backdrop-filter: blur(20px) saturate(1.7);
     -webkit-backdrop-filter: blur(20px) saturate(1.7);
     border: 1px solid rgba(255, 255, 255, 0.55);

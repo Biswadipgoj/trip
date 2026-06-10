@@ -9,7 +9,8 @@ import {
   calculateBalances, calculateSettlements, applyConfirmedTransfers
 } from '@/lib/utils'
 import {
-  remoteCreateTrip, remoteCloseTrip, remoteAddManualMember, remoteUpdateMemberUpi,
+  isRemoteEnabled, remoteCreateTrip, remoteCloseTrip, remoteEnsureTrip,
+  remoteAddManualMember, remoteUpdateMemberUpi,
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
   remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
   remotePushSponsorship, remoteDeleteSponsorship, TripBundle,
@@ -32,6 +33,9 @@ interface AppState {
   settlements:      Settlement[]
   settlementGroups: SettlementGroup[]
   sponsorships:     Sponsorship[]
+  /** Ids ever seen in a server pull. Lets the sync layer tell "created locally,
+   *  not yet uploaded" apart from "deleted on another device". */
+  synced:           Record<string, true>
 
   // ─── Hydration ──────────────────────────────────────────────────────────────
   hydrated: boolean
@@ -49,6 +53,9 @@ interface AppState {
   importTrip:   (trip: Trip) => void
   setTripBudget: (tripId: string, budget: number) => void
   mergeRemoteTrip: (bundle: TripBundle) => void
+  /** Uploads local-only data (and the trip itself if missing) to the server,
+   *  so a trip created before cloud sync becomes fully shared. */
+  pushTripToRemote: (tripId: string, remote: TripBundle | null) => Promise<void>
   /** Replaces a locally-joined member with the authoritative remote one. */
   upsertMember: (member: Member) => void
 
@@ -101,6 +108,7 @@ export const useStore = create<AppState>()(
       settlements:      [],
       settlementGroups: [],
       sponsorships:     [],
+      synced:           {},
       session:          null,
 
       // ─── Trips ──────────────────────────────────────────────────────────────
@@ -189,23 +197,31 @@ export const useStore = create<AppState>()(
       },
 
       // Pull-sync: merge the authoritative remote dataset for one trip into the
-      // local store. Remote wins on shared ids; local-only items (not yet
-      // pushed, e.g. created offline) are kept.
+      // local store. Remote wins on shared ids. Local items never seen on the
+      // server (created offline / push pending) are kept; local items that WERE
+      // on the server but are now gone were deleted on another device, so they
+      // are dropped — deletions propagate.
       mergeRemoteTrip: (bundle) => {
         const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
         set(s => {
           const localTrip = s.trips.find(t => t.id === trip.id)
           const mergedTrip: Trip = { ...trip, budget: localTrip?.budget }
 
-          // keep: everything from other trips + local-only items of this trip;
-          // remote rows replace local copies with the same id
           const mergeById = <T extends { id: string }>(local: T[], remote: T[], tripScoped: (x: T) => boolean) => {
             const remoteIds = new Set(remote.map(r => r.id))
-            const kept = local.filter(x => !tripScoped(x) || !remoteIds.has(x.id))
+            const kept = local.filter(
+              x => !tripScoped(x) || (!remoteIds.has(x.id) && !s.synced[x.id])
+            )
             return [...kept, ...remote]
           }
 
+          // Everything in this pull is now known to live on the server
+          const synced = { ...s.synced }
+          ;[...members, ...expenses, ...hotelExpenses, ...settlementGroups, ...sponsorships]
+            .forEach(x => { synced[x.id] = true })
+
           return {
+            synced,
             trips: localTrip
               ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
               : [...s.trips, mergedTrip],
@@ -287,6 +303,63 @@ export const useStore = create<AppState>()(
             }),
           }))
         }
+      },
+
+      // Up-sync: the missing half of cross-device linking. A trip created
+      // before cloud sync (or while offline) only exists locally — joiners
+      // would get an empty shell with the same name. This uploads the trip row
+      // itself when absent, then every local item the server doesn't have yet.
+      // Items already synced once are skipped, so remote deletions don't get
+      // resurrected.
+      pushTripToRemote: async (tripId, remote) => {
+        if (!isRemoteEnabled()) return
+        const s = get()
+        const trip = s.trips.find(t => t.id === tripId)
+        if (!trip) return
+
+        if (!remote) {
+          const ok = await remoteEnsureTrip(trip)
+          if (!ok) return
+        }
+
+        const onServer = (remoteIds: Set<string>, id: string) =>
+          remoteIds.has(id) || !!s.synced[id]
+
+        const memberIds = new Set((remote?.members ?? []).map(x => x.id))
+        const expenseIds = new Set((remote?.expenses ?? []).map(x => x.id))
+        const hotelIds = new Set((remote?.hotelExpenses ?? []).map(x => x.id))
+        const groupIds = new Set((remote?.settlementGroups ?? []).map(x => x.id))
+        const sponsorshipIds = new Set((remote?.sponsorships ?? []).map(x => x.id))
+
+        // Members first — expenses/settlements reference them via foreign keys
+        const newMembers = s.members.filter(m => m.tripId === tripId && !onServer(memberIds, m.id))
+        for (const m of newMembers) {
+          try { await remoteAddManualMember(m) } catch { /* retried next sync */ }
+        }
+
+        s.expenses
+          .filter(e => e.tripId === tripId && !onServer(expenseIds, e.id))
+          .forEach(e => fireAndForget(remotePushExpense(e)))
+        s.hotelExpenses
+          .filter(h => h.tripId === tripId && !onServer(hotelIds, h.id))
+          .forEach(h => fireAndForget(remotePushHotelExpense(h)))
+        s.settlementGroups
+          .filter(g => g.tripId === tripId && !onServer(groupIds, g.id))
+          .forEach(g => fireAndForget(remotePushSettlementGroup(g)))
+        s.sponsorships
+          .filter(sp => sp.tripId === tripId && !onServer(sponsorshipIds, sp.id))
+          .forEach(sp => fireAndForget(remotePushSponsorship(sp)))
+
+        // Confirmed payments are part of the trip's history — upload any the
+        // server is missing so balances agree everywhere.
+        const remoteStatuses = remote?.settlementStatuses ?? []
+        s.settlements
+          .filter(x => x.tripId === tripId && x.status === 'confirmed')
+          .filter(x => !remoteStatuses.some(
+            r => r.id === x.id ||
+              (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId && sameAmount(r.amount, x.amount))
+          ))
+          .forEach(x => fireAndForget(remotePushSettlementStatus(x)))
       },
 
       // ─── Members ────────────────────────────────────────────────────────────

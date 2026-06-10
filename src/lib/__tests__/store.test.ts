@@ -9,7 +9,7 @@ import type { Expense } from '@/types'
 function resetStore() {
   useStore.setState({
     trips: [], members: [], expenses: [], hotelExpenses: [],
-    settlements: [], settlementGroups: [], sponsorships: [], session: null,
+    settlements: [], settlementGroups: [], sponsorships: [], synced: {}, session: null,
   })
 }
 
@@ -379,5 +379,47 @@ describe('remote merge syncs couples and sponsorships across devices', () => {
     const dues = due(trip.id)
     expect(dues).toHaveLength(1) // couple now pays as one entity on this device too
     expect(dues[0].amount).toBe(2000)
+  })
+})
+
+describe('two-way sync semantics', () => {
+  const bundleFor = (trip: any, over: Record<string, unknown> = {}) => {
+    const state = useStore.getState()
+    return {
+      trip,
+      members: state.members.filter(m => m.tripId === trip.id),
+      expenses: state.expenses.filter(e => e.tripId === trip.id),
+      hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
+      settlementStatuses: [],
+      ...over,
+    }
+  }
+
+  it('keeps local items the server has never seen (push pending)', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    const e = addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+
+    // Pull arrives WITHOUT the freshly-created local expense
+    useStore.getState().mergeRemoteTrip(bundleFor(trip, { expenses: [] }))
+
+    expect(useStore.getState().expenses.find(x => x.id === e.id)).toBeDefined()
+    expect(due(trip.id)).toHaveLength(2) // settlements still computed from it
+  })
+
+  it('propagates remote deletions for items previously synced', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    const e = addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+
+    // First pull contains the expense → marked as known-on-server
+    useStore.getState().mergeRemoteTrip(bundleFor(trip))
+    expect(useStore.getState().synced[e.id]).toBe(true)
+
+    // Second pull no longer contains it → deleted on another device
+    useStore.getState().mergeRemoteTrip(bundleFor(trip, { expenses: [] }))
+
+    expect(useStore.getState().expenses.find(x => x.id === e.id)).toBeUndefined()
+    expect(due(trip.id)).toHaveLength(0) // settlements cascade with the deletion
   })
 })

@@ -451,7 +451,13 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
       supabase.from('sponsorships').select('*').eq('trip_id', tripId),
     ])
 
-  if (tripRes.error || !tripRes.data) return null
+  // All-or-nothing: a partially-failed pull must never be merged — missing
+  // rows would be mistaken for remote deletions and wipe local data.
+  const failed =
+    tripRes.error || membersRes.error || expensesRes.error || participantsRes.error ||
+    hotelsRes.error || roomsRes.error || occupantsRes.error || settlementsRes.error ||
+    groupsRes.error || groupMembersRes.error || sponsorshipsRes.error
+  if (failed || !tripRes.data) return null
 
   const trip = tripFromRow(tripRes.data)
   const members = (membersRes.data || []).map(memberFromRow)

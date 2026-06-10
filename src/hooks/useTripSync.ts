@@ -7,11 +7,14 @@ import { isRemoteEnabled, remoteFetchTripBundle } from '@/lib/remote'
 const SYNC_INTERVAL_MS = 15_000
 
 /**
- * Keeps a trip's local data in sync with Supabase: pulls the full trip bundle
- * on mount, on window focus, and every 15s. No-op in localStorage-only mode.
+ * Keeps a trip's local data in sync with Supabase — BOTH directions:
+ * pulls the full trip bundle on mount, on window focus, and every 15s, then
+ * uploads anything the server is missing (including the trip itself, for
+ * trips created before cloud sync). No-op in localStorage-only mode.
  */
 export function useTripSync(tripId: string) {
   const mergeRemoteTrip = useStore(s => s.mergeRemoteTrip)
+  const pushTripToRemote = useStore(s => s.pushTripToRemote)
   const syncing = useRef(false)
 
   useEffect(() => {
@@ -23,9 +26,14 @@ export function useTripSync(tripId: string) {
       syncing.current = true
       try {
         const bundle = await remoteFetchTripBundle(tripId)
-        if (bundle && !cancelled) mergeRemoteTrip(bundle)
+        if (cancelled) return
+        if (bundle) mergeRemoteTrip(bundle)
+        // Upload local-only data; when the trip is missing remotely (bundle
+        // null), this provisions the trip row first — healing old trips so
+        // invites attach everyone to ONE shared trip.
+        await pushTripToRemote(tripId, bundle)
       } catch (err) {
-        console.warn('[sync] pull failed:', err)
+        console.warn('[sync] failed:', err)
       } finally {
         syncing.current = false
       }
@@ -40,5 +48,5 @@ export function useTripSync(tripId: string) {
       clearInterval(interval)
       window.removeEventListener('focus', onFocus)
     }
-  }, [tripId, mergeRemoteTrip])
+  }, [tripId, mergeRemoteTrip, pushTripToRemote])
 }

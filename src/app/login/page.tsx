@@ -77,7 +77,7 @@ export default function LoginPage() {
             <Image src="/logo.png" alt="TripMate" width={64} height={64} priority className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
-          <p className="text-white/50 text-sm">Login to your trip</p>
+          <p className="text-white/65 text-sm">Login to your trip</p>
         </motion.div>
 
         <motion.div
@@ -173,13 +173,13 @@ export default function LoginPage() {
           transition={{ delay: 0.4 }}
           className="mt-6 text-center space-y-2"
         >
-          <p className="text-white/40 text-sm">
+          <p className="text-white/60 text-sm">
             New trip?{' '}
             <Link href="/create-trip" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
               Create one
             </Link>
           </p>
-          <p className="text-white/40 text-sm">
+          <p className="text-white/60 text-sm">
             Have a code?{' '}
             <Link href="/join-trip" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
               Join a trip

@@ -239,7 +239,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Expenses</h1>
-              <p className="text-white/40 text-sm">
+              <p className="text-white/60 text-sm">
                 {expenses.length + hotelExpenses.length} items · {formatCurrency(totalSpent)}
               </p>
             </div>
@@ -285,10 +285,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           {payer && (
                             <div className="flex items-center gap-1">
                               <Avatar name={payer.name} color={payer.avatarColor} size="xs" />
-                              <span className="text-xs text-white/40">{payer.name}</span>
+                              <span className="text-xs text-white/60">{payer.name}</span>
                             </div>
                           )}
-                          <span className="text-[10px] text-white/25">
+                          <span className="text-[10px] text-white/55">
                             <BedDouble className="w-3 h-3 inline mr-0.5" />
                             {hotel.rooms.length} room{hotel.rooms.length !== 1 ? 's' : ''} · stay split
                           </span>
@@ -296,12 +296,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="font-bold text-white">{formatCurrency(hotel.totalAmount)}</p>
-                        <p className="text-[10px] text-white/30">{formatDate(hotel.createdAt)}</p>
+                        <p className="text-[10px] text-white/50">{formatDate(hotel.createdAt)}</p>
                       </div>
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-white/30 flex-shrink-0"
+                        className="text-white/50 flex-shrink-0"
                       >
                         <ChevronDown className="w-4 h-4" />
                       </motion.div>
@@ -328,14 +328,14 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                   </div>
                                   <div className="flex flex-wrap gap-1.5">
                                     {occupants.map(m => (
-                                      <div key={m.id} className="flex items-center gap-1 text-xs text-white/50">
+                                      <div key={m.id} className="flex items-center gap-1 text-xs text-white/65">
                                         <Avatar name={m.name} color={m.avatarColor} size="xs" />
                                         <span>{m.name}</span>
-                                        <span className="text-white/30">({formatCurrency(perPerson)})</span>
+                                        <span className="text-white/50">({formatCurrency(perPerson)})</span>
                                       </div>
                                     ))}
                                     {occupants.length === 0 && (
-                                      <span className="text-xs text-white/30 italic">No occupants assigned</span>
+                                      <span className="text-xs text-white/50 italic">No occupants assigned</span>
                                     )}
                                   </div>
                                 </div>
@@ -418,11 +418,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         <p className="font-semibold text-white text-sm truncate">{expense.title}</p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {hasMultiplePayers ? (
-                            <span className="text-xs text-white/40">{expense.payers!.length} payers</span>
+                            <span className="text-xs text-white/60">{expense.payers!.length} payers</span>
                           ) : payer && (
                             <div className="flex items-center gap-1">
                               <Avatar name={payer.name} color={payer.avatarColor} size="xs" />
-                              <span className="text-xs text-white/40">{payer.name}</span>
+                              <span className="text-xs text-white/60">{payer.name}</span>
                             </div>
                           )}
                           {expense.subcategory && (
@@ -430,7 +430,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                               {getSubcategoryLabel(expense.category, expense.subcategory)}
                             </span>
                           )}
-                          <span className="text-[10px] text-white/25">
+                          <span className="text-[10px] text-white/55">
                             {getSplitTypeIcon(expense.splitType)} {getSplitTypeLabel(expense.splitType)}
                           </span>
                         </div>
@@ -438,13 +438,13 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
 
                       <div className="text-right flex-shrink-0">
                         <p className="font-bold text-white">{formatCurrency(expense.amount)}</p>
-                        <p className="text-[10px] text-white/30">{formatDate(expense.createdAt)}</p>
+                        <p className="text-[10px] text-white/50">{formatDate(expense.createdAt)}</p>
                       </div>
 
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-white/30 flex-shrink-0"
+                        className="text-white/50 flex-shrink-0"
                       >
                         <ChevronDown className="w-4 h-4" />
                       </motion.div>
@@ -463,7 +463,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           <div className="px-4 pb-4 border-t border-white/10 pt-3 space-y-3">
                             {hasMultiplePayers && (
                               <div>
-                                <p className="text-xs text-white/40 mb-2">Paid by {expense.payers!.length} people</p>
+                                <p className="text-xs text-white/60 mb-2">Paid by {expense.payers!.length} people</p>
                                 <div className="space-y-1.5">
                                   {expense.payers!.map(p => {
                                     const m = members.find(x => x.id === p.memberId)
@@ -483,7 +483,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             )}
 
                             <div>
-                              <p className="text-xs text-white/40 mb-2">Split between {participantMembers.length} people</p>
+                              <p className="text-xs text-white/60 mb-2">Split between {participantMembers.length} people</p>
                               <div className="space-y-1.5">
                                 {participantMembers.map(m => {
                                   const split = expense.splits.find(s => s.memberId === m.id)
@@ -494,7 +494,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                       <Avatar name={m.name} color={m.avatarColor} size="xs" />
                                       <span className="text-xs text-white flex-1">{m.name}</span>
                                       {split && expense.splitType !== 'equal' && (
-                                        <span className="text-[10px] text-white/40">
+                                        <span className="text-[10px] text-white/60">
                                           {expense.splitType === 'quantity' ? `${split.value} units` : ''}
                                           {expense.splitType === 'percentage' ? `${split.value}%` : ''}
                                         </span>
@@ -509,7 +509,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             </div>
 
                             {expense.notes && (
-                              <p className="text-xs text-white/40 flex items-center gap-1">
+                              <p className="text-xs text-white/60 flex items-center gap-1">
                                 <Info className="w-3 h-3" />
                                 {expense.notes}
                               </p>
@@ -544,9 +544,9 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             className="text-center py-20"
           >
-            <Receipt className="w-12 h-12 text-white/20 mx-auto mb-3" />
-            <p className="text-white/40 mb-1">No expenses yet</p>
-            <p className="text-white/30 text-sm">Add your first expense to get started</p>
+            <Receipt className="w-12 h-12 text-white/40 mx-auto mb-3" />
+            <p className="text-white/60 mb-1">No expenses yet</p>
+            <p className="text-white/50 text-sm">Add your first expense to get started</p>
           </motion.div>
         )}
       </div>
@@ -644,7 +644,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium transition-all ${
                           category === cat
                             ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                            : 'bg-white/5 border border-white/10 text-white/50 hover:text-white'
+                            : 'bg-white/5 border border-white/10 text-white/65 hover:text-white'
                         }`}
                       >
                         <span>{getCategoryIcon(cat)}</span>
@@ -667,7 +667,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
                             subcategory === sub.id
                               ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                              : 'bg-white/5 border border-white/10 text-white/50 hover:text-white'
+                              : 'bg-white/5 border border-white/10 text-white/65 hover:text-white'
                           }`}
                         >
                           <span>{sub.icon}</span>
@@ -715,7 +715,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             )}
                           </div>
                           <div>
-                            <p className="text-[10px] text-white/40 mb-1.5">Occupants</p>
+                            <p className="text-[10px] text-white/60 mb-1.5">Occupants</p>
                             <div className="flex flex-wrap gap-1.5">
                               {members.map(m => {
                                 const selected = room.occupantIds.includes(m.id)
@@ -726,7 +726,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                     className={`flex items-center gap-1 rounded-lg px-2 py-1 text-xs transition-all ${
                                       selected
                                         ? 'bg-brand-600/30 border border-brand-500/40 text-white'
-                                        : 'bg-white/5 border border-white/10 text-white/50'
+                                        : 'bg-white/5 border border-white/10 text-white/65'
                                     }`}
                                   >
                                     <Avatar name={m.name} color={m.avatarColor} size="xs" />
@@ -766,7 +766,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
                           multiPayer
                             ? 'bg-brand-600/30 border-brand-500/50 text-brand-400'
-                            : 'bg-white/5 border-white/10 text-white/40 hover:text-white'
+                            : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
                         }`}
                       >
                         Multiple payers
@@ -795,13 +795,13 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     </div>
                   ) : (
                     <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-                      <p className="text-xs text-white/50 mb-2">Enter how much each person paid</p>
+                      <p className="text-xs text-white/65 mb-2">Enter how much each person paid</p>
                       {members.map(m => (
                         <div key={m.id} className="flex items-center gap-3">
                           <Avatar name={m.name} color={m.avatarColor} size="xs" />
                           <span className="text-xs text-white flex-1">{m.name}</span>
                           <div className="relative w-28">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/30">₹</span>
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">₹</span>
                             <input
                               id={`payer-amt-${m.id}`}
                               type="number"
@@ -832,7 +832,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     <label className="text-xs font-medium text-white/60">Who&apos;s sharing this?</label>
                     <div className="flex gap-3 text-xs">
                       <button id="select-all" onClick={() => setParticipants(members.map(m => m.id))} className="text-brand-400">All</button>
-                      <button id="clear-all"  onClick={() => setParticipants([])} className="text-white/40">None</button>
+                      <button id="clear-all"  onClick={() => setParticipants([])} className="text-white/60">None</button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -875,7 +875,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-medium transition-all ${
                           splitType === st
                             ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                            : 'bg-white/5 border border-white/10 text-white/50 hover:text-white'
+                            : 'bg-white/5 border border-white/10 text-white/65 hover:text-white'
                         }`}
                       >
                         <span>{getSplitTypeIcon(st)}</span>
@@ -897,7 +897,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       className="overflow-hidden"
                     >
                       <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-2">
-                        <p className="text-xs text-white/50 mb-2">
+                        <p className="text-xs text-white/65 mb-2">
                           {splitType === 'custom'     && 'Enter amount for each person'}
                           {splitType === 'percentage' && 'Enter % for each person (must sum to 100%)'}
                           {splitType === 'quantity'   && 'Enter quantity for each person (e.g. bottles)'}
@@ -910,10 +910,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                               <span className="text-xs text-white flex-1">{m.name}</span>
                               <div className="relative w-24">
                                 {splitType === 'percentage' && (
-                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-white/30">%</span>
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">%</span>
                                 )}
                                 {splitType === 'custom' && (
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/30">₹</span>
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">₹</span>
                                 )}
                                 <input
                                   id={`split-val-${pid}`}
@@ -925,7 +925,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                   onChange={e => setSplitValues(v => ({ ...v, [pid]: e.target.value }))}
                                 />
                               </div>
-                              <span className="text-xs text-white/50 w-16 text-right">
+                              <span className="text-xs text-white/65 w-16 text-right">
                                 {resolvedShares[pid] ? formatCurrency(resolvedShares[pid]) : '—'}
                               </span>
                             </div>

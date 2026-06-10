@@ -98,7 +98,7 @@ export default function CreateTripPage() {
         {/* Back link */}
         {step !== 'success' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Link href="/" className="inline-flex items-center gap-2 text-white/50 hover:text-white text-sm mb-8 transition-colors">
+            <Link href="/" className="inline-flex items-center gap-2 text-white/65 hover:text-white text-sm mb-8 transition-colors">
               <ArrowLeft className="w-4 h-4" />
               Back
             </Link>
@@ -118,7 +118,7 @@ export default function CreateTripPage() {
                       : 'rgba(139,78,245,0.16)',
                   }}
                 />
-                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/30'}`}>
+                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/50'}`}>
                   {label}
                 </p>
               </div>
@@ -139,7 +139,7 @@ export default function CreateTripPage() {
             >
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">Create a Trip</h1>
-                <p className="text-white/50 text-sm">Set up your group trip and invite friends</p>
+                <p className="text-white/65 text-sm">Set up your group trip and invite friends</p>
               </div>
 
               <div className="space-y-4">
@@ -245,7 +245,7 @@ export default function CreateTripPage() {
             >
               <div>
                 <h2 className="text-2xl font-bold text-white mb-1">Set Your PIN</h2>
-                <p className="text-white/50 text-sm">Your personal 4-digit login PIN</p>
+                <p className="text-white/65 text-sm">Your personal 4-digit login PIN</p>
               </div>
 
               <div className="space-y-4">
@@ -335,7 +335,7 @@ export default function CreateTripPage() {
                 transition={{ delay: 0.35 }}
                 className="glass rounded-2xl p-6 mb-4"
               >
-                <p className="text-xs text-white/40 mb-2 font-medium">YOUR TRIP CODE</p>
+                <p className="text-xs text-white/60 mb-2 font-medium">YOUR TRIP CODE</p>
                 <p
                   className="text-4xl font-bold tracking-widest text-gradient-brand mb-4"
                   style={{ fontFamily: "'Space Grotesk', monospace" }}
@@ -364,11 +364,11 @@ export default function CreateTripPage() {
                   transition={{ delay: 0.4 }}
                   className="glass rounded-2xl p-4 mb-6 text-left"
                 >
-                  <p className="text-xs text-white/40 mb-2 font-medium flex items-center gap-1.5">
+                  <p className="text-xs text-white/60 mb-2 font-medium flex items-center gap-1.5">
                     <Link2 className="w-3.5 h-3.5" />
                     SHARE JOIN LINK (works on any device)
                   </p>
-                  <p className="text-[11px] text-white/30 font-mono break-all mb-3 leading-relaxed">
+                  <p className="text-[11px] text-white/50 font-mono break-all mb-3 leading-relaxed">
                     {shareUrl}
                   </p>
                   <button
@@ -383,7 +383,7 @@ export default function CreateTripPage() {
                     {copiedLink ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
                     {copiedLink ? 'Link Copied!' : 'Copy Join Link'}
                   </button>
-                  <p className="text-[10px] text-white/25 mt-2">
+                  <p className="text-[10px] text-white/55 mt-2">
                     Works on any device — friends just enter the trip password to join. Link valid for 30 days.
                   </p>
                 </motion.div>
