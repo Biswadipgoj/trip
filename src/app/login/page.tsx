@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
+import { isRemoteEnabled, remoteFindTripByCode, remoteGetMembers, remoteFetchTripBundle } from '@/lib/remote'
 import { MapPin, ArrowRight, Phone, Hash, Shield } from 'lucide-react'
 import Link from 'next/link'
 
@@ -12,6 +13,7 @@ export default function LoginPage() {
   const login = useStore(s => s.login)
   const setSession = useStore(s => s.setSession)
   const getTripByCode = useStore(s => s.getTripByCode)
+  const mergeRemoteTrip = useStore(s => s.mergeRemoteTrip)
 
   const [tripCode, setTripCode] = useState('')
   const [mobile, setMobile] = useState('')
@@ -23,24 +25,42 @@ export default function LoginPage() {
   const handleLogin = async () => {
     setError('')
     setLoading(true)
+    const code = tripCode.trim().toUpperCase()
 
-    await new Promise(r => setTimeout(r, 600))
+    try {
+      // Local-first: member already on this device
+      const member = login(code, mobile.trim(), pin)
+      if (member) {
+        const trip = getTripByCode(code)
+        if (trip) {
+          setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
+          router.push(`/dashboard/${trip.id}`)
+          return
+        }
+      }
 
-    const member = login(tripCode.trim().toUpperCase(), mobile.trim(), pin)
-    setLoading(false)
+      // Cloud fallback: lets members log in from a brand-new device
+      if (isRemoteEnabled()) {
+        const remoteTrip = await remoteFindTripByCode(code).catch(() => null)
+        if (remoteTrip) {
+          const members = await remoteGetMembers(remoteTrip.id)
+          const remoteMember = members.find(m => m.mobile === mobile.trim() && m.pin === pin)
+          if (remoteMember) {
+            const bundle = await remoteFetchTripBundle(remoteTrip.id)
+            if (bundle) mergeRemoteTrip(bundle)
+            setSession({ tripId: remoteTrip.id, memberId: remoteMember.id, tripCode: remoteTrip.tripCode })
+            router.push(`/dashboard/${remoteTrip.id}`)
+            return
+          }
+        }
+      }
 
-    if (!member) {
       setError('Invalid trip code, mobile, or PIN. Please check and try again.')
       setShake(true)
       setTimeout(() => setShake(false), 600)
-      return
+    } finally {
+      setLoading(false)
     }
-
-    const trip = getTripByCode(tripCode.toUpperCase())
-    if (!trip) return
-
-    setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
-    router.push(`/dashboard/${trip.id}`)
   }
 
   return (

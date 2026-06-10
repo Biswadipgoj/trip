@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import {
   formatCurrency, formatDate, getCategoryColor, getCategoryIcon,
-  getSplitTypeLabel, getSplitTypeIcon, generateId
+  getSplitTypeLabel, getSplitTypeIcon, getSubcategoryLabel, getCategoryGradient,
+  generateId, SUBCATEGORIES
 } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
@@ -66,6 +67,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const [multiPayer, setMultiPayer] = useState(false)
   const [payerAmounts, setPayerAmounts] = useState<Record<string, string>>({})
   const [category, setCategory]     = useState<ExpenseCategory>('misc')
+  const [subcategory, setSubcategory] = useState<string>('')
   const [splitType, setSplitType]   = useState<SplitType>('equal')
   const [participants, setParticipants] = useState<string[]>(members.map(m => m.id))
   const [splitValues, setSplitValues]   = useState<Record<string, string>>({})
@@ -118,7 +120,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const resetForm = () => {
     setTitle(''); setAmount(''); setPaidBy(session?.memberId || '')
     setMultiPayer(false); setPayerAmounts({})
-    setCategory('misc'); setSplitType('equal')
+    setCategory('misc'); setSubcategory(''); setSplitType('equal')
     setParticipants(members.map(m => m.id))
     setSplitValues({}); setNotes(''); setFormErrors({})
     setRooms([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
@@ -186,7 +188,8 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
       tripId, title: title.trim(), amount: totalAmt,
       paidBy: primaryPayer,
       payers: multiPayer ? activePayers : undefined,
-      category, participants, splitType, splits, notes: notes.trim(),
+      category, subcategory: subcategory || undefined,
+      participants, splitType, splits, notes: notes.trim(),
     })
     setShowModal(false)
     resetForm()
@@ -405,8 +408,8 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       }}
                     >
                       <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
-                        style={{ background: `${getCategoryColor(expense.category)}20` }}
+                        className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 liquid-sheen"
+                        style={{ background: getCategoryGradient(expense.category) }}
                       >
                         {getCategoryIcon(expense.category)}
                       </div>
@@ -421,6 +424,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                               <Avatar name={payer.name} color={payer.avatarColor} size="xs" />
                               <span className="text-xs text-white/40">{payer.name}</span>
                             </div>
+                          )}
+                          {expense.subcategory && (
+                            <span className="text-[10px] font-medium text-brand-400 bg-brand-600/10 border border-brand-500/20 rounded-full px-1.5 py-0.5">
+                              {getSubcategoryLabel(expense.category, expense.subcategory)}
+                            </span>
                           )}
                           <span className="text-[10px] text-white/25">
                             {getSplitTypeIcon(expense.splitType)} {getSplitTypeLabel(expense.splitType)}
@@ -632,7 +640,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       <button
                         key={cat}
                         id={`cat-${cat}`}
-                        onClick={() => setCategory(cat)}
+                        onClick={() => { setCategory(cat); setSubcategory('') }}
                         className={`flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium transition-all ${
                           category === cat
                             ? 'bg-brand-600/30 border border-brand-500/50 text-white'
@@ -645,6 +653,30 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     ))}
                   </div>
                 </div>
+
+                {/* Subcategory (when the category has them, e.g. Food → Lunch) */}
+                {!isStay && SUBCATEGORIES[category] && (
+                  <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
+                    <label className="block text-xs font-medium text-white/60 mb-2">Type (optional)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {SUBCATEGORIES[category].map(sub => (
+                        <button
+                          key={sub.id}
+                          id={`subcat-${sub.id}`}
+                          onClick={() => setSubcategory(subcategory === sub.id ? '' : sub.id)}
+                          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+                            subcategory === sub.id
+                              ? 'bg-brand-600/30 border border-brand-500/50 text-white'
+                              : 'bg-white/5 border border-white/10 text-white/50 hover:text-white'
+                          }`}
+                        >
+                          <span>{sub.icon}</span>
+                          <span>{sub.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Stay mode: rooms + occupants (room-based splitting) */}
                 {isStay && (

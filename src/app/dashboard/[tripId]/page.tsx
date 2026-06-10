@@ -2,33 +2,74 @@
 import React from 'react';
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateBalances, formatCurrency, getCategoryColor, getCategoryIcon } from '@/lib/utils'
+import { calculateBalances, formatCurrency, formatCompactINR, getCategoryColor, getCategoryIcon, getCategoryLabel } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { CountUp } from '@/components/animations/CountUp'
-import { FadeIn, StaggerList } from '@/components/animations/FadeIn'
+import { FadeIn } from '@/components/animations/FadeIn'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer
 } from 'recharts'
 import {
-  TrendingUp, Users, Receipt, CheckCircle2,
-  Clock, ArrowRight, Plus, Trophy, Wallet
+  TrendingUp, TrendingDown, Receipt, CheckCircle2,
+  ArrowRight, Plus, Wallet, PiggyBank, HandCoins,
+  ArrowUpRight, ArrowDownLeft, Pencil, Check, Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
-import { formatDate } from '@/lib/utils'
 
 interface DashboardPageProps {
   params: Promise<{ tripId: string }>
 }
 
+// Premium gradient stat card — Cred/PhonePe-style tile with sheen + counter
+function StatCard({
+  id, gradient, icon: Icon, label, value, trend, trendUp, delay = 0, action,
+}: {
+  id: string
+  gradient: string
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: number
+  trend?: string
+  trendUp?: boolean | null
+  delay?: number
+  action?: React.ReactNode
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.5, delay, ease: [0.21, 0.47, 0.32, 0.98] }}
+      whileHover={{ y: -4, scale: 1.015 }}
+      className={`liquid-sheen relative rounded-3xl p-5 ${gradient}`}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <div className="w-9 h-9 rounded-2xl bg-pure-white/20 backdrop-blur-sm flex items-center justify-center">
+          <Icon className="w-5 h-5 text-pure-white" />
+        </div>
+        {action}
+      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-pure-white/70 mb-1">{label}</p>
+      <p id={id} className="text-2xl font-bold text-pure-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+        ₹<CountUp end={value} indian duration={1.4} />
+      </p>
+      {trend && (
+        <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-pure-white/80">
+          {trendUp === true && <TrendingUp className="w-3 h-3" />}
+          {trendUp === false && <TrendingDown className="w-3 h-3" />}
+          {trend}
+        </p>
+      )}
+    </motion.div>
+  )
+}
+
 export default function DashboardPage({ params }: DashboardPageProps) {
   const { tripId } = React.use(params)
-  const router = useRouter()
 
   // Use raw store state + filter in useMemo to avoid React 19 getSnapshot infinite loop
   const trip = useStore(s => s.trips.find(t => t.id === tripId))
@@ -38,6 +79,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const allSettlements = useStore(s => s.settlements)
   const session = useStore(s => s.session)
   const closeTrip = useStore(s => s.closeTrip)
+  const setTripBudget = useStore(s => s.setTripBudget)
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() =>
@@ -51,6 +93,8 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
   const [showCelebration, setShowCelebration] = useState(false)
   const [confettiFired, setConfettiFired] = useState(false)
+  const [editingBudget, setEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
 
   const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
 
@@ -60,11 +104,32 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const totalSettlements = settlements.length
   const isFullySettled = totalSettlements > 0 && settledCount === totalSettlements
 
+  // ── "Your" numbers (session member) ──────────────────────────────────────────
+  const myBalance = balances.find(b => b.memberId === session?.memberId)
+  const myContribution = myBalance?.totalPaid ?? 0
+  const amountOwed = settlements
+    .filter(s => s.fromMemberId === session?.memberId && s.status !== 'confirmed')
+    .reduce((sum, s) => sum + s.amount, 0)
+  const amountReceivable = settlements
+    .filter(s => s.toMemberId === session?.memberId && s.status !== 'confirmed')
+    .reduce((sum, s) => sum + s.amount, 0)
+
+  // ── Budget ───────────────────────────────────────────────────────────────────
+  const budget = trip?.budget ?? 0
+  const remainingBudget = budget - totalSpent
+  const budgetUsedPct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0
+  const overBudget = budget > 0 && totalSpent > budget
+
+  const contributionPct = totalSpent > 0 ? (myContribution / totalSpent) * 100 : 0
+
   // Category breakdown for chart
   const categoryData = useMemo(() => {
     const cats: Record<string, number> = {}
     expenses.forEach(e => {
       cats[e.category] = (cats[e.category] || 0) + e.amount
+    })
+    hotelExpenses.forEach(h => {
+      cats['stay'] = (cats['stay'] || 0) + h.totalAmount
     })
     return Object.entries(cats).map(([name, value]) => ({
       name,
@@ -72,7 +137,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       color: getCategoryColor(name),
       icon: getCategoryIcon(name),
     }))
-  }, [expenses])
+  }, [expenses, hotelExpenses])
 
   // Check for trip completion
   useEffect(() => {
@@ -85,41 +150,11 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
   if (!trip) return null
 
-  const kpiCards = [
-    {
-      id: 'total-spent',
-      icon: Wallet,
-      label: 'Total Spent',
-      value: totalSpent,
-      color: 'hsl(262, 83%, 58%)',
-      prefix: '₹',
-    },
-    {
-      id: 'total-members',
-      icon: Users,
-      label: 'Members',
-      value: members.length,
-      color: 'hsl(310, 75%, 55%)',
-      prefix: '',
-    },
-    {
-      id: 'total-expenses',
-      icon: Receipt,
-      label: 'Expenses',
-      value: expenses.length,
-      color: 'hsl(25, 80%, 55%)',
-      prefix: '',
-    },
-    {
-      id: 'settled-count',
-      icon: CheckCircle2,
-      label: 'Settled',
-      value: settledCount,
-      color: 'hsl(168, 76%, 38%)',
-      prefix: '',
-      suffix: `/${totalSettlements}`,
-    },
-  ]
+  const saveBudget = () => {
+    const val = parseFloat(budgetInput)
+    if (val > 0) setTripBudget(tripId, val)
+    setEditingBudget(false)
+  }
 
   return (
     <div className="space-y-6">
@@ -137,12 +172,15 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         <div className="flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-2xl font-bold text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <h1 className="text-2xl font-bold text-gradient-brand" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {trip.name}
               </h1>
               <StatusBadge status={trip.status} />
             </div>
-            <p className="text-white/40 text-sm">Code: <span className="font-mono text-brand-400">{trip.tripCode}</span></p>
+            <p className="text-white/40 text-sm">
+              Code: <span className="font-mono text-brand-400">{trip.tripCode}</span>
+              <span className="mx-1.5">·</span>{members.length} member{members.length !== 1 ? 's' : ''}
+            </p>
           </div>
           <Link href={`/expenses/${tripId}`} id="add-expense-btn" className="btn-brand flex items-center gap-1.5 text-sm py-2 px-4">
             <Plus className="w-4 h-4" />
@@ -151,34 +189,140 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         </div>
       </FadeIn>
 
-      {/* KPI Cards */}
+      {/* Hero stat: Total Trip Cost */}
+      <StatCard
+        id="total-spent"
+        gradient="grad-indigo-purple"
+        icon={Wallet}
+        label="Total Trip Cost"
+        value={totalSpent}
+        trend={`${expenses.length + hotelExpenses.length} expenses · avg ${formatCompactINR(members.length > 0 ? totalSpent / members.length : 0)}/person`}
+        trendUp={null}
+      />
+
+      {/* Personal + budget stat grid */}
       <div className="grid grid-cols-2 gap-3">
-        {kpiCards.map((card, i) => (
-          <FadeIn key={card.id} delay={i * 0.07}>
-            <GlassCard hover className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <div
-                  className="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style={{ background: `${card.color}20` }}
-                >
-                  <card.icon className="w-3.5 h-3.5" style={{ color: card.color }} />
-                </div>
-                <span className="text-xs text-white/50 font-medium">{card.label}</span>
-              </div>
-              <div className="text-2xl font-bold text-white" id={card.id}>
-                <span>{card.prefix}</span>
-                <CountUp end={card.value} decimals={card.prefix === '₹' ? 0 : 0} duration={1.2} />
-                {card.suffix && <span className="text-sm text-white/40">{card.suffix}</span>}
-              </div>
-            </GlassCard>
-          </FadeIn>
-        ))}
+        <StatCard
+          id="remaining-budget"
+          gradient={overBudget ? 'grad-orange-pink' : 'grad-emerald-teal'}
+          icon={PiggyBank}
+          label={overBudget ? 'Over Budget' : 'Remaining Budget'}
+          value={Math.abs(budget > 0 ? remainingBudget : 0)}
+          trend={budget > 0 ? `${budgetUsedPct.toFixed(0)}% of ${formatCompactINR(budget)} used` : 'Tap ✎ to set a budget'}
+          trendUp={budget > 0 ? !overBudget : null}
+          delay={0.08}
+          action={
+            <button
+              id="edit-budget-btn"
+              onClick={() => { setBudgetInput(budget > 0 ? String(budget) : ''); setEditingBudget(true) }}
+              className="w-7 h-7 rounded-full bg-pure-white/20 flex items-center justify-center hover:bg-pure-white/30 transition-colors"
+              aria-label="Set budget"
+            >
+              <Pencil className="w-3.5 h-3.5 text-pure-white" />
+            </button>
+          }
+        />
+        <StatCard
+          id="my-contribution"
+          gradient="grad-blue-cyan"
+          icon={HandCoins}
+          label="Your Contribution"
+          value={myContribution}
+          trend={totalSpent > 0 ? `${contributionPct.toFixed(0)}% of trip spend` : 'No expenses yet'}
+          trendUp={null}
+          delay={0.16}
+        />
+        <StatCard
+          id="amount-owed"
+          gradient="grad-orange-pink"
+          icon={ArrowUpRight}
+          label="You Owe"
+          value={amountOwed}
+          trend={amountOwed > 0 ? 'Settle up to clear' : 'All clear 🎉'}
+          trendUp={amountOwed > 0 ? false : null}
+          delay={0.24}
+        />
+        <StatCard
+          id="amount-receivable"
+          gradient="grad-violet-fuchsia"
+          icon={ArrowDownLeft}
+          label="You'll Receive"
+          value={amountReceivable}
+          trend={amountReceivable > 0 ? 'Friends owe you' : 'Nothing pending'}
+          trendUp={amountReceivable > 0 ? true : null}
+          delay={0.32}
+        />
       </div>
+
+      {/* Budget edit inline panel */}
+      <AnimatePresence>
+        {editingBudget && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
+            <GlassCard hover={false} className="p-4 flex items-center gap-3">
+              <span className="text-sm text-white/60 flex-shrink-0">Trip budget ₹</span>
+              <input
+                id="budget-input"
+                className="input-glass flex-1 py-2"
+                type="number"
+                inputMode="decimal"
+                placeholder="e.g. 50000"
+                value={budgetInput}
+                autoFocus
+                onChange={e => setBudgetInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveBudget()}
+              />
+              <button id="save-budget-btn" onClick={saveBudget} className="btn-brand py-2 px-4 flex items-center gap-1.5 text-sm">
+                <Check className="w-4 h-4" /> Save
+              </button>
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Budget consumption meter */}
+      {budget > 0 && (
+        <FadeIn delay={0.3}>
+          <GlassCard hover={false} className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <PiggyBank className="w-4 h-4 text-brand-400" />
+                <span className="text-sm font-semibold text-white">Budget Consumption</span>
+              </div>
+              <span className={`text-xs font-bold ${overBudget ? 'text-red-400' : 'text-emerald-400'}`}>
+                {formatCurrency(totalSpent)} / {formatCurrency(budget)}
+              </span>
+            </div>
+            <div className="h-3 rounded-full bg-white/10 overflow-hidden">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${budgetUsedPct}%` }}
+                transition={{ duration: 1.2, delay: 0.4, ease: 'easeOut' }}
+                className="h-full rounded-full"
+                style={{
+                  background: overBudget
+                    ? 'linear-gradient(90deg, hsl(24,95%,56%), hsl(348,88%,56%))'
+                    : 'linear-gradient(90deg, hsl(152,70%,40%), hsl(180,78%,38%))',
+                }}
+              />
+            </div>
+            {overBudget && (
+              <p className="mt-2 text-xs text-red-400 font-medium">
+                Over budget by {formatCurrency(totalSpent - budget)} — time to go easy on the shopping? 😅
+              </p>
+            )}
+          </GlassCard>
+        </FadeIn>
+      )}
 
       {/* Settlement Progress */}
       {totalSettlements > 0 && (
         <FadeIn delay={0.35}>
-          <GlassCard className="p-5">
+          <GlassCard hover={false} className="p-5">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-brand-400" />
@@ -213,8 +357,11 @@ export default function DashboardPage({ params }: DashboardPageProps) {
         {/* Category Chart */}
         {categoryData.length > 0 && (
           <FadeIn delay={0.4}>
-            <GlassCard className="p-5">
-              <h2 className="text-sm font-semibold text-white mb-4">Expense Breakdown</h2>
+            <GlassCard hover={false} className="p-5">
+              <h2 className="text-sm font-semibold text-white mb-4 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-brand-400" />
+                Expense Breakdown
+              </h2>
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie
@@ -249,7 +396,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 {categoryData.map(cat => (
                   <div key={cat.name} className="flex items-center gap-1.5 text-xs text-white/60">
                     <div className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
-                    {cat.icon} {cat.name}
+                    {cat.icon} {getCategoryLabel(cat.name)}
                   </div>
                 ))}
               </div>
@@ -259,7 +406,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
 
         {/* Recent Activity */}
         <FadeIn delay={0.45}>
-          <GlassCard className="p-5">
+          <GlassCard hover={false} className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-white">Recent Expenses</h2>
               <Link href={`/expenses/${tripId}`} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
@@ -306,7 +453,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       {/* Member Balances Quick View */}
       {balances.length > 0 && (
         <FadeIn delay={0.5}>
-          <GlassCard className="p-5">
+          <GlassCard hover={false} className="p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-white">Member Balances</h2>
               <Link href={`/members/${tripId}`} className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1">
@@ -349,6 +496,17 @@ export default function DashboardPage({ params }: DashboardPageProps) {
           </GlassCard>
         </FadeIn>
       )}
+
+      {/* Floating Add Expense button (mobile) */}
+      <Link
+        href={`/expenses/${tripId}`}
+        id="fab-dashboard-add"
+        className="lg:hidden fixed right-5 z-40 w-14 h-14 rounded-full grad-violet-fuchsia liquid-sheen flex items-center justify-center active:scale-90 transition-transform"
+        style={{ bottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
+        aria-label="Add expense"
+      >
+        <Plus className="w-6 h-6 text-pure-white" />
+      </Link>
     </div>
   )
 }

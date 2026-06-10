@@ -19,6 +19,15 @@ export function formatCurrency(amount: number): string {
   }).format(amount)
 }
 
+/** Compact Indian formatting for big numbers: ₹3,250 · ₹1.25L · ₹2.4Cr */
+export function formatCompactINR(amount: number): string {
+  const sign = amount < 0 ? '-' : ''
+  const abs = Math.abs(amount)
+  if (abs >= 1_00_00_000) return `${sign}₹${(abs / 1_00_00_000).toFixed(abs >= 10_00_00_000 ? 1 : 2)}Cr`
+  if (abs >= 1_00_000)    return `${sign}₹${(abs / 1_00_000).toFixed(abs >= 10_00_000 ? 1 : 2)}L`
+  return formatCurrency(amount)
+}
+
 export function formatDate(dateStr: string): string {
   return new Intl.DateTimeFormat('en-IN', {
     day: 'numeric',
@@ -36,8 +45,21 @@ export function generateTripCode(): string {
   return code
 }
 
+// UUIDs so locally-created entities can be stored in Supabase (UUID columns).
+// Falls back to a random hex UUID shape on very old browsers.
 export function generateId(): string {
-  return Math.random().toString(36).substr(2, 9) + Date.now().toString(36)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+export function isUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
 }
 
 export function getInitials(name: string): string {
@@ -436,6 +458,55 @@ export function calculateSettlements(
   return routes
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// CATEGORY / SUBCATEGORY SYSTEM
+// ──────────────────────────────────────────────────────────────────────────────
+
+export const SUBCATEGORIES: Record<string, { id: string; label: string; icon: string }[]> = {
+  food: [
+    { id: 'breakfast', label: 'Breakfast', icon: '🍳' },
+    { id: 'lunch',     label: 'Lunch',     icon: '🍛' },
+    { id: 'dinner',    label: 'Dinner',    icon: '🍽️' },
+    { id: 'snacks',    label: 'Snacks',    icon: '🥪' },
+    { id: 'beverages', label: 'Beverages', icon: '🥤' },
+  ],
+  stay: [
+    { id: 'hotel',    label: 'Hotel',    icon: '🏨' },
+    { id: 'resort',   label: 'Resort',   icon: '🏝️' },
+    { id: 'hostel',   label: 'Hostel',   icon: '🛏️' },
+    { id: 'homestay', label: 'Homestay', icon: '🏡' },
+  ],
+  travel: [
+    { id: 'flight', label: 'Flight', icon: '✈️' },
+    { id: 'train',  label: 'Train',  icon: '🚆' },
+    { id: 'bus',    label: 'Bus',    icon: '🚌' },
+    { id: 'taxi',   label: 'Taxi',   icon: '🚕' },
+    { id: 'auto',   label: 'Auto',   icon: '🛺' },
+  ],
+  entertainment: [
+    { id: 'adventure',   label: 'Adventure',   icon: '🪂' },
+    { id: 'sightseeing', label: 'Sightseeing', icon: '🏛️' },
+    { id: 'watersports', label: 'Watersports', icon: '🏄' },
+    { id: 'nightlife',   label: 'Nightlife',   icon: '🪩' },
+  ],
+  shopping: [
+    { id: 'clothes',   label: 'Clothes',   icon: '👕' },
+    { id: 'souvenirs', label: 'Souvenirs', icon: '🎁' },
+    { id: 'local',     label: 'Local Market', icon: '🧺' },
+  ],
+  alcohol: [
+    { id: 'beer',     label: 'Beer',     icon: '🍺' },
+    { id: 'spirits',  label: 'Spirits',  icon: '🥃' },
+    { id: 'cocktails', label: 'Cocktails', icon: '🍹' },
+  ],
+}
+
+export function getSubcategoryLabel(category: string, subId?: string): string | null {
+  if (!subId) return null
+  const sub = SUBCATEGORIES[category]?.find(s => s.id === subId)
+  return sub ? `${sub.icon} ${sub.label}` : null
+}
+
 export function getCategoryIcon(category: string): string {
   const icons: Record<string, string> = {
     food:          '🍽️',
@@ -449,6 +520,37 @@ export function getCategoryIcon(category: string): string {
     misc:          '📌',
   }
   return icons[category] || '📌'
+}
+
+export function getCategoryLabel(category: string): string {
+  const labels: Record<string, string> = {
+    food:          'Food & Dining',
+    travel:        'Transport',
+    stay:          'Stay',
+    entertainment: 'Activities',
+    shopping:      'Shopping',
+    alcohol:       'Alcohol',
+    fuel:          'Fuel',
+    tickets:       'Tickets',
+    misc:          'Miscellaneous',
+  }
+  return labels[category] || category
+}
+
+/** Vivid two-stop gradient per category — used on cards, chips and charts. */
+export function getCategoryGradient(category: string): string {
+  const gradients: Record<string, string> = {
+    food:          'linear-gradient(135deg, hsl(24,95%,56%), hsl(340,88%,58%))',   // orange → pink
+    travel:        'linear-gradient(135deg, hsl(215,90%,55%), hsl(190,92%,48%))',  // blue → cyan
+    stay:          'linear-gradient(135deg, hsl(158,72%,42%), hsl(180,75%,40%))',  // emerald → teal
+    entertainment: 'linear-gradient(135deg, hsl(262,85%,58%), hsl(290,80%,56%))',  // indigo → purple
+    shopping:      'linear-gradient(135deg, hsl(330,85%,56%), hsl(355,85%,60%))',  // magenta → rose
+    alcohol:       'linear-gradient(135deg, hsl(38,95%,52%), hsl(20,90%,55%))',    // amber → orange
+    fuel:          'linear-gradient(135deg, hsl(12,85%,55%), hsl(35,90%,52%))',
+    tickets:       'linear-gradient(135deg, hsl(250,80%,60%), hsl(215,88%,56%))',
+    misc:          'linear-gradient(135deg, hsl(262,60%,55%), hsl(230,60%,58%))',
+  }
+  return gradients[category] || gradients.misc
 }
 
 export function getCategoryColor(category: string): string {

@@ -8,6 +8,16 @@ import {
   generateId, generateTripCode, getAvatarColor,
   calculateBalances, calculateSettlements, resolveHotelSplits
 } from '@/lib/utils'
+import {
+  remoteCreateTrip, remoteCloseTrip, remoteAddManualMember, remoteUpdateMemberUpi,
+  remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
+  remotePushSettlementStatus, TripBundle,
+} from '@/lib/remote'
+
+// Remote pushes are best-effort: cloud sync must never block or break local UX.
+function fireAndForget(p: Promise<unknown>) {
+  p.catch(err => console.warn('[sync] push failed (local data is safe):', err))
+}
 
 interface AppState {
   // ─── Data ───────────────────────────────────────────────────────────────────
@@ -33,6 +43,10 @@ interface AppState {
   getTripById: (tripId: string) => Trip | undefined
   getTripByCode: (code: string) => Trip | undefined
   importTrip:   (trip: Trip) => void
+  setTripBudget: (tripId: string, budget: number) => void
+  mergeRemoteTrip: (bundle: TripBundle) => void
+  /** Replaces a locally-joined member with the authoritative remote one. */
+  upsertMember: (member: Member) => void
 
   // ─── Member Actions ─────────────────────────────────────────────────────────
   getMembersByTrip: (tripId: string) => Member[]
@@ -101,6 +115,7 @@ export const useStore = create<AppState>()(
           status: 'active', createdAt: new Date().toISOString(),
         }
         set(s => ({ trips: [...s.trips, trip], members: [...s.members, member] }))
+        fireAndForget(remoteCreateTrip(trip, member))
         return { trip, member }
       },
 
@@ -130,16 +145,87 @@ export const useStore = create<AppState>()(
               : t
           ),
         }))
+        fireAndForget(remoteCloseTrip(tripId))
       },
 
       getTripById:   (tripId) => get().trips.find(t => t.id === tripId),
       getTripByCode: (code)   => get().trips.find(t => t.tripCode === code),
 
+      // Upsert by trip code: refreshes an already-known trip in place (same id)
+      // instead of ever creating a second copy.
       importTrip: (trip) => {
         set(s => {
-          if (s.trips.some(t => t.tripCode === trip.tripCode)) return s
+          const existing = s.trips.find(t => t.tripCode === trip.tripCode)
+          if (existing) {
+            return {
+              trips: s.trips.map(t =>
+                t.tripCode === trip.tripCode ? { ...t, ...trip, budget: trip.budget ?? t.budget } : t
+              ),
+            }
+          }
           return { trips: [...s.trips, trip] }
         })
+      },
+
+      setTripBudget: (tripId, budget) => {
+        set(s => ({
+          trips: s.trips.map(t => (t.id === tripId ? { ...t, budget } : t)),
+        }))
+      },
+
+      upsertMember: (member) => {
+        set(s => {
+          const exists = s.members.some(m => m.id === member.id)
+          return {
+            members: exists
+              ? s.members.map(m => (m.id === member.id ? { ...m, ...member } : m))
+              : [...s.members, member],
+          }
+        })
+      },
+
+      // Pull-sync: merge the authoritative remote dataset for one trip into the
+      // local store. Remote wins on shared ids; local-only items (not yet
+      // pushed, e.g. created offline) are kept.
+      mergeRemoteTrip: (bundle) => {
+        const { trip, members, expenses, hotelExpenses, settlementStatuses } = bundle
+        set(s => {
+          const localTrip = s.trips.find(t => t.id === trip.id)
+          const mergedTrip: Trip = { ...trip, budget: localTrip?.budget }
+
+          // keep: everything from other trips + local-only items of this trip;
+          // remote rows replace local copies with the same id
+          const mergeById = <T extends { id: string }>(local: T[], remote: T[], tripScoped: (x: T) => boolean) => {
+            const remoteIds = new Set(remote.map(r => r.id))
+            const kept = local.filter(x => !tripScoped(x) || !remoteIds.has(x.id))
+            return [...kept, ...remote]
+          }
+
+          return {
+            trips: localTrip
+              ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
+              : [...s.trips, mergedTrip],
+            members: mergeById(s.members, members, m => m.tripId === trip.id),
+            expenses: mergeById(s.expenses, expenses, e => e.tripId === trip.id),
+            hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
+          }
+        })
+
+        // Recompute settlements from the merged data, then overlay any remote
+        // paid/confirmed statuses so payment state survives across devices.
+        get().generateSettlements(trip.id)
+        if (settlementStatuses.length > 0) {
+          set(s => ({
+            settlements: s.settlements.map(x => {
+              if (x.tripId !== trip.id) return x
+              const remote = settlementStatuses.find(
+                r => r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId
+              )
+              if (!remote || remote.status === 'pending') return x
+              return { ...x, status: remote.status, paidAt: remote.paidAt, confirmedAt: remote.confirmedAt }
+            }),
+          }))
+        }
       },
 
       // ─── Members ────────────────────────────────────────────────────────────
@@ -156,6 +242,7 @@ export const useStore = create<AppState>()(
           joinedAt: new Date().toISOString(),
         }
         set(s => ({ members: [...s.members, member] }))
+        fireAndForget(remoteAddManualMember(member))
         return member
       },
 
@@ -165,6 +252,7 @@ export const useStore = create<AppState>()(
             m.id === memberId ? { ...m, upiId, upiName } : m
           ),
         }))
+        fireAndForget(remoteUpdateMemberUpi(memberId, upiId, upiName))
       },
 
       // ─── Expenses ───────────────────────────────────────────────────────────
@@ -172,6 +260,7 @@ export const useStore = create<AppState>()(
         const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() }
         set(s => ({ expenses: [...s.expenses, expense] }))
         get().generateSettlements(data.tripId)
+        fireAndForget(remotePushExpense(expense))
         return expense
       },
 
@@ -179,6 +268,7 @@ export const useStore = create<AppState>()(
         const expense = get().expenses.find(e => e.id === expenseId)
         set(s => ({ expenses: s.expenses.filter(e => e.id !== expenseId) }))
         if (expense) get().generateSettlements(expense.tripId)
+        fireAndForget(remoteDeleteExpense(expenseId))
       },
 
       getExpensesByTrip: (tripId) =>
@@ -195,6 +285,7 @@ export const useStore = create<AppState>()(
         }
         set(s => ({ hotelExpenses: [...s.hotelExpenses, hotel] }))
         get().generateSettlements(data.tripId)
+        fireAndForget(remotePushHotelExpense(hotel))
         return hotel
       },
 
@@ -202,6 +293,7 @@ export const useStore = create<AppState>()(
         const hotel = get().hotelExpenses.find(h => h.id === id)
         set(s => ({ hotelExpenses: s.hotelExpenses.filter(h => h.id !== id) }))
         if (hotel) get().generateSettlements(hotel.tripId)
+        fireAndForget(remoteDeleteHotelExpense(id))
       },
 
       getHotelExpensesByTrip: (tripId) =>
@@ -326,6 +418,8 @@ export const useStore = create<AppState>()(
               : x
           ),
         }))
+        const updated = get().settlements.find(x => x.id === settlementId)
+        if (updated) fireAndForget(remotePushSettlementStatus(updated))
       },
 
       // ─── Session ─────────────────────────────────────────────────────────────

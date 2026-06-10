@@ -42,6 +42,7 @@ export interface Expense {
   paidBy: string // primary payer member id (kept for backward compat)
   payers?: ExpensePayer[] // when present, overrides paidBy (multi-payer support)
   category: ExpenseCategory
+  subcategory?: string // e.g. food → 'lunch', travel → 'train'
   participants: string[] // member ids who share this expense
   splitType: SplitType
   splits: ParticipantSplit[] // populated for custom/percentage/quantity splits
@@ -109,6 +110,7 @@ export interface Trip {
   status: TripStatus
   createdAt: string
   closedAt?: string
+  budget?: number // planned trip budget in ₹ (optional, device-local)
 }
 
 export interface TripSession {

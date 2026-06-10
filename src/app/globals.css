@@ -36,12 +36,14 @@
   body {
     @apply antialiased;
     font-family: var(--font-inter);
-    /* Aurora mesh background — violet / mint / pink glows over warm cream */
+    /* Iridescent aurora mesh — violet / cyan / pink / orange glows, like light
+       refracting through liquid glass */
     background:
-      radial-gradient(55% 45% at 8% 0%, hsla(262, 90%, 86%, 0.55) 0%, transparent 65%),
-      radial-gradient(45% 38% at 96% 8%, hsla(168, 75%, 82%, 0.5) 0%, transparent 62%),
-      radial-gradient(42% 36% at 80% 95%, hsla(310, 85%, 88%, 0.45) 0%, transparent 60%),
-      radial-gradient(38% 32% at 12% 88%, hsla(42, 95%, 82%, 0.5) 0%, transparent 60%),
+      radial-gradient(60% 50% at 5% 0%, hsla(262, 95%, 82%, 0.65) 0%, transparent 64%),
+      radial-gradient(50% 42% at 98% 5%, hsla(190, 95%, 78%, 0.55) 0%, transparent 62%),
+      radial-gradient(46% 40% at 85% 92%, hsla(310, 95%, 84%, 0.55) 0%, transparent 60%),
+      radial-gradient(42% 36% at 8% 90%, hsla(24, 100%, 80%, 0.5) 0%, transparent 60%),
+      radial-gradient(36% 30% at 50% 50%, hsla(230, 90%, 88%, 0.4) 0%, transparent 70%),
       var(--surface-0);
     background-attachment: fixed;
     color: var(--ink);
@@ -76,13 +78,69 @@
 }
 
 @layer components {
-  /* Soft card utility (was glass) — airy white cards with gentle shadows */
+  /* Liquid-glass card — frosted, saturated blur with a soft iridescent tint
+     (translucent but never see-through-plain) */
   .glass {
-    background: linear-gradient(135deg, rgba(255,255,255,0.94) 0%, rgba(255,255,255,0.76) 100%);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(139, 78, 245, 0.12);
-    box-shadow: 0 6px 28px rgba(108, 62, 200, 0.1);
+    background: linear-gradient(135deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.66) 100%);
+    backdrop-filter: blur(24px) saturate(1.6);
+    -webkit-backdrop-filter: blur(24px) saturate(1.6);
+    border: 1px solid rgba(139, 78, 245, 0.14);
+    box-shadow:
+      0 8px 32px rgba(108, 62, 200, 0.12),
+      inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  }
+
+  /* ── Premium gradient stat cards (Indian fintech style) ─────────────────── */
+  .grad-indigo-purple {
+    background: linear-gradient(135deg, hsl(243, 82%, 58%) 0%, hsl(280, 78%, 56%) 100%);
+    box-shadow: 0 14px 36px hsla(262, 80%, 56%, 0.4);
+  }
+  .grad-orange-pink {
+    background: linear-gradient(135deg, hsl(24, 95%, 56%) 0%, hsl(336, 88%, 58%) 100%);
+    box-shadow: 0 14px 36px hsla(348, 88%, 56%, 0.38);
+  }
+  .grad-blue-cyan {
+    background: linear-gradient(135deg, hsl(217, 92%, 54%) 0%, hsl(189, 94%, 46%) 100%);
+    box-shadow: 0 14px 36px hsla(205, 90%, 50%, 0.38);
+  }
+  .grad-emerald-teal {
+    background: linear-gradient(135deg, hsl(152, 70%, 40%) 0%, hsl(180, 78%, 38%) 100%);
+    box-shadow: 0 14px 36px hsla(166, 72%, 38%, 0.38);
+  }
+  .grad-violet-fuchsia {
+    background: linear-gradient(135deg, hsl(262, 83%, 58%) 0%, hsl(310, 80%, 56%) 100%);
+    box-shadow: 0 14px 36px hsla(286, 80%, 56%, 0.4);
+  }
+
+  /* Liquid sheen sweeping across gradient cards */
+  .liquid-sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .liquid-sheen::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,0.28) 0%, transparent 55%),
+      radial-gradient(80% 60% at 0% 100%, rgba(255,255,255,0.1) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  .liquid-sheen::after {
+    content: '';
+    position: absolute;
+    top: -60%;
+    left: -80%;
+    width: 60%;
+    height: 220%;
+    transform: rotate(20deg);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+    animation: sheenSweep 5s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes sheenSweep {
+    0%, 60%  { left: -80%; }
+    100%     { left: 160%; }
   }
 
   .glass-strong {

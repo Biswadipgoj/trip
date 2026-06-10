@@ -52,19 +52,24 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000)
 
-### Supabase Setup (Optional)
+### Supabase Setup (Required for cross-device join & sync)
 
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** → paste the contents of [`supabase/schema.sql`](./supabase/schema.sql) → Run
 3. Copy your project URL and anon key
-4. Create `.env.local`:
+4. Create `.env.local` (and set the same variables in Vercel → Project → Settings → Environment Variables):
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
 ```
 
-Without these variables, the app runs fully in **localStorage mode**.
+With Supabase configured, **Join Trip** validates the invite code/link against
+the real trip in the database, attaches the member to that **existing** trip
+(never creating a new one), and syncs members, expenses and settlements across
+all devices. Without these variables the app runs in **localStorage mode**:
+fully functional on a single device, but invite links can't share live data
+across devices.
 
 ---
 

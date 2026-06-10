@@ -10,6 +10,8 @@ interface CountUpProps {
   decimals?: number
   className?: string
   start?: number
+  /** Indian digit grouping (₹1,25,000 style) while counting */
+  indian?: boolean
 }
 
 export function CountUp({
@@ -20,6 +22,7 @@ export function CountUp({
   decimals = 0,
   className,
   start = 0,
+  indian = false,
 }: CountUpProps) {
   const [value, setValue] = useState(start)
   const frameRef = useRef<number>(0)
@@ -52,7 +55,9 @@ export function CountUp({
     return () => cancelAnimationFrame(frameRef.current)
   }, [end, duration])
 
-  const formatted = value.toFixed(decimals)
+  const formatted = indian
+    ? new Intl.NumberFormat('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }).format(value)
+    : value.toFixed(decimals)
 
   return (
     <span className={className}>
