@@ -1,70 +1,88 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+
+type Phase = 'idle' | 'shaking' | 'crumbling' | 'reveal'
 
 /**
  * Interactive brand signature.
  *
- * Footer reads "Mastermind Behind The Code: Biswodip Goj" — every word painted
- * in its own vibrant gradient. Tapping it opens a super-fluid, hardware-
- * accelerated reveal (transform/opacity only, spring-driven) that floats a
- * stylized "Biswodip Goj" nameplate over a frosted backdrop.
+ * Footer text "Built with ❤️ by Biswodip Goj" — every word painted in its own
+ * vibrant gradient. Tapping it shakes the whole page, then unfurls a full-screen
+ * "paper crumble" transition that scrunches away to reveal a stylized
+ * "Biswodip Goj" nameplate.
  */
 export function BrandFooter() {
-  const [open, setOpen] = useState(false)
+  const [phase, setPhase] = useState<Phase>('idle')
 
-  const reveal = useCallback(() => setOpen(true), [])
-  const close = useCallback(() => setOpen(false), [])
+  // Toggle the page-shake class on <body> for the duration of the shake phase.
+  useEffect(() => {
+    if (phase !== 'shaking') return
+    document.body.classList.add('tm-shake')
+    const t = setTimeout(() => {
+      document.body.classList.remove('tm-shake')
+      setPhase('crumbling')
+    }, 600)
+    return () => {
+      clearTimeout(t)
+      document.body.classList.remove('tm-shake')
+    }
+  }, [phase])
+
+  const handleClick = useCallback(() => {
+    if (phase === 'idle') setPhase('shaking')
+  }, [phase])
+
+  const close = useCallback(() => setPhase('idle'), [])
 
   return (
     <>
       <footer className="relative z-10 mt-10 px-4 pb-28 lg:pb-8 pt-6 text-center">
-        <motion.button
+        <button
           id="brand-signature"
           type="button"
-          onClick={reveal}
-          aria-label="Mastermind Behind The Code: Biswodip Goj"
-          whileHover={{ scale: 1.05, y: -2 }}
-          whileTap={{ scale: 0.95 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 20 }}
-          className="group inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 rounded-2xl px-4 py-2 text-base sm:text-lg tracking-tight will-change-transform"
+          onClick={handleClick}
+          aria-label="Built with love by Biswodip Goj"
+          className="group inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-1 rounded-2xl px-4 py-2 text-base sm:text-lg tracking-tight transition-transform duration-300 hover:scale-105 active:scale-95"
         >
-          <span className="tm-word tm-w1">Mastermind</span>
-          <span className="tm-word tm-w2">Behind</span>
-          <span className="tm-word tm-w3">The</span>
-          <span className="tm-word tm-w4">Code:</span>
+          <span className="tm-word tm-w1">Built</span>
+          <span className="tm-word tm-w2">with</span>
+          <span
+            className="mx-0.5 inline-block text-rose-500 transition-transform duration-300 group-hover:scale-125"
+            style={{ WebkitTextFillColor: 'initial' }}
+          >
+            ❤️
+          </span>
+          <span className="tm-word tm-w3">by</span>
           <span className="tm-word tm-w5">Biswodip</span>
           <span className="tm-word tm-w6">Goj</span>
-        </motion.button>
+        </button>
         <p className="mt-1.5 text-[11px] text-white/30">Tap the signature ✨</p>
       </footer>
 
       <AnimatePresence>
-        {open && (
+        {phase !== 'idle' && phase !== 'shaking' && (
           <motion.div
             key="tm-overlay"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden px-6"
-            style={{
-              background: 'rgba(248, 243, 255, 0.55)',
-              backdropFilter: 'blur(22px) saturate(1.4)',
-              WebkitBackdropFilter: 'blur(22px) saturate(1.4)',
-            }}
-            onClick={close}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
+            onClick={phase === 'reveal' ? close : undefined}
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.82, y: 36 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 18 }}
-              transition={{ type: 'spring', stiffness: 240, damping: 22, mass: 0.9 }}
-              className="will-change-transform"
-            >
-              <Nameplate />
-            </motion.div>
+            {/* The nameplate sits beneath the paper, revealed as it crumbles away */}
+            <div className="absolute inset-0 flex items-center justify-center px-6">
+              <Nameplate visible={phase === 'crumbling' || phase === 'reveal'} showHint={phase === 'reveal'} />
+            </div>
+
+            {/* Crumbling paper sheet */}
+            {phase === 'crumbling' && (
+              <div
+                className="tm-paper tm-crumble absolute inset-0 origin-center"
+                onAnimationEnd={() => setPhase('reveal')}
+              />
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -72,13 +90,12 @@ export function BrandFooter() {
   )
 }
 
-function Nameplate() {
+function Nameplate({ visible, showHint }: { visible: boolean; showHint: boolean }) {
+  if (!visible) return null
   return (
-    <div className="text-center">
-      <motion.div
-        animate={{ y: [0, -7, 0] }}
-        transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
-        className="relative inline-block rounded-3xl px-8 py-7 sm:px-14 sm:py-10 will-change-transform"
+    <div className="tm-nameplate text-center">
+      <div
+        className="relative inline-block rounded-3xl px-8 py-7 sm:px-14 sm:py-10"
         style={{
           background:
             'linear-gradient(135deg, rgba(255,255,255,0.9), rgba(244,238,255,0.82))',
@@ -90,7 +107,7 @@ function Nameplate() {
         }}
       >
         <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-[0.4em] text-brand-500/70 mb-2">
-          Mastermind Behind The Code
+          Crafted by
         </p>
         <h2
           className="text-4xl sm:text-6xl font-extrabold leading-none"
@@ -112,8 +129,10 @@ function Nameplate() {
           <span className="text-base">✦</span>
           <span className="h-px w-10 bg-gradient-to-l from-transparent to-fuchsia-400/60" />
         </div>
-        <p className="mt-3 text-xs text-white/40">Tap anywhere to close</p>
-      </motion.div>
+        <p className={`mt-3 text-xs text-white/40 transition-opacity duration-500 ${showHint ? 'opacity-100' : 'opacity-0'}`}>
+          Tap anywhere to close
+        </p>
+      </div>
     </div>
   )
 }

@@ -126,44 +126,6 @@ export async function remoteCreateTrip(trip: Trip, creator: Member): Promise<voi
   joinLog('remote.createTrip.ok', { tripId: trip.id, tripCode: trip.tripCode })
 }
 
-/**
- * Guarantees a trip verified via an invite link also exists on the server —
- * WITHOUT ever creating a duplicate. It inserts the exact same trip row
- * (same id, same trip code) only when no row with that code exists yet.
- * This heals trips that were created before cloud sync was configured, so a
- * join always attaches everyone to the ONE shared trip instead of leaving
- * divergent device-local copies with the same name.
- */
-export async function remoteEnsureTrip(trip: Trip): Promise<boolean> {
-  if (!supabase || !isUuid(trip.id)) return false
-
-  const { data: existing, error: findErr } = await supabase
-    .from('trips')
-    .select('id')
-    .eq('trip_code', trip.tripCode.toUpperCase())
-    .maybeSingle()
-  if (findErr) {
-    joinLog('remote.ensureTrip.findError', { tripCode: trip.tripCode, error: findErr.message })
-    return false
-  }
-  if (existing) return existing.id === trip.id
-
-  const { error } = await supabase.from('trips').insert({
-    id: trip.id,
-    trip_code: trip.tripCode,
-    name: trip.name,
-    password: trip.password,
-    status: trip.status,
-    created_at: trip.createdAt,
-  })
-  if (error) {
-    joinLog('remote.ensureTrip.insertError', { tripId: trip.id, error: error.message })
-    return false
-  }
-  joinLog('remote.ensureTrip.created', { tripId: trip.id, tripCode: trip.tripCode })
-  return true
-}
-
 export async function remoteCloseTrip(tripId: string): Promise<void> {
   if (!supabase || !isUuid(tripId)) return
   await supabase.from('trips')
@@ -326,50 +288,32 @@ export async function remoteDeleteHotelExpense(hotelId: string): Promise<void> {
 
 export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
   if (!supabase || !isUuid(s.tripId)) return
-
-  const patch = {
-    amount: s.amount,
-    status: s.status,
-    paid_at: s.paidAt ?? null,
-    confirmed_at: s.confirmedAt ?? null,
-  }
-
-  // 1) The same settlement already lives on the server → update it in place.
-  if (isUuid(s.id)) {
-    const { data: byId } = await supabase
-      .from('settlements').select('id').eq('id', s.id).maybeSingle()
-    if (byId) {
-      await supabase.from('settlements').update(patch).eq('id', s.id)
-      return
-    }
-  }
-
-  // 2) Reuse an OPEN (not confirmed) legacy row for this direction. Confirmed
-  //    rows are immutable payment history — a newer due between the same two
-  //    people must never overwrite one.
-  const { data: open } = await supabase
+  const { data: existing } = await supabase
     .from('settlements')
     .select('id')
     .eq('trip_id', s.tripId)
     .eq('from_member_id', s.fromMemberId)
     .eq('to_member_id', s.toMemberId)
-    .neq('status', 'confirmed')
-    .limit(1)
     .maybeSingle()
 
-  if (open) {
-    await supabase.from('settlements').update(patch).eq('id', open.id)
-    return
+  if (existing) {
+    await supabase.from('settlements').update({
+      amount: s.amount,
+      status: s.status,
+      paid_at: s.paidAt ?? null,
+      confirmed_at: s.confirmedAt ?? null,
+    }).eq('id', existing.id)
+  } else {
+    await supabase.from('settlements').insert({
+      trip_id: s.tripId,
+      from_member_id: s.fromMemberId,
+      to_member_id: s.toMemberId,
+      amount: s.amount,
+      status: s.status,
+      paid_at: s.paidAt ?? null,
+      confirmed_at: s.confirmedAt ?? null,
+    })
   }
-
-  // 3) Brand-new payment row (keeps the local id so future pushes match).
-  await supabase.from('settlements').insert({
-    ...(isUuid(s.id) ? { id: s.id } : {}),
-    trip_id: s.tripId,
-    from_member_id: s.fromMemberId,
-    to_member_id: s.toMemberId,
-    ...patch,
-  })
 }
 
 // ─── Full trip pull ───────────────────────────────────────────────────────────
@@ -380,10 +324,8 @@ export interface TripBundle {
   expenses: Expense[]
   hotelExpenses: HotelExpense[]
   settlementStatuses: Array<{
-    id: string
     fromMemberId: string
     toMemberId: string
-    amount: number
     status: PaymentStatus
     paidAt?: string
     confirmedAt?: string
@@ -465,10 +407,8 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
   }))
 
   const settlementStatuses = (settlementsRes.data || []).map((row: any) => ({
-    id: row.id,
     fromMemberId: row.from_member_id,
     toMemberId: row.to_member_id,
-    amount: Number(row.amount),
     status: row.status as PaymentStatus,
     paidAt: row.paid_at || undefined,
     confirmedAt: row.confirmed_at || undefined,

@@ -4,7 +4,7 @@ import React from 'react';
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateNetBalances, formatCurrency, formatDate, createInviteLink } from '@/lib/utils'
+import { calculateBalances, formatCurrency, formatDate, createInviteLink } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { CountUp } from '@/components/animations/CountUp'
@@ -24,7 +24,6 @@ export default function MembersPage({ params }: MembersPageProps) {
   const allMembers = useStore(s => s.members)
   const allExpenses = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
-  const allSettlements = useStore(s => s.settlements)
   const allGroups = useStore(s => s.settlementGroups)
   const addSettlementGroup = useStore(s => s.addSettlementGroup)
   const removeSettlementGroup = useStore(s => s.removeSettlementGroup)
@@ -35,7 +34,6 @@ export default function MembersPage({ params }: MembersPageProps) {
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
   const hotelExpenses = useMemo(() => allHotelExpenses.filter(h => h.tripId === tripId), [allHotelExpenses, tripId])
-  const settlements = useMemo(() => allSettlements.filter(s => s.tripId === tripId), [allSettlements, tripId])
   const units = useMemo(() => allGroups.filter(g => g.tripId === tripId), [allGroups, tripId])
 
   const [editingUpi, setEditingUpi] = useState<string | null>(null)
@@ -48,11 +46,7 @@ export default function MembersPage({ params }: MembersPageProps) {
   const [unitMembers, setUnitMembers] = useState<string[]>([])
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null)
 
-  // Net balances reflect confirmed payments, not just raw expense math
-  const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
-  )
+  const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
   const balanceMap = useMemo(() => {
     const map: Record<string, typeof balances[0]> = {}
     balances.forEach(b => { map[b.memberId] = b })

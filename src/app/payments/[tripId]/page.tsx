@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { calculateNetBalances, calculateSettlements, formatCurrency, formatDate, buildUpiLink } from '@/lib/utils'
+import { calculateBalances, calculateSettlements, formatCurrency, buildUpiLink } from '@/lib/utils'
 import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { FadeIn } from '@/components/animations/FadeIn'
@@ -49,23 +49,13 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
     generateSettlements(tripId)
   }, [tripId, generateSettlements])
 
-  // Confirmed payments are immutable transaction history — cash that moved.
-  const confirmedPayments = useMemo(
-    () =>
-      settlements
-        .filter(s => s.status === 'confirmed')
-        .sort((a, b) => (b.confirmedAt || '').localeCompare(a.confirmedAt || '')),
-    [settlements]
-  )
-
-  // Expenses → Balance Engine, adjusted by confirmed transfers, so the
-  // settlement minimizer always runs on the LIVE residual debt.
+  // Expenses → Balance Engine
   const balances = useMemo(
-    () => calculateNetBalances(expenses, hotelExpenses, members, settlements),
-    [expenses, hotelExpenses, members, settlements]
+    () => calculateBalances(expenses, hotelExpenses, members),
+    [expenses, hotelExpenses, members]
   )
 
-  // Balance Engine → Settlement Engine (minimum transactions still due)
+  // Balance Engine → Settlement Engine (minimum transactions)
   const routes = useMemo(
     () => calculateSettlements(balances, members, groups, sponsorships),
     [balances, members, groups, sponsorships]
@@ -78,7 +68,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
   }, [members])
 
   const pendingCount   = settlements.filter(s => s.status === 'pending').length
-  const confirmedCount = confirmedPayments.length
+  const confirmedCount = settlements.filter(s => s.status === 'confirmed').length
   const nonZeroBalances = balances.filter(b => Math.abs(b.netBalance) > 0.01)
 
   return (
@@ -93,10 +83,8 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
             <h1 className="text-xl font-bold text-white">Payments</h1>
             <p className="text-white/40 text-sm">
               {routes.length === 0
-                ? confirmedCount > 0
-                  ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
-                  : 'All balances are clear'
-                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} still due · ${pendingCount} pending · ${confirmedCount} confirmed`}
+                ? 'All balances are clear'
+                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} settle everything · ${pendingCount} due · ${confirmedCount} confirmed`}
             </p>
           </div>
         </div>
@@ -134,14 +122,8 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
         <FadeIn delay={0.1}>
           <div className="text-center py-20">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-            <p className="text-white/60 mb-1">
-              {confirmedCount > 0 ? 'Everything is settled 🎉' : 'No payments needed'}
-            </p>
-            <p className="text-white/30 text-sm">
-              {confirmedCount > 0
-                ? 'All confirmed payments are recorded below'
-                : 'Add expenses to see who pays whom'}
-            </p>
+            <p className="text-white/60 mb-1">No payments needed</p>
+            <p className="text-white/30 text-sm">Add expenses to see who pays whom</p>
           </div>
         </FadeIn>
       )}
@@ -149,14 +131,8 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
       {/* Settlement Transactions */}
       <div className="space-y-3">
         {routes.map((route, i) => {
-          // A route matches a stored due only when it's the SAME payment:
-          // same direction AND same amount, and not yet confirmed.
           const settlement = settlements.find(
-            s =>
-              s.status !== 'confirmed' &&
-              s.fromMemberId === route.fromMemberId &&
-              s.toMemberId === route.toMemberId &&
-              Math.abs(s.amount - route.amount) < 0.01
+            s => s.fromMemberId === route.fromMemberId && s.toMemberId === route.toMemberId
           )
           const status = settlement?.status || 'pending'
           const toMember = memberMap[route.toMemberId]
@@ -266,44 +242,6 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
           )
         })}
       </div>
-
-      {/* Completed payments — immutable history of confirmed transfers */}
-      {confirmedPayments.length > 0 && (
-        <FadeIn delay={0.15}>
-          <div className="space-y-3">
-            <h2 className="text-sm font-semibold text-white flex items-center gap-1.5 pt-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              Completed Payments
-            </h2>
-            {confirmedPayments.map(payment => {
-              const fromM = memberMap[payment.fromMemberId]
-              const toM   = memberMap[payment.toMemberId]
-              if (!fromM || !toM) return null
-              return (
-                <GlassCard key={payment.id} className="p-4" hover={false}>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={fromM.name} color={fromM.avatarColor} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-white truncate">
-                        <span className="font-semibold">{fromM.name}</span>
-                        <span className="text-white/40"> paid </span>
-                        <span className="font-semibold">{toM.name}</span>
-                      </p>
-                      {payment.confirmedAt && (
-                        <p className="text-xs text-white/40">{formatDate(payment.confirmedAt)}</p>
-                      )}
-                    </div>
-                    <span className="text-sm font-bold text-emerald-400 flex-shrink-0">
-                      {formatCurrency(payment.amount)}
-                    </span>
-                    <Avatar name={toM.name} color={toM.avatarColor} size="sm" />
-                  </div>
-                </GlassCard>
-              )
-            })}
-          </div>
-        </FadeIn>
-      )}
     </div>
   )
 }
