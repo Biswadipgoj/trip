@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
+import { createInviteLink } from '@/lib/utils'
 import { MapPin, ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2 } from 'lucide-react'
 import type { Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
@@ -58,8 +59,9 @@ export default function CreateTripPage() {
     const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
     setCreatedTrip(trip)
-    // Security: only share the trip code, never the full trip object (which contains the password)
-    setShareUrl(`${window.location.origin}/join-trip?code=${encodeURIComponent(trip.tripCode)}`)
+    // Invite link carries the trip data (never the password) plus a signature,
+    // so it works on any device. Friends still need the password to join.
+    setShareUrl(createInviteLink(trip, window.location.origin))
     setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
     setStep('success')
     setConfetti(true)
@@ -108,8 +110,8 @@ export default function CreateTripPage() {
                   className="h-1 rounded-full transition-all duration-500"
                   style={{
                     background: i <= stepIndex
-                      ? 'linear-gradient(90deg, hsl(240,78%,58%), hsl(280,78%,55%))'
-                      : 'rgba(255,255,255,0.1)',
+                      ? 'linear-gradient(90deg, hsl(258,65%,58%), hsl(160,52%,42%))'
+                      : 'rgba(93,70,160,0.12)',
                   }}
                 />
                 <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/30'}`}>
@@ -362,7 +364,7 @@ export default function CreateTripPage() {
                     {copiedLink ? 'Link Copied!' : 'Copy Join Link'}
                   </button>
                   <p className="text-[10px] text-white/25 mt-2">
-                    Anyone who opens this link can join directly — no code needed
+                    Works on any device — friends just enter the trip password to join. Link valid for 30 days.
                   </p>
                 </motion.div>
               )}

@@ -135,10 +135,10 @@ export default function ReportPage({ params }: ReportPageProps) {
       {/* KPI row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: Receipt,       label: 'Total Spend',   value: formatCurrency(totalSpend),          color: 'hsl(240,78%,58%)' },
-          { icon: Users,         label: 'Members',       value: String(members.length),              color: 'hsl(280,78%,55%)' },
+          { icon: Receipt,       label: 'Total Spend',   value: formatCurrency(totalSpend),          color: 'hsl(258,65%,58%)' },
+          { icon: Users,         label: 'Members',       value: String(members.length),              color: 'hsl(280,60%,55%)' },
           { icon: TrendingUp,    label: 'Per Person',    value: formatCurrency(perPersonAvg),        color: 'hsl(25,80%,55%)' },
-          { icon: CheckCircle2,  label: 'Settled',       value: `${settledCount}/${routes.length}`,  color: 'hsl(158,60%,45%)' },
+          { icon: CheckCircle2,  label: 'Settled',       value: `${settledCount}/${routes.length}`,  color: 'hsl(160,52%,42%)' },
         ].map((kpi, i) => (
           <FadeIn key={kpi.label} delay={i * 0.07}>
             <GlassCard className="p-4">
@@ -169,7 +169,7 @@ export default function ReportPage({ params }: ReportPageProps) {
                   </Pie>
                   <Tooltip
                     formatter={(v: number) => formatCurrency(v)}
-                    contentStyle={{ background: 'hsl(222,36%,10%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: 'white', fontSize: 12 }}
+                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(93,70,160,0.12)', borderRadius: 12, color: 'hsl(258, 25%, 24%)', fontSize: 12 }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -196,14 +196,14 @@ export default function ReportPage({ params }: ReportPageProps) {
               <h2 className="text-sm font-semibold text-white mb-4">Paid vs Owed per Member</h2>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={memberSpendData} barCategoryGap="30%">
-                  <XAxis dataKey="name" tick={{ fill: 'rgba(255,255,255,0.4)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="name" tick={{ fill: 'rgba(62,49,98,0.55)', fontSize: 11 }} axisLine={false} tickLine={false} />
                   <YAxis hide />
                   <Tooltip
                     formatter={(v: number) => formatCurrency(v)}
-                    contentStyle={{ background: 'hsl(222,36%,10%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: 'white', fontSize: 12 }}
+                    contentStyle={{ background: '#fffdf8', border: '1px solid rgba(93,70,160,0.12)', borderRadius: 12, color: 'hsl(258, 25%, 24%)', fontSize: 12 }}
                   />
-                  <Bar dataKey="paid" fill="hsl(240,78%,58%)" radius={[4, 4, 0, 0]} name="Paid" />
-                  <Bar dataKey="owed" fill="hsl(280,78%,55%)" radius={[4, 4, 0, 0]} name="Owed" />
+                  <Bar dataKey="paid" fill="hsl(258,65%,58%)" radius={[4, 4, 0, 0]} name="Paid" />
+                  <Bar dataKey="owed" fill="hsl(160,52%,42%)" radius={[4, 4, 0, 0]} name="Owed" />
                 </BarChart>
               </ResponsiveContainer>
             </GlassCard>

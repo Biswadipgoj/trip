@@ -55,6 +55,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const balances = useMemo(() => calculateBalances(expenses, hotelExpenses, members), [expenses, hotelExpenses, members])
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0)
+    + hotelExpenses.reduce((sum, h) => sum + h.totalAmount, 0)
   const settledCount = settlements.filter(s => s.status === 'confirmed').length
   const totalSettlements = settlements.length
   const isFullySettled = totalSettlements > 0 && settledCount === totalSettlements
@@ -90,7 +91,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Wallet,
       label: 'Total Spent',
       value: totalSpent,
-      color: 'hsl(240, 78%, 58%)',
+      color: 'hsl(258, 65%, 58%)',
       prefix: '₹',
     },
     {
@@ -98,7 +99,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: Users,
       label: 'Members',
       value: members.length,
-      color: 'hsl(280, 78%, 55%)',
+      color: 'hsl(280, 60%, 55%)',
       prefix: '',
     },
     {
@@ -114,7 +115,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
       icon: CheckCircle2,
       label: 'Settled',
       value: settledCount,
-      color: 'hsl(158, 60%, 45%)',
+      color: 'hsl(160, 52%, 42%)',
       prefix: '',
       suffix: `/${totalSettlements}`,
     },
@@ -191,7 +192,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 animate={{ width: `${(settledCount / totalSettlements) * 100}%` }}
                 transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
                 className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, hsl(240,78%,58%), hsl(280,78%,55%))' }}
+                style={{ background: 'linear-gradient(90deg, hsl(258,65%,58%), hsl(160,52%,42%))' }}
               />
             </div>
             {isFullySettled && (
@@ -234,11 +235,12 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                   <Tooltip
                     formatter={(value: number) => formatCurrency(value)}
                     contentStyle={{
-                      background: 'hsl(222, 36%, 10%)',
-                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: '#fffdf8',
+                      border: '1px solid rgba(93,70,160,0.12)',
                       borderRadius: 12,
-                      color: 'white',
+                      color: 'hsl(258, 25%, 24%)',
                       fontSize: 12,
+                      boxShadow: '0 8px 24px rgba(93,70,160,0.12)',
                     }}
                   />
                 </PieChart>

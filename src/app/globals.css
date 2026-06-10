@@ -8,24 +8,27 @@
   --font-inter: 'Inter', system-ui, sans-serif;
   --font-space-grotesk: 'Space Grotesk', system-ui, sans-serif;
 
-  /* Brand palette */
-  --brand-400: hsl(240, 85%, 67%);
-  --brand-500: hsl(240, 78%, 58%);
-  --brand-600: hsl(240, 72%, 50%);
-  --accent-400: hsl(280, 85%, 65%);
-  --accent-500: hsl(280, 78%, 55%);
+  /* Brand palette — soft purple + mint green on warm beige */
+  --brand-400: hsl(258, 75%, 66%);
+  --brand-500: hsl(258, 65%, 58%);
+  --brand-600: hsl(258, 58%, 50%);
+  --accent-400: hsl(160, 48%, 52%);
+  --accent-500: hsl(160, 52%, 42%);
 
-  /* Surface palette (dark mode default) */
-  --surface-0: hsl(222, 47%, 4%);
-  --surface-1: hsl(222, 40%, 7%);
-  --surface-2: hsl(222, 36%, 10%);
-  --surface-3: hsl(222, 32%, 14%);
-  --surface-4: hsl(222, 28%, 18%);
+  /* Ink (text) color */
+  --ink: hsl(258, 25%, 24%);
+
+  /* Surface palette (light beige) */
+  --surface-0: hsl(40, 45%, 96%);
+  --surface-1: hsl(40, 42%, 93%);
+  --surface-2: hsl(40, 38%, 90%);
+  --surface-3: hsl(40, 32%, 86%);
+  --surface-4: hsl(40, 28%, 82%);
 }
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
     scroll-behavior: smooth;
   }
 
@@ -33,7 +36,7 @@
     @apply antialiased;
     font-family: var(--font-inter);
     background: var(--surface-0);
-    color: white;
+    color: var(--ink);
     min-height: 100vh;
     overflow-x: hidden;
   }
@@ -43,8 +46,8 @@
   }
 
   ::selection {
-    background: hsl(240, 78%, 58%, 0.3);
-    color: white;
+    background: hsl(258, 65%, 58%, 0.25);
+    color: var(--ink);
   }
 
   /* Custom scrollbar */
@@ -56,68 +59,79 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(93, 70, 160, 0.18);
     border-radius: 99px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: rgba(93, 70, 160, 0.32);
   }
 }
 
 @layer components {
-  /* Glass utility */
+  /* Soft card utility (was glass) — airy white cards with gentle shadows */
   .glass {
-    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.03) 100%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.72) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(93, 70, 160, 0.08);
+    box-shadow: 0 4px 24px rgba(93, 70, 160, 0.07);
   }
 
   .glass-strong {
-    background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%);
+    background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.9) 100%);
     backdrop-filter: blur(32px);
     -webkit-backdrop-filter: blur(32px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(93, 70, 160, 0.1);
+    box-shadow: 0 16px 48px rgba(93, 70, 160, 0.14);
   }
 
-  /* Gradient brand button */
+  /* Gradient brand button — soft purple → mint */
   .btn-brand {
-    @apply relative overflow-hidden rounded-xl px-5 py-2.5 text-sm font-semibold text-white;
+    @apply relative overflow-hidden rounded-xl px-5 py-2.5 text-sm font-semibold;
+    color: #ffffff;
     background: linear-gradient(135deg, var(--brand-500), var(--accent-500));
-    box-shadow: 0 4px 20px rgba(100, 90, 230, 0.35);
-    transition: all 0.2s ease;
+    box-shadow: 0 4px 18px rgba(124, 92, 220, 0.3);
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .btn-brand:hover {
     transform: translateY(-1px);
-    box-shadow: 0 8px 30px rgba(100, 90, 230, 0.5);
+    box-shadow: 0 8px 28px rgba(124, 92, 220, 0.4);
   }
   .btn-brand:active {
-    transform: translateY(0) scale(0.98);
+    transform: translateY(0) scale(0.96);
   }
 
   .btn-ghost {
-    @apply relative rounded-xl px-5 py-2.5 text-sm font-medium text-white/70;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s ease;
+    @apply relative rounded-xl px-5 py-2.5 text-sm font-medium;
+    color: hsl(258, 25%, 24%, 0.75);
+    background: rgba(93, 70, 160, 0.05);
+    border: 1px solid rgba(93, 70, 160, 0.12);
+    transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
   .btn-ghost:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: white;
+    background: rgba(93, 70, 160, 0.09);
+    color: var(--ink);
+  }
+  .btn-ghost:active {
+    transform: scale(0.96);
   }
 
   /* Input field */
   .input-glass {
-    @apply w-full rounded-xl px-4 py-3 text-sm text-white placeholder-white/30;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    @apply w-full rounded-xl px-4 py-3 text-sm;
+    color: var(--ink);
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(93, 70, 160, 0.14);
     outline: none;
     transition: all 0.2s ease;
   }
+  .input-glass::placeholder {
+    color: hsl(258, 20%, 24%, 0.35);
+  }
   .input-glass:focus {
     border-color: var(--brand-500);
-    background: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 0 0 3px rgba(100, 90, 230, 0.15);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(124, 92, 220, 0.14);
   }
 
   /* KPI card gradient borders */
@@ -128,7 +142,7 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.03), rgba(255,255,255,0.15));
+    background: linear-gradient(135deg, rgba(124,92,220,0.18), rgba(124,92,220,0.04), rgba(94,186,151,0.18));
     border-radius: inherit;
     pointer-events: none;
   }
@@ -152,13 +166,13 @@
     animation: ripple-expand 0.7s ease-out forwards;
   }
 
-  /* Shimmer animation */
+  /* Skeleton shimmer */
   @keyframes shimmer {
     0%   { background-position: -200% 0; }
     100% { background-position:  200% 0; }
   }
   .animate-shimmer {
-    background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+    background: linear-gradient(90deg, rgba(93,70,160,0.05) 25%, rgba(93,70,160,0.12) 50%, rgba(93,70,160,0.05) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.8s linear infinite;
   }
@@ -166,7 +180,7 @@
 
 @layer utilities {
   .text-gradient-brand {
-    background: linear-gradient(135deg, var(--brand-400), var(--accent-400));
+    background: linear-gradient(135deg, var(--brand-500), var(--accent-500));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

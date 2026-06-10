@@ -39,7 +39,7 @@ export default function Home() {
           transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
           className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-brand flex items-center justify-center shadow-glow-brand"
         >
-          <MapPin className="w-9 h-9 text-white" />
+          <MapPin className="w-9 h-9 text-pure-white" />
         </motion.div>
 
         <motion.div

@@ -18,7 +18,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0a0e1a',
+  themeColor: '#f7f3ea',
 }
 
 export default function RootLayout({
@@ -27,22 +27,22 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en">
       <head />
       <body className="min-h-screen bg-surface-0 text-white antialiased">
-        {/* Background gradient blobs */}
+        {/* Background gradient blobs — soft purple + mint over beige */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
           <div
-            className="absolute -top-40 -left-40 w-96 h-96 rounded-full opacity-20 blur-3xl"
-            style={{ background: 'hsl(240, 78%, 58%)' }}
+            className="absolute -top-40 -left-40 w-96 h-96 rounded-full opacity-25 blur-3xl"
+            style={{ background: 'hsl(258, 75%, 84%)' }}
           />
           <div
-            className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full opacity-15 blur-3xl"
-            style={{ background: 'hsl(280, 78%, 55%)' }}
+            className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full opacity-25 blur-3xl"
+            style={{ background: 'hsl(160, 55%, 80%)' }}
           />
           <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-10 blur-3xl"
-            style={{ background: 'hsl(195, 70%, 48%)' }}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-15 blur-3xl"
+            style={{ background: 'hsl(40, 70%, 85%)' }}
           />
         </div>
         <StoreProvider>

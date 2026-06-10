@@ -2,7 +2,8 @@ import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import {
   MemberBalance, Expense, Member, SettlementRoute,
-  SettlementGroup, Sponsorship, HotelExpense, ParticipantSplit
+  SettlementGroup, Sponsorship, HotelExpense, ParticipantSplit,
+  Trip, InvitePayload, InviteParseResult
 } from '@/types'
 
 export function cn(...inputs: ClassValue[]) {
@@ -49,18 +50,103 @@ export function getInitials(name: string): string {
 }
 
 export const AVATAR_COLORS = [
-  'hsl(240, 78%, 58%)',
-  'hsl(280, 78%, 55%)',
-  'hsl(340, 75%, 55%)',
+  'hsl(258, 65%, 58%)',
+  'hsl(280, 60%, 55%)',
+  'hsl(340, 70%, 58%)',
   'hsl(25, 80%, 55%)',
-  'hsl(158, 60%, 45%)',
-  'hsl(195, 70%, 48%)',
-  'hsl(45, 80%, 52%)',
-  'hsl(310, 70%, 52%)',
+  'hsl(160, 52%, 42%)',
+  'hsl(195, 65%, 45%)',
+  'hsl(42, 80%, 48%)',
+  'hsl(310, 55%, 52%)',
 ]
 
 export function getAvatarColor(index: number): string {
   return AVATAR_COLORS[index % AVATAR_COLORS.length]
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// INVITE LINKS
+// The app has no central backend, so the invite link itself must carry the
+// trip data. The payload is base64url-encoded JSON containing the trip
+// WITHOUT its password, plus a signature hash of (tripCode|password). The
+// joining device verifies the password the user types against the signature.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const INVITE_VERSION = 2
+const INVITE_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+/** Deterministic FNV-1a hash → hex string. Not cryptographic, but enough to
+ *  validate a trip password offline without putting it in the URL. */
+export function hashInviteSecret(input: string): string {
+  let h1 = 0x811c9dc5
+  let h2 = 0x01000193
+  for (let i = 0; i < input.length; i++) {
+    const c = input.charCodeAt(i)
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0
+    h2 = Math.imul(h2 + c, 0x85ebca6b) >>> 0
+  }
+  return h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0')
+}
+
+export function inviteSignature(tripCode: string, password: string): string {
+  return hashInviteSecret(`${tripCode.toUpperCase()}|${password}`)
+}
+
+/** Encode to base64url — survives URL encoding, spaces, and messaging apps. */
+function toBase64Url(str: string): string {
+  const b64 = typeof window !== 'undefined'
+    ? window.btoa(unescape(encodeURIComponent(str)))
+    : Buffer.from(str, 'utf-8').toString('base64')
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function fromBase64Url(token: string): string {
+  // Normalize artifacts from URL encoding / copy-paste:
+  // spaces (decoded '+'), percent-encoding, stray whitespace
+  let clean = token.trim().replace(/\s/g, '')
+  try { clean = decodeURIComponent(clean) } catch { /* already decoded */ }
+  clean = clean.replace(/-/g, '+').replace(/_/g, '/')
+  while (clean.length % 4 !== 0) clean += '='
+  const decoded = typeof window !== 'undefined'
+    ? window.atob(clean)
+    : Buffer.from(clean, 'base64').toString('binary')
+  return decodeURIComponent(escape(decoded))
+}
+
+export function createInviteToken(trip: Trip): string {
+  const { password, ...tripWithoutPassword } = trip
+  const payload: InvitePayload = {
+    v: INVITE_VERSION,
+    trip: tripWithoutPassword,
+    exp: Date.now() + INVITE_VALIDITY_MS,
+    sig: inviteSignature(trip.tripCode, password),
+  }
+  return toBase64Url(JSON.stringify(payload))
+}
+
+export function createInviteLink(trip: Trip, origin: string): string {
+  return `${origin}/join-trip?invite=${createInviteToken(trip)}`
+}
+
+export function parseInviteToken(raw: string | null): InviteParseResult {
+  if (!raw) return { ok: false, reason: 'invalid' }
+  try {
+    const payload = JSON.parse(fromBase64Url(raw)) as InvitePayload
+    if (!payload?.trip?.id || !payload.trip.tripCode || !payload.sig) {
+      return { ok: false, reason: 'invalid' }
+    }
+    if (typeof payload.exp === 'number' && Date.now() > payload.exp) {
+      return { ok: false, reason: 'expired' }
+    }
+    return { ok: true, payload }
+  } catch {
+    return { ok: false, reason: 'invalid' }
+  }
+}
+
+/** Round to 2 decimals (paise-accurate). */
+export function roundMoney(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -79,8 +165,7 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
 
   switch (expense.splitType) {
     case 'equal': {
-      const share = expense.amount / expense.participants.length
-      expense.participants.forEach(pid => { shares[pid] = share })
+      distributeEqually(expense.amount, expense.participants, shares)
       break
     }
 
@@ -121,12 +206,29 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
 
     default: {
       // fallback to equal
-      const share = expense.amount / expense.participants.length
-      expense.participants.forEach(pid => { shares[pid] = share })
+      distributeEqually(expense.amount, expense.participants, shares)
     }
   }
 
   return shares
+}
+
+/**
+ * Paise-accurate equal split: each share is rounded to 2 decimals and the
+ * leftover paise are assigned to the first participants so the shares always
+ * sum exactly to the expense amount (no floating-point drift).
+ */
+function distributeEqually(amount: number, participantIds: string[], out: Record<string, number>) {
+  const n = participantIds.length
+  if (n === 0) return
+  const totalPaise = Math.round(amount * 100)
+  const base = Math.floor(totalPaise / n)
+  let remainder = totalPaise - base * n
+  participantIds.forEach(pid => {
+    const extra = remainder > 0 ? 1 : 0
+    remainder -= extra
+    out[pid] = (base + extra) / 100
+  })
 }
 
 /**
@@ -138,9 +240,10 @@ export function resolveHotelSplits(hotel: HotelExpense): Record<string, number> 
 
   hotel.rooms.forEach(room => {
     if (room.occupantIds.length === 0) return
-    const perPerson = room.cost / room.occupantIds.length
+    const roomShares: Record<string, number> = {}
+    distributeEqually(room.cost, room.occupantIds, roomShares)
     room.occupantIds.forEach(oid => {
-      shares[oid] = (shares[oid] ?? 0) + perPerson
+      shares[oid] = roundMoney((shares[oid] ?? 0) + roomShares[oid])
     })
   })
 
@@ -163,8 +266,14 @@ export function calculateBalances(
 
   // Regular expenses
   expenses.forEach(expense => {
-    // Payer gets credit
-    paid[expense.paidBy] = (paid[expense.paidBy] ?? 0) + expense.amount
+    // Credit the payer(s) — supports multiple payers per expense
+    if (expense.payers && expense.payers.length > 0) {
+      expense.payers.forEach(p => {
+        paid[p.memberId] = (paid[p.memberId] ?? 0) + p.amount
+      })
+    } else {
+      paid[expense.paidBy] = (paid[expense.paidBy] ?? 0) + expense.amount
+    }
 
     // Each participant owes their share
     const shares = resolveExpenseSplits(expense)
@@ -189,9 +298,9 @@ export function calculateBalances(
     memberId: m.id,
     name: m.name,
     avatarColor: m.avatarColor || getAvatarColor(idx),
-    totalPaid: paid[m.id] ?? 0,
-    totalOwed: owed[m.id] ?? 0,
-    netBalance: (paid[m.id] ?? 0) - (owed[m.id] ?? 0),
+    totalPaid: roundMoney(paid[m.id] ?? 0),
+    totalOwed: roundMoney(owed[m.id] ?? 0),
+    netBalance: roundMoney((paid[m.id] ?? 0) - (owed[m.id] ?? 0)),
   }))
 }
 
@@ -199,7 +308,7 @@ export function calculateBalances(
  * Applies sponsorships: sponsored member's balance is added to their sponsor.
  * Returns modified balances (sponsored member removed, sponsor's balance updated).
  */
-export function applySponshorships(
+export function applySponsorships(
   balances: MemberBalance[],
   sponsorships: Sponsorship[]
 ): MemberBalance[] {
@@ -238,7 +347,7 @@ export function calculateSettlements(
   sponsorships: Sponsorship[]
 ): SettlementRoute[] {
   // Step 1: Apply sponsorships
-  const balancesAfterSponsorship = applySponshorships(rawBalances, sponsorships)
+  const balancesAfterSponsorship = applySponsorships(rawBalances, sponsorships)
 
   // Build member lookup
   const memberMap: Record<string, Member> = {}
@@ -349,12 +458,12 @@ export function getCategoryColor(category: string): string {
     stay:          'hsl(158, 60%, 45%)',
     entertainment: 'hsl(280, 78%, 55%)',
     shopping:      'hsl(340, 75%, 55%)',
-    alcohol:       'hsl(38, 85%, 52%)',
+    alcohol:       'hsl(38, 85%, 48%)',
     fuel:          'hsl(15, 80%, 52%)',
-    tickets:       'hsl(260, 78%, 60%)',
-    misc:          'hsl(240, 78%, 58%)',
+    tickets:       'hsl(260, 65%, 58%)',
+    misc:          'hsl(258, 65%, 58%)',
   }
-  return colors[category] || 'hsl(240, 78%, 58%)'
+  return colors[category] || 'hsl(258, 65%, 58%)'
 }
 
 export function getSplitTypeLabel(type: string): string {

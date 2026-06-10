@@ -53,7 +53,7 @@ export default function LoginPage() {
           className="text-center mb-8"
         >
           <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-gradient-brand flex items-center justify-center shadow-glow-brand">
-            <MapPin className="w-7 h-7 text-white" />
+            <MapPin className="w-7 h-7 text-pure-white" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
           <p className="text-white/50 text-sm">Login to your trip</p>
