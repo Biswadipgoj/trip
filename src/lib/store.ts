@@ -19,6 +19,16 @@ function fireAndForget(p: Promise<unknown>) {
   p.catch(err => console.warn('[sync] push failed (local data is safe):', err))
 }
 
+// Payment status only ever moves forward: pending → paid → confirmed.
+// Background sync (useTripSync, every 15s) can fire BEFORE a freshly-confirmed
+// status reaches Supabase — without this guard a stale remote row would
+// downgrade a local "confirmed" back to "paid"/"pending", making the UI snap
+// back to "DUE". Comparing ranks keeps the most-progressed status authoritative.
+const STATUS_RANK: Record<PaymentStatus, number> = { pending: 0, paid: 1, confirmed: 2 }
+function maxStatus(a: PaymentStatus, b: PaymentStatus): PaymentStatus {
+  return STATUS_RANK[a] >= STATUS_RANK[b] ? a : b
+}
+
 interface AppState {
   // ─── Data ───────────────────────────────────────────────────────────────────
   trips:            Trip[]
@@ -213,6 +223,9 @@ export const useStore = create<AppState>()(
 
         // Recompute settlements from the merged data, then overlay any remote
         // paid/confirmed statuses so payment state survives across devices.
+        // The overlay is MONOTONIC: it only advances a status (pending→paid→
+        // confirmed), never rolls one back. This is the fix for confirmed
+        // payments snapping back to "DUE" when a stale remote sync lands.
         get().generateSettlements(trip.id)
         if (settlementStatuses.length > 0) {
           set(s => ({
@@ -221,8 +234,15 @@ export const useStore = create<AppState>()(
               const remote = settlementStatuses.find(
                 r => r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId
               )
-              if (!remote || remote.status === 'pending') return x
-              return { ...x, status: remote.status, paidAt: remote.paidAt, confirmedAt: remote.confirmedAt }
+              if (!remote) return x
+              const merged = maxStatus(x.status, remote.status)
+              if (merged === x.status) return x // local is already as/more progressed
+              return {
+                ...x,
+                status: merged,
+                paidAt: x.paidAt ?? remote.paidAt,
+                confirmedAt: x.confirmedAt ?? remote.confirmedAt,
+              }
             }),
           }))
         }

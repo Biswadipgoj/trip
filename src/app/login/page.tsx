@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { isRemoteEnabled, remoteFindTripByCode, remoteGetMembers, remoteFetchTripBundle } from '@/lib/remote'
-import { MapPin, ArrowRight, Phone, Hash, Shield } from 'lucide-react'
+import { ArrowRight, Phone, Hash, Shield } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -72,8 +73,8 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <div className="mx-auto mb-4 w-14 h-14 rounded-2xl bg-gradient-brand flex items-center justify-center shadow-glow-brand">
-            <MapPin className="w-7 h-7 text-pure-white" />
+          <div className="mx-auto mb-4 w-16 h-16 rounded-2xl overflow-hidden shadow-glow-brand ring-1 ring-white/40">
+            <Image src="/logo.png" alt="TripMate" width={64} height={64} priority className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>
           <p className="text-white/50 text-sm">Login to your trip</p>

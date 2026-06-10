@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,7 +11,6 @@ import {
   Receipt,
   CreditCard,
   BarChart3,
-  MapPin,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useTripSync } from '@/hooks/useTripSync'
@@ -50,11 +50,11 @@ export function AppNav({ tripId }: AppNavProps) {
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-screen w-64 border-r border-white/10 bg-surface-1/80 backdrop-blur-xl z-50 p-4">
         {/* Brand */}
         <div className="flex items-center gap-2.5 px-2 py-3 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-sm">
-            <MapPin className="w-4 h-4 text-pure-white" />
+          <div className="w-9 h-9 rounded-xl overflow-hidden shadow-glow-sm ring-1 ring-white/40 flex-shrink-0">
+            <Image src="/logo.png" alt="TripMate" width={36} height={36} className="w-full h-full object-cover" />
           </div>
           <div>
-            <p className="text-xs text-white/40 font-medium">Trip</p>
+            <p className="text-xs text-white/40 font-medium">TripMate</p>
             <p className="text-sm font-semibold text-white truncate max-w-[140px]">
               {trip?.name || 'Loading...'}
             </p>

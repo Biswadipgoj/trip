@@ -210,6 +210,8 @@ export default function MembersPage({ params }: MembersPageProps) {
           if (!member) return null
           const isMe = session?.memberId === balance.memberId
           const isEditing = editingUpi === balance.memberId
+          // A member can edit their own UPI; the group creator can edit everyone's.
+          const canEditUpi = isMe || isAdmin
 
           return (
             <FadeIn key={balance.memberId} delay={i * 0.07}>
@@ -279,15 +281,22 @@ export default function MembersPage({ params }: MembersPageProps) {
                   </div>
                 </div>
 
-                {/* UPI section - only editable by the member themselves */}
-                {isMe && (
+                {/* UPI section — editable by the member themselves OR the group creator */}
+                {(canEditUpi || member.upiId) && (
                   <div className="mt-4 pt-4 border-t border-white/10">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
                         <Wallet className="w-3.5 h-3.5 text-white/40" />
-                        <span className="text-xs text-white/40 font-medium">Your UPI ID</span>
+                        <span className="text-xs text-white/40 font-medium">
+                          {isMe ? 'Your UPI ID' : `${balance.name.split(' ')[0]}'s UPI ID`}
+                        </span>
+                        {!isMe && isAdmin && (
+                          <span className="inline-flex items-center gap-0.5 rounded-full bg-brand-600/15 border border-brand-500/25 px-1.5 py-0.5 text-[9px] font-medium text-brand-400">
+                            <Crown className="w-2.5 h-2.5" /> Admin
+                          </span>
+                        )}
                       </div>
-                      {!isEditing && (
+                      {canEditUpi && !isEditing && (
                         <button
                           id={`edit-upi-${balance.memberId}`}
                           onClick={() => {
@@ -312,22 +321,23 @@ export default function MembersPage({ params }: MembersPageProps) {
                           className="flex gap-2"
                         >
                           <input
-                            id="upi-input"
+                            id={`upi-input-${balance.memberId}`}
                             className="input-glass flex-1 text-xs py-2"
-                            placeholder="yourname@paytm"
+                            placeholder={isMe ? 'yourname@paytm' : `${balance.name.split(' ')[0].toLowerCase()}@upi`}
                             value={upiInput}
                             onChange={e => setUpiInput(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') handleSaveUpi(balance.memberId) }}
                             autoFocus
                           />
                           <button
-                            id="save-upi-btn"
+                            id={`save-upi-btn-${balance.memberId}`}
                             onClick={() => handleSaveUpi(balance.memberId)}
                             className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center"
                           >
                             <Check className="w-3.5 h-3.5 text-emerald-400" />
                           </button>
                           <button
-                            id="cancel-upi-btn"
+                            id={`cancel-upi-btn-${balance.memberId}`}
                             onClick={() => setEditingUpi(null)}
                             className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"
                           >
@@ -341,21 +351,10 @@ export default function MembersPage({ params }: MembersPageProps) {
                           animate={{ opacity: 1 }}
                           className={`text-sm font-mono ${member.upiId ? 'text-white' : 'text-white/30 italic'}`}
                         >
-                          {member.upiId || 'No UPI ID set'}
+                          {member.upiId || (canEditUpi ? 'No UPI ID set — tap Add' : 'No UPI ID set')}
                         </motion.p>
                       )}
                     </AnimatePresence>
-                  </div>
-                )}
-
-                {/* Show UPI for others */}
-                {!isMe && member.upiId && (
-                  <div className="mt-4 pt-4 border-t border-white/10">
-                    <div className="flex items-center gap-1.5">
-                      <Wallet className="w-3.5 h-3.5 text-white/30" />
-                      <span className="text-xs text-white/30">UPI:</span>
-                      <span className="text-xs font-mono text-white/60">{member.upiId}</span>
-                    </div>
                   </div>
                 )}
               </GlassCard>

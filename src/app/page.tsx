@@ -4,8 +4,9 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { motion } from 'framer-motion'
-import { MapPin, Sparkles, ArrowRight, Users, Receipt, CheckCircle2 } from 'lucide-react'
+import { Sparkles, ArrowRight, Users, Receipt, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const features = [
   { icon: Users,         title: 'Group Trips',    desc: 'Invite friends with a trip code' },
@@ -37,9 +38,16 @@ export default function Home() {
           initial={{ scale: 0, rotate: -20 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
-          className="mx-auto mb-6 w-20 h-20 rounded-3xl bg-gradient-brand flex items-center justify-center shadow-glow-brand"
+          className="mx-auto mb-6 w-24 h-24 rounded-3xl overflow-hidden shadow-glow-brand ring-1 ring-white/40"
         >
-          <MapPin className="w-9 h-9 text-pure-white" />
+          <Image
+            src="/logo.png"
+            alt="TripMate"
+            width={96}
+            height={96}
+            priority
+            className="w-full h-full object-cover"
+          />
         </motion.div>
 
         <motion.div
@@ -47,6 +55,12 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.5 }}
         >
+          <p
+            className="text-3xl font-extrabold tracking-tight text-gradient-brand mb-3"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            TripMate
+          </p>
           <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-600/10 px-3 py-1.5 mb-5">
             <Sparkles className="w-3.5 h-3.5 text-brand-400" />
             <span className="text-xs font-medium text-brand-400">Premium Trip Expense Manager</span>

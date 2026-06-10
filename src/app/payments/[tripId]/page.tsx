@@ -84,7 +84,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
             <p className="text-white/40 text-sm">
               {routes.length === 0
                 ? 'All balances are clear'
-                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} settle everything · ${pendingCount} pending · ${confirmedCount} confirmed`}
+                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} settle everything · ${pendingCount} due · ${confirmedCount} confirmed`}
             </p>
           </div>
         </div>
@@ -137,7 +137,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
           const status = settlement?.status || 'pending'
           const toMember = memberMap[route.toMemberId]
           const upiLink  = toMember?.upiId
-            ? buildUpiLink(toMember.upiId, toMember.upiName || toMember.name, route.amount, `TripSplit - ${route.fromName}`)
+            ? buildUpiLink(toMember.upiId, toMember.upiName || toMember.name, route.amount, `TripMate - ${route.fromName}`)
             : null
           const isShowingQr = showQr === route.id
 
@@ -177,7 +177,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                       ? <><CheckCircle2 className="w-3 h-3" /> Confirmed</>
                       : status === 'paid'
                       ? <><CreditCard className="w-3 h-3" /> Paid</>
-                      : <><Clock className="w-3 h-3" /> Pending</>
+                      : <><Clock className="w-3 h-3" /> Due</>
                     }
                   </div>
 
