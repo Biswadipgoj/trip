@@ -185,6 +185,12 @@ export default function LoginPage() {
               Join a trip
             </Link>
           </p>
+          <p className="text-white/50 text-xs pt-2">
+            Sync problems?{' '}
+            <Link href="/debug" className="underline hover:text-white transition-colors">
+              Open Sync Doctor
+            </Link>
+          </p>
         </motion.div>
       </div>
     </main>

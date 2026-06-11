@@ -423,3 +423,23 @@ describe('two-way sync semantics', () => {
     expect(due(trip.id)).toHaveLength(0) // settlements cascade with the deletion
   })
 })
+
+describe('admin identity survives sync healing', () => {
+  it('a remote trip row with empty creatorId never demotes the local admin', () => {
+    const { trip, dip } = seedTrip()
+    expect(trip.creatorId).toBe(dip.id)
+
+    // Healed trip rows start with creator_id NULL on the server
+    useStore.getState().mergeRemoteTrip({
+      trip: { ...trip, creatorId: '' },
+      members: useStore.getState().members.filter(m => m.tripId === trip.id),
+      expenses: [],
+      hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
+      settlementStatuses: [],
+    })
+
+    expect(useStore.getState().trips.find(t => t.id === trip.id)!.creatorId).toBe(dip.id)
+  })
+})

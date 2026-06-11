@@ -13,12 +13,17 @@ import {
   remoteAddManualMember, remoteUpdateMemberUpi,
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
   remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
-  remotePushSponsorship, remoteDeleteSponsorship, TripBundle,
+  remotePushSponsorship, remoteDeleteSponsorship, remoteSetTripCreator, TripBundle,
 } from '@/lib/remote'
+import { logSync } from '@/lib/synclog'
 
 // Remote pushes are best-effort: cloud sync must never block or break local UX.
+// Failures are reported to the Sync Doctor (/debug) so they stay diagnosable.
 function fireAndForget(p: Promise<unknown>) {
-  p.catch(err => console.warn('[sync] push failed (local data is safe):', err))
+  p.catch(err => {
+    console.warn('[sync] push failed (local data is safe):', err)
+    logSync('error', 'push.rejected', err instanceof Error ? err.message : String(err))
+  })
 }
 
 // Two paise-tolerant amounts are "the same payment".
@@ -205,7 +210,13 @@ export const useStore = create<AppState>()(
         const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
         set(s => {
           const localTrip = s.trips.find(t => t.id === trip.id)
-          const mergedTrip: Trip = { ...trip, budget: localTrip?.budget }
+          // budget is device-local; creatorId may be empty on a freshly-healed
+          // remote row — never let it wipe the locally-known admin.
+          const mergedTrip: Trip = {
+            ...trip,
+            budget: localTrip?.budget,
+            creatorId: trip.creatorId || localTrip?.creatorId || '',
+          }
 
           const mergeById = <T extends { id: string }>(local: T[], remote: T[], tripScoped: (x: T) => boolean) => {
             const remoteIds = new Set(remote.map(r => r.id))
@@ -335,6 +346,13 @@ export const useStore = create<AppState>()(
         const newMembers = s.members.filter(m => m.tripId === tripId && !onServer(memberIds, m.id))
         for (const m of newMembers) {
           try { await remoteAddManualMember(m) } catch { /* retried next sync */ }
+        }
+
+        // A healed trip row starts with creator_id NULL — restore the admin
+        // once their member row exists, or the creator loses admin controls
+        // on the next pull.
+        if (trip.creatorId && (!remote || !remote.trip.creatorId)) {
+          fireAndForget(remoteSetTripCreator(tripId, trip.creatorId))
         }
 
         s.expenses
