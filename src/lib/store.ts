@@ -5,7 +5,7 @@ import {
   SettlementGroup, Sponsorship, HotelExpense, Room, SplitType, ParticipantSplit
 } from '@/types'
 import {
-  generateId, generateTripCode, getAvatarColor,
+  generateId, generateTripCode, getAvatarColor, isUuid,
   calculateBalances, calculateSettlements, applyConfirmedTransfers
 } from '@/lib/utils'
 import {
@@ -28,6 +28,92 @@ function fireAndForget(p: Promise<unknown>) {
 
 // Two paise-tolerant amounts are "the same payment".
 const sameAmount = (a: number, b: number) => Math.abs(a - b) < 0.01
+
+// ──────────────────────────────────────────────────────────────────────────────
+// LEGACY ID MIGRATION
+// Trips created before cloud sync used short non-UUID ids that Supabase's UUID
+// columns can't store — every upload silently no-oped, so those trips could
+// never sync or be joined. This rewrites every non-UUID id to a real UUID
+// (keeping the trip code, names and amounts identical) and re-links all
+// references. After migration the normal two-way sync uploads the whole trip.
+// Runs once via the persist `migrate` hook (version 2 → 3).
+// ──────────────────────────────────────────────────────────────────────────────
+export function migrateLegacyIds<T extends Record<string, any>>(s: T): T {
+  const idMap: Record<string, string> = {}
+  const fresh = (id: unknown) => {
+    if (typeof id === 'string' && id && !isUuid(id) && !idMap[id]) idMap[id] = generateId()
+  }
+
+  ;(s.trips ?? []).forEach((t: any) => fresh(t.id))
+  ;(s.members ?? []).forEach((x: any) => fresh(x.id))
+  ;(s.expenses ?? []).forEach((x: any) => fresh(x.id))
+  ;(s.hotelExpenses ?? []).forEach((h: any) => {
+    fresh(h.id)
+    ;(h.rooms ?? []).forEach((r: any) => fresh(r.id))
+  })
+  ;(s.settlements ?? []).forEach((x: any) => fresh(x.id))
+  ;(s.settlementGroups ?? []).forEach((x: any) => fresh(x.id))
+  ;(s.sponsorships ?? []).forEach((x: any) => fresh(x.id))
+
+  if (Object.keys(idMap).length === 0) return s
+
+  const m = (id: string) => idMap[id] ?? id
+  const mAll = (ids?: string[]) => ids?.map(m)
+
+  return {
+    ...s,
+    trips: (s.trips ?? []).map((t: Trip) => ({
+      ...t, id: m(t.id), creatorId: t.creatorId ? m(t.creatorId) : t.creatorId,
+    })),
+    members: (s.members ?? []).map((x: Member) => ({ ...x, id: m(x.id), tripId: m(x.tripId) })),
+    expenses: (s.expenses ?? []).map((e: Expense) => ({
+      ...e, id: m(e.id), tripId: m(e.tripId), paidBy: m(e.paidBy),
+      payers: e.payers?.map(p => ({ ...p, memberId: m(p.memberId) })),
+      participants: (e.participants ?? []).map(m),
+      splits: (e.splits ?? []).map(sp => ({ ...sp, memberId: m(sp.memberId) })),
+    })),
+    hotelExpenses: (s.hotelExpenses ?? []).map((h: HotelExpense) => ({
+      ...h, id: m(h.id), tripId: m(h.tripId), paidBy: m(h.paidBy),
+      rooms: (h.rooms ?? []).map(r => ({ ...r, id: m(r.id), occupantIds: (r.occupantIds ?? []).map(m) })),
+    })),
+    settlements: (s.settlements ?? []).map((x: Settlement) => ({
+      ...x, id: m(x.id), tripId: m(x.tripId),
+      fromMemberId: m(x.fromMemberId), toMemberId: m(x.toMemberId),
+      fromGroupIds: mAll(x.fromGroupIds), toGroupIds: mAll(x.toGroupIds),
+    })),
+    settlementGroups: (s.settlementGroups ?? []).map((g: SettlementGroup) => ({
+      ...g, id: m(g.id), tripId: m(g.tripId), memberIds: (g.memberIds ?? []).map(m),
+    })),
+    sponsorships: (s.sponsorships ?? []).map((sp: Sponsorship) => ({
+      ...sp, id: m(sp.id), tripId: m(sp.tripId),
+      sponsorMemberId: m(sp.sponsorMemberId), sponsoredMemberId: m(sp.sponsoredMemberId),
+    })),
+    session: s.session
+      ? { ...s.session, tripId: m(s.session.tripId), memberId: m(s.session.memberId) }
+      : s.session,
+  }
+}
+
+// Re-points every record of a local trip onto another trip id — used when the
+// server's authoritative row for a trip code differs from a local legacy/clone
+// copy, so the copies MERGE instead of living as a same-named duplicate. The
+// old trip row itself is dropped; the caller inserts/updates the new one.
+function relinkTripRecords(
+  s: Pick<AppState, 'trips' | 'members' | 'expenses' | 'hotelExpenses' | 'settlements' | 'settlementGroups' | 'sponsorships' | 'session'>,
+  fromId: string,
+  toId: string
+) {
+  return {
+    trips: s.trips.filter(t => t.id !== fromId),
+    members: s.members.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    expenses: s.expenses.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    hotelExpenses: s.hotelExpenses.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    settlements: s.settlements.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    settlementGroups: s.settlementGroups.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    sponsorships: s.sponsorships.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    session: s.session && s.session.tripId === fromId ? { ...s.session, tripId: toId } : s.session,
+  }
+}
 
 interface AppState {
   // ─── Data ───────────────────────────────────────────────────────────────────
@@ -168,19 +254,28 @@ export const useStore = create<AppState>()(
       getTripById:   (tripId) => get().trips.find(t => t.id === tripId),
       getTripByCode: (code)   => get().trips.find(t => t.tripCode === code),
 
-      // Upsert by trip code: refreshes an already-known trip in place (same id)
-      // instead of ever creating a second copy.
+      // Upsert by trip code — never creates a second copy. When the incoming
+      // trip (usually the server's authoritative row) has a DIFFERENT id than
+      // a local copy with the same code (legacy id or an old clone), the local
+      // records are re-linked onto the incoming id so the histories merge.
       importTrip: (trip) => {
         set(s => {
-          const existing = s.trips.find(t => t.tripCode === trip.tripCode)
-          if (existing) {
-            return {
-              trips: s.trips.map(t =>
-                t.tripCode === trip.tripCode ? { ...t, ...trip, budget: trip.budget ?? t.budget } : t
-              ),
-            }
+          // Never bring a non-UUID id into the store — the cloud can't hold it.
+          const incoming: Trip = isUuid(trip.id) ? trip : { ...trip, id: generateId() }
+          const existing = s.trips.find(t => t.tripCode === incoming.tripCode)
+          if (!existing) return { trips: [...s.trips, incoming] }
+
+          const merged: Trip = {
+            ...existing,
+            ...incoming,
+            budget: incoming.budget ?? existing.budget,
+            creatorId: incoming.creatorId || existing.creatorId,
           }
-          return { trips: [...s.trips, trip] }
+          if (existing.id === incoming.id) {
+            return { trips: s.trips.map(t => (t.id === existing.id ? merged : t)) }
+          }
+          const relinked = relinkTripRecords(s, existing.id, incoming.id)
+          return { ...relinked, trips: [...relinked.trips.filter(t => t.id !== incoming.id), merged] }
         })
       },
 
@@ -208,8 +303,17 @@ export const useStore = create<AppState>()(
       // are dropped — deletions propagate.
       mergeRemoteTrip: (bundle) => {
         const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
-        set(s => {
-          const localTrip = s.trips.find(t => t.id === trip.id)
+        set(state => {
+          // Adopt clones: a local trip with the SAME code but a different id
+          // (legacy id or an old duplicated join) is the same real-world trip —
+          // re-link its records onto the server id so the histories merge.
+          let s = state
+          const clones = state.trips.filter(t => t.tripCode === trip.tripCode && t.id !== trip.id)
+          for (const clone of clones) {
+            s = { ...s, ...relinkTripRecords(s, clone.id, trip.id) }
+          }
+
+          const localTrip = s.trips.find(t => t.id === trip.id) ?? clones[0]
           // budget is device-local; creatorId may be empty on a freshly-healed
           // remote row — never let it wipe the locally-known admin.
           const mergedTrip: Trip = {
@@ -233,7 +337,7 @@ export const useStore = create<AppState>()(
 
           return {
             synced,
-            trips: localTrip
+            trips: s.trips.some(t => t.id === trip.id)
               ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
               : [...s.trips, mergedTrip],
             members: mergeById(s.members, members, m => m.tripId === trip.id),
@@ -241,6 +345,9 @@ export const useStore = create<AppState>()(
             hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
             settlementGroups: mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id),
             sponsorships: mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id),
+            // relinkTripRecords may have re-pointed these onto the server id
+            settlements: s.settlements,
+            session: s.session,
           }
         })
 
@@ -609,8 +716,14 @@ export const useStore = create<AppState>()(
     }),
     {
       name: 'trip-expense-store',
-      version: 2,
+      version: 3,
       skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
+      // v3: rewrite legacy non-UUID ids to UUIDs so old trips become
+      // cloud-compatible and upload via the normal two-way sync.
+      migrate: (persisted, version) => {
+        if (persisted && version < 3) return migrateLegacyIds(persisted as Record<string, unknown>)
+        return persisted
+      },
       onRehydrateStorage: () => (state) => {
         // Called after localStorage data is loaded — safe to show protected routes now
         if (state) state.setHydrated(true)
