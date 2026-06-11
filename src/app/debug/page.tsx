@@ -108,7 +108,7 @@ export default function DebugPage() {
         out.push({
           name: 'Current trip id',
           ok: false,
-          detail: `"${currentTrip.id}" is not a UUID — this trip predates cloud sync and cannot be uploaded. Create a fresh trip.`,
+          detail: `"${currentTrip.id}" is a legacy id — close and reopen the app once: it will be repaired to a cloud-compatible UUID automatically (trip code, members and expenses are kept).`,
         })
       } else {
         const { data, error } = await supabase.from('trips').select('id, creator_id').eq('id', currentTrip.id).maybeSingle()

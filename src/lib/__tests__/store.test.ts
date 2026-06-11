@@ -443,3 +443,112 @@ describe('admin identity survives sync healing', () => {
     expect(useStore.getState().trips.find(t => t.id === trip.id)!.creatorId).toBe(dip.id)
   })
 })
+
+describe('legacy id migration (pre-cloud trips)', () => {
+  it('rewrites every non-UUID id to a UUID and keeps all references consistent', async () => {
+    const { migrateLegacyIds } = await import('@/lib/store')
+    const legacy = {
+      trips: [{
+        id: 'qv2h27p1qmq6uyo43', tripCode: 'TRP-YB64', name: 'Goa', password: 'pw',
+        creatorId: 'mem1', status: 'active' as const, createdAt: new Date().toISOString(),
+      }],
+      members: [
+        { id: 'mem1', tripId: 'qv2h27p1qmq6uyo43', name: 'Dip', mobile: '9000000001', pin: '1234', avatarColor: 'x', joinedAt: '' },
+        { id: 'mem2', tripId: 'qv2h27p1qmq6uyo43', name: 'Manu', mobile: '', pin: '', avatarColor: 'x', joinedAt: '' },
+      ],
+      expenses: [{
+        id: 'exp1', tripId: 'qv2h27p1qmq6uyo43', title: 'F', amount: 1000, paidBy: 'mem1',
+        category: 'food' as const, participants: ['mem1', 'mem2'], splitType: 'equal' as const,
+        splits: [{ memberId: 'mem2', value: 0 }], createdAt: '',
+      }],
+      hotelExpenses: [],
+      settlements: [{
+        id: 'set1', tripId: 'qv2h27p1qmq6uyo43', fromMemberId: 'mem2', toMemberId: 'mem1',
+        amount: 500, status: 'confirmed' as const,
+      }],
+      settlementGroups: [{ id: 'grp1', tripId: 'qv2h27p1qmq6uyo43', name: 'Unit', memberIds: ['mem1', 'mem2'] }],
+      sponsorships: [],
+      session: { tripId: 'qv2h27p1qmq6uyo43', memberId: 'mem1', tripCode: 'TRP-YB64' },
+    }
+
+    const out = migrateLegacyIds(legacy)
+    const trip = out.trips[0]
+    const [dip, manu] = out.members
+
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    expect(trip.id).toMatch(uuidRe)
+    expect(trip.tripCode).toBe('TRP-YB64')            // code unchanged — invites keep working
+    expect(trip.creatorId).toBe(dip.id)               // admin preserved
+    out.members.forEach(m => {
+      expect(m.id).toMatch(uuidRe)
+      expect(m.tripId).toBe(trip.id)
+    })
+    const e = out.expenses[0]
+    expect(e.id).toMatch(uuidRe)
+    expect(e.paidBy).toBe(dip.id)
+    expect(e.participants).toEqual([dip.id, manu.id])
+    expect(e.splits[0].memberId).toBe(manu.id)
+    expect(out.settlements[0].fromMemberId).toBe(manu.id)
+    expect(out.settlements[0].toMemberId).toBe(dip.id)
+    expect(out.settlements[0].amount).toBe(500)       // amounts untouched
+    expect(out.settlementGroups[0].memberIds).toEqual([dip.id, manu.id])
+    expect(out.session!.tripId).toBe(trip.id)
+    expect(out.session!.memberId).toBe(dip.id)
+  })
+
+  it('is a no-op for already-UUID state', async () => {
+    const { migrateLegacyIds } = await import('@/lib/store')
+    const { trip } = seedTrip()
+    const state = useStore.getState()
+    const out = migrateLegacyIds({
+      trips: state.trips, members: state.members, expenses: state.expenses,
+      hotelExpenses: [], settlements: [], settlementGroups: [], sponsorships: [],
+      session: null,
+    })
+    expect(out.trips[0].id).toBe(trip.id)
+  })
+})
+
+describe('clone adoption — same trip code, different id', () => {
+  it('mergeRemoteTrip re-links a local clone onto the server trip id', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    useStore.getState().setSession({ tripId: trip.id, memberId: dip.id, tripCode: trip.tripCode })
+
+    // The server has the SAME trip (same code) under a different id
+    const serverTripId = crypto.randomUUID()
+    useStore.getState().mergeRemoteTrip({
+      trip: { ...trip, id: serverTripId },
+      members: [],
+      expenses: [],
+      hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
+      settlementStatuses: [],
+    })
+
+    const state = useStore.getState()
+    // ONE trip with the server id — no same-named duplicate
+    expect(state.trips.filter(t => t.tripCode === trip.tripCode)).toHaveLength(1)
+    expect(state.trips[0].id).toBe(serverTripId)
+    // all local data went with it (and will up-sync from here)
+    expect(state.members.every(m => m.tripId === serverTripId)).toBe(true)
+    expect(state.expenses.every(e => e.tripId === serverTripId)).toBe(true)
+    expect(state.session!.tripId).toBe(serverTripId)
+    // settlements recomputed under the new trip id
+    expect(due(serverTripId)).toHaveLength(2)
+  })
+
+  it('importTrip adopts the incoming id and never duplicates by code', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+
+    const serverTripId = crypto.randomUUID()
+    useStore.getState().importTrip({ ...trip, id: serverTripId })
+
+    const state = useStore.getState()
+    expect(state.trips.filter(t => t.tripCode === trip.tripCode)).toHaveLength(1)
+    expect(state.trips[0].id).toBe(serverTripId)
+    expect(state.expenses.every(e => e.tripId === serverTripId)).toBe(true)
+  })
+})
