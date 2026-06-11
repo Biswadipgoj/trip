@@ -300,7 +300,8 @@ function JoinTripContent() {
                   <p className="text-xs text-amber-700">
                     Cloud sync is not configured on this deployment, so joining only works on the
                     device where the trip was created. Ask the admin to set the Supabase environment
-                    variables on Vercel.
+                    variables on Vercel.{' '}
+                    <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
                   </p>
                 </div>
               )}

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '@/lib/store'
 import { isRemoteEnabled, remoteFetchTripBundle } from '@/lib/remote'
+import { useSyncStatus } from '@/lib/synclog'
 
 const SYNC_INTERVAL_MS = 15_000
 
@@ -18,6 +19,7 @@ export function useTripSync(tripId: string) {
   const syncing = useRef(false)
 
   useEffect(() => {
+    useSyncStatus.getState().setRemoteConfigured(isRemoteEnabled())
     if (!isRemoteEnabled() || !tripId) return
 
     let cancelled = false
@@ -32,8 +34,10 @@ export function useTripSync(tripId: string) {
         // null), this provisions the trip row first — healing old trips so
         // invites attach everyone to ONE shared trip.
         await pushTripToRemote(tripId, bundle)
+        useSyncStatus.getState().markSync(!!bundle, bundle ? undefined : 'Trip not on server yet — uploading')
       } catch (err) {
         console.warn('[sync] failed:', err)
+        useSyncStatus.getState().markSync(false, err instanceof Error ? err.message : String(err))
       } finally {
         syncing.current = false
       }

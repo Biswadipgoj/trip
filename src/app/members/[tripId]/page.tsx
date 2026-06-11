@@ -14,6 +14,7 @@ import {
   Link2, Crown, Heart, Trash2, Plus, UserPlus, AlertTriangle
 } from 'lucide-react'
 import { isRemoteEnabled } from '@/lib/remote'
+import Link from 'next/link'
 
 interface MembersPageProps {
   params: Promise<{ tripId: string }>
@@ -147,7 +148,8 @@ export default function MembersPage({ params }: MembersPageProps) {
                 <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700">
                   Cloud sync is OFF — invites will not work on other devices until the Supabase
-                  environment variables are configured on the deployment.
+                  environment variables are configured on the deployment.{' '}
+                  <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
                 </p>
               </div>
             )}

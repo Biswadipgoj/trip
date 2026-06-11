@@ -11,6 +11,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { isUuid } from '@/lib/utils'
+import { logSync } from '@/lib/synclog'
 import type {
   Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus,
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
@@ -20,10 +21,22 @@ export function isRemoteEnabled(): boolean {
   return supabase !== null
 }
 
-/** Structured logging for join events — makes join failures diagnosable. */
+/** Structured logging for join/sync events — makes failures diagnosable. */
 export function joinLog(event: string, data?: Record<string, unknown>) {
   // eslint-disable-next-line no-console
   console.info(`[join] ${event}`, data ?? {})
+  logSync(/error/i.test(event) ? 'error' : 'info', event, data ? JSON.stringify(data) : undefined)
+}
+
+/** Reports a swallowed push error to the Sync Doctor instead of losing it. */
+function pushLog(tag: string, error: { message?: string } | null | undefined) {
+  if (!error) {
+    logSync('info', tag)
+    return
+  }
+  // eslint-disable-next-line no-console
+  console.warn(`[sync] ${tag} failed:`, error.message)
+  logSync('error', tag, error.message)
 }
 
 // ─── Notes envelope ────────────────────────────────────────────────────────────
@@ -164,6 +177,17 @@ export async function remoteEnsureTrip(trip: Trip): Promise<boolean> {
   return true
 }
 
+/** Sets trips.creator_id when it is still NULL (healed/legacy trip rows). */
+export async function remoteSetTripCreator(tripId: string, creatorId: string): Promise<void> {
+  if (!supabase || !isUuid(tripId) || !isUuid(creatorId)) return
+  const { error } = await supabase
+    .from('trips')
+    .update({ creator_id: creatorId })
+    .eq('id', tripId)
+    .is('creator_id', null)
+  if (error) pushLog('push.tripCreator', error)
+}
+
 export async function remoteCloseTrip(tripId: string): Promise<void> {
   if (!supabase || !isUuid(tripId)) return
   await supabase.from('trips')
@@ -236,7 +260,7 @@ export async function remoteUpdateMemberUpi(memberId: string, upiId: string, upi
 
 export async function remoteAddManualMember(member: Member): Promise<void> {
   if (!supabase || !isUuid(member.id) || !isUuid(member.tripId)) return
-  await supabase.from('members').insert({
+  const { error } = await supabase.from('members').insert({
     id: member.id,
     trip_id: member.tripId,
     name: member.name,
@@ -245,6 +269,7 @@ export async function remoteAddManualMember(member: Member): Promise<void> {
     avatar_color: member.avatarColor,
     joined_at: member.joinedAt,
   })
+  pushLog('push.member', error)
 }
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
@@ -262,7 +287,7 @@ export async function remotePushExpense(expense: Expense): Promise<void> {
     notes: packNotes(expense),
     created_at: expense.createdAt,
   })
-  if (error) return
+  if (error) { pushLog('push.expense', error); return }
 
   const splitMap: Record<string, { value: number; resolved: number }> = {}
   expense.splits.forEach(s => {
@@ -277,7 +302,11 @@ export async function remotePushExpense(expense: Expense): Promise<void> {
       ? Math.round(equalShare * 100) / 100
       : splitMap[memberId]?.resolved ?? 0,
   }))
-  if (rows.length > 0) await supabase.from('expense_participants').insert(rows)
+  if (rows.length > 0) {
+    const { error: partErr } = await supabase.from('expense_participants').insert(rows)
+    if (partErr) { pushLog('push.expenseParticipants', partErr); return }
+  }
+  pushLog('push.expense', null)
 }
 
 export async function remoteDeleteExpense(expenseId: string): Promise<void> {
@@ -297,7 +326,7 @@ export async function remotePushHotelExpense(hotel: HotelExpense): Promise<void>
     paid_by: hotel.paidBy,
     created_at: hotel.createdAt,
   })
-  if (error) return
+  if (error) { pushLog('push.hotelExpense', error); return }
 
   for (const room of hotel.rooms) {
     const roomId = isUuid(room.id) ? room.id : undefined
@@ -334,12 +363,16 @@ export async function remotePushSettlementGroup(group: SettlementGroup): Promise
     trip_id: group.tripId,
     name: group.name,
   })
-  if (error) return
+  if (error) { pushLog('push.settlementGroup', error); return }
   const rows = group.memberIds.filter(isUuid).map(member_id => ({
     group_id: group.id,
     member_id,
   }))
-  if (rows.length > 0) await supabase.from('settlement_group_members').insert(rows)
+  if (rows.length > 0) {
+    const { error: gmErr } = await supabase.from('settlement_group_members').insert(rows)
+    if (gmErr) { pushLog('push.settlementGroupMembers', gmErr); return }
+  }
+  pushLog('push.settlementGroup', null)
 }
 
 export async function remoteDeleteSettlementGroup(groupId: string): Promise<void> {
@@ -349,12 +382,13 @@ export async function remoteDeleteSettlementGroup(groupId: string): Promise<void
 
 export async function remotePushSponsorship(sp: Sponsorship): Promise<void> {
   if (!supabase || !isUuid(sp.id) || !isUuid(sp.tripId)) return
-  await supabase.from('sponsorships').insert({
+  const { error } = await supabase.from('sponsorships').insert({
     id: sp.id,
     trip_id: sp.tripId,
     sponsor_member_id: sp.sponsorMemberId,
     sponsored_member_id: sp.sponsoredMemberId,
   })
+  pushLog('push.sponsorship', error)
 }
 
 export async function remoteDeleteSponsorship(sponsorshipId: string): Promise<void> {
@@ -379,7 +413,8 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
     const { data: byId } = await supabase
       .from('settlements').select('id').eq('id', s.id).maybeSingle()
     if (byId) {
-      await supabase.from('settlements').update(patch).eq('id', s.id)
+      const { error } = await supabase.from('settlements').update(patch).eq('id', s.id)
+      pushLog('push.settlementStatus', error)
       return
     }
   }
@@ -398,18 +433,20 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
     .maybeSingle()
 
   if (open) {
-    await supabase.from('settlements').update(patch).eq('id', open.id)
+    const { error } = await supabase.from('settlements').update(patch).eq('id', open.id)
+    pushLog('push.settlementStatus', error)
     return
   }
 
   // 3) Brand-new payment row (keeps the local id so future pushes match).
-  await supabase.from('settlements').insert({
+  const { error } = await supabase.from('settlements').insert({
     ...(isUuid(s.id) ? { id: s.id } : {}),
     trip_id: s.tripId,
     from_member_id: s.fromMemberId,
     to_member_id: s.toMemberId,
     ...patch,
   })
+  pushLog('push.settlementStatus', error)
 }
 
 // ─── Full trip pull ───────────────────────────────────────────────────────────
@@ -453,11 +490,19 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
 
   // All-or-nothing: a partially-failed pull must never be merged — missing
   // rows would be mistaken for remote deletions and wipe local data.
-  const failed =
-    tripRes.error || membersRes.error || expensesRes.error || participantsRes.error ||
-    hotelsRes.error || roomsRes.error || occupantsRes.error || settlementsRes.error ||
-    groupsRes.error || groupMembersRes.error || sponsorshipsRes.error
-  if (failed || !tripRes.data) return null
+  const resByTable: Record<string, { error: { message: string } | null }> = {
+    trips: tripRes, members: membersRes, expenses: expensesRes,
+    expense_participants: participantsRes, hotel_expenses: hotelsRes, rooms: roomsRes,
+    room_occupants: occupantsRes, settlements: settlementsRes,
+    settlement_groups: groupsRes, settlement_group_members: groupMembersRes,
+    sponsorships: sponsorshipsRes,
+  }
+  const failedTable = Object.entries(resByTable).find(([, r]) => r.error)
+  if (failedTable) {
+    pushLog(`pull.${failedTable[0]}`, failedTable[1].error)
+    return null
+  }
+  if (!tripRes.data) return null
 
   const trip = tripFromRow(tripRes.data)
   const members = (membersRes.data || []).map(memberFromRow)
