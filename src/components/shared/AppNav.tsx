@@ -14,35 +14,6 @@ import {
   LogOut,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
-import { useTripSync } from '@/hooks/useTripSync'
-import { useSyncStatus } from '@/lib/synclog'
-import { isRemoteEnabled } from '@/lib/remote'
-
-/** Live sync health — tap to open the Sync Doctor (/debug). */
-function SyncPill({ className }: { className?: string }) {
-  const { lastSyncOk } = useSyncStatus()
-  const state = !isRemoteEnabled()
-    ? { dot: 'bg-amber-500', label: 'Local only' }
-    : lastSyncOk === null
-      ? { dot: 'bg-white/40 animate-pulse', label: 'Syncing…' }
-      : lastSyncOk
-        ? { dot: 'bg-emerald-500', label: 'Synced' }
-        : { dot: 'bg-red-500', label: 'Sync error' }
-  return (
-    <Link
-      href="/debug"
-      id="sync-status-pill"
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium',
-        'bg-white/5 border border-white/10 text-white/65 hover:text-white transition-colors',
-        className
-      )}
-    >
-      <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', state.dot)} />
-      {state.label}
-    </Link>
-  )
-}
 
 interface NavItem {
   href: string
@@ -73,9 +44,6 @@ export function AppNav({ tripId }: AppNavProps) {
   const setSession = useStore(s => s.setSession)
   const navItems = getNavItems(tripId)
 
-  // Cross-device sync: pull this trip's data from the cloud while in the app
-  useTripSync(tripId)
-
   const handleLogout = () => {
     setSession(null)
     router.replace('/login')
@@ -97,7 +65,6 @@ export function AppNav({ tripId }: AppNavProps) {
               {me?.name ? `${me.name} · ` : ''}{session?.tripCode || ''}
             </p>
           </div>
-          <SyncPill />
           <button
             id="logout-btn-mobile"
             onClick={handleLogout}
@@ -157,14 +124,11 @@ export function AppNav({ tripId }: AppNavProps) {
 
         {/* Footer */}
         <div className="border-t border-white/10 pt-4 mt-4 space-y-2">
-          <div className="px-3 flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-xs text-white/65">Logged in as</p>
-              <p className="text-sm font-medium text-white truncate">
-                {me?.name || session?.tripCode || '—'}
-              </p>
-            </div>
-            <SyncPill />
+          <div className="px-3">
+            <p className="text-xs text-white/65">Logged in as</p>
+            <p className="text-sm font-medium text-white truncate">
+              {me?.name || session?.tripCode || '—'}
+            </p>
           </div>
           <button
             id="logout-btn"

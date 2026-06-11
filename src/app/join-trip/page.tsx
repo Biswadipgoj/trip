@@ -4,11 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { parseInviteToken, inviteSignature, getAvatarColor } from '@/lib/utils'
-import {
-  isRemoteEnabled, joinLog, remoteFindTripByCode, remoteGetMembers,
-  remoteJoinTrip, remoteFetchTripBundle, remoteEnsureTrip,
-} from '@/lib/remote'
+import { parseInviteToken, inviteSignature } from '@/lib/utils'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import Link from 'next/link'
@@ -23,8 +19,6 @@ function JoinTripContent() {
   const joinTrip = useStore(s => s.joinTrip)
   const setSession = useStore(s => s.setSession)
   const importTrip = useStore(s => s.importTrip)
-  const upsertMember = useStore(s => s.upsertMember)
-  const mergeRemoteTrip = useStore(s => s.mergeRemoteTrip)
   const getMembersByTrip = useStore(s => s.getMembersByTrip)
 
   const [step, setStep] = useState<Step>('find')
@@ -38,12 +32,10 @@ function JoinTripContent() {
   // The verified EXISTING trip the user is joining. Join never creates a trip —
   // it only attaches a member to this one.
   const [foundTrip, setFoundTrip] = useState<Trip | null>(null)
-  const [foundViaRemote, setFoundViaRemote] = useState(false)
   const [memberCount, setMemberCount] = useState<number | null>(null)
   const [invite, setInvite] = useState<InvitePayload | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
   const [importedFromLink, setImportedFromLink] = useState(false)
-  const [alreadyMember, setAlreadyMember] = useState(false)
   const [busy, setBusy] = useState(false)
   const [confetti, setConfetti] = useState(false)
 
@@ -62,9 +54,7 @@ function JoinTripContent() {
         setTripCode(result.payload.trip.tripCode.toUpperCase())
         setImportedFromLink(true)
         setInviteError(null)
-        joinLog('invite.parsed', { tripCode: result.payload.trip.tripCode, tripId: result.payload.trip.id })
       } else {
-        joinLog('invite.invalid', { reason: result.reason })
         setInviteError(
           result.reason === 'expired'
             ? 'This invite link has expired. Ask the trip creator for a new invite.'
@@ -107,77 +97,39 @@ function JoinTripContent() {
 
     setBusy(true)
     setErrors({})
-    joinLog('find.start', { tripCode: code, viaInvite: !!invite, remote: isRemoteEnabled() })
 
     try {
-      // 1. Cloud path (preferred): the trip lives on the server, so joining
-      //    works from ANY device and always targets the one existing trip.
-      if (isRemoteEnabled()) {
-        let remoteTrip: Trip | null = null
-        try {
-          remoteTrip = await remoteFindTripByCode(code)
-        } catch (err) {
-          setErrors({ general: err instanceof Error ? err.message : 'Network error. Try again.' })
-          return
-        }
-
-        if (remoteTrip) {
-          if (remoteTrip.password !== password) {
-            joinLog('find.wrongPassword', { tripCode: code })
-            setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
-            return
-          }
-          const existingMembers = await remoteGetMembers(remoteTrip.id)
-          importTrip(remoteTrip) // upsert by code — never duplicates
-          setFoundTrip(remoteTrip)
-          setFoundViaRemote(true)
-          setMemberCount(existingMembers.length)
-          joinLog('find.verified', { tripId: remoteTrip.id, tripCode: code, members: existingMembers.length })
-          setStep('join')
-          return
-        }
-        // Remote enabled but trip not found there → fall through to the
-        // invite-link / local paths (trips created before cloud sync).
-      }
-
-      // 2. Invite-link path: trip data came from the link, verify password
-      //    against the link's signature (works even on a brand-new device).
+      // Invite-link path: trip data came from the link, verify password
+      // against the link's signature.
       if (invite && invite.trip.tripCode.toUpperCase() === code) {
         if (inviteSignature(code, password) !== invite.sig) {
-          joinLog('find.wrongPassword', { tripCode: code, via: 'invite' })
           setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
           return
         }
         const inviteTrip: Trip = { ...invite.trip, password }
         importTrip(inviteTrip)
         setFoundTrip(inviteTrip)
-        setFoundViaRemote(false)
         setMemberCount(null)
-        joinLog('find.verified', { tripId: inviteTrip.id, tripCode: code, via: 'invite' })
         setStep('join')
         return
       }
 
-      // 3. Local path: trip already exists on this device
+      // Local path: trip already exists on this device
       const trip = getTripByCode(code)
       if (!trip) {
-        joinLog('find.notFound', { tripCode: code })
         setErrors({
           tripCode: invite
-            ? 'This code doesn’t match your invite link. Use the code from the link or ask for a new invite.'
-            : 'This trip doesn’t exist. Double-check the code, or ask your friend for an invite link.',
+            ? "This code doesn't match your invite link. Use the code from the link or ask for a new invite."
+            : "This trip doesn't exist. Double-check the code, or ask your friend for an invite link.",
         })
         return
       }
       if (trip.password !== password) {
-        joinLog('find.wrongPassword', { tripCode: code, via: 'local' })
         setErrors({ tripPassword: 'Wrong trip password.' })
         return
       }
       setFoundTrip(trip)
-      setFoundViaRemote(false)
       setMemberCount(getMembersByTrip(trip.id).length)
-      joinLog('find.verified', { tripId: trip.id, tripCode: code, via: 'local' })
       setStep('join')
     } finally {
       setBusy(false)
@@ -202,52 +154,12 @@ function JoinTripContent() {
 
     setBusy(true)
     try {
-      if (isRemoteEnabled()) {
-        // The trip was verified via invite link or found locally but is not on
-        // the server yet (created before cloud sync). Provision the SAME trip
-        // row (same id + code) so the join attaches to the one shared trip —
-        // never a parallel device-local copy with the same name.
-        const remoteReady = foundViaRemote || await remoteEnsureTrip(foundTrip)
-
-        if (!remoteReady) {
-          // Joining locally anyway would create a disconnected same-named copy
-          // (the exact bug this flow exists to prevent) — fail loudly instead.
-          joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
-          setErrors({
-            general:
-              'Could not attach you to the shared trip on the server. Check your internet connection and try again — joining offline would create a disconnected copy.',
-          })
-          return
-        }
-
-        const avatarColor = getAvatarColor(memberCount ?? 0)
-        const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
-          name: name.trim(), mobile, pin, avatarColor,
-        })
-        // Pull the full existing trip (members, expenses, stays, settlements)
-        // so the dashboard shows the real trip — not an empty copy.
-        const bundle = await remoteFetchTripBundle(foundTrip.id)
-        if (bundle) mergeRemoteTrip(bundle)
-        else upsertMember(member)
-
-        setAlreadyMember(existed)
-        setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-        joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
-        setStep('success')
-        setConfetti(true)
-        return
-      }
-
-      // Local fallback (no cloud configured): joinTrip only adds a member to
-      // the already-imported trip and is duplicate-safe by mobile number.
       const member = joinTrip(foundTrip.tripCode, foundTrip.password, name.trim(), mobile, pin)
       if (!member) {
-        joinLog('join.localFailed', { tripId: foundTrip.id })
         setErrors({ general: 'Could not join trip. Try again or request a new invite link.' })
         return
       }
       setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-      joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, via: 'local' })
       setStep('success')
       setConfetti(true)
     } catch (err) {
@@ -283,7 +195,7 @@ function JoinTripContent() {
               <div>
                 <h1 className="text-2xl font-bold text-white mb-1">Join a Trip</h1>
                 <p className="text-white/65 text-sm">
-                  {invite ? 'You’ve been invited — confirm to join' : 'Enter the trip code shared by your friend'}
+                  {invite ? "You've been invited — confirm to join" : 'Enter the trip code shared by your friend'}
                 </p>
               </div>
 
@@ -291,18 +203,6 @@ function JoinTripContent() {
                 <div className="flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-3 py-2.5">
                   <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-red-400">{inviteError}</p>
-                </div>
-              )}
-
-              {!isRemoteEnabled() && (
-                <div className="flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-3 py-2.5">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700">
-                    Cloud sync is not configured on this deployment, so joining only works on the
-                    device where the trip was created. Ask the admin to set the Supabase environment
-                    variables on Vercel.{' '}
-                    <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
-                  </p>
                 </div>
               )}
 
@@ -525,12 +425,9 @@ function JoinTripContent() {
               >
                 <Check className="w-10 h-10 text-emerald-400" />
               </motion.div>
-              <h2 className="text-2xl font-bold text-white mb-2">
-                {alreadyMember ? 'Welcome back! 👋' : "You're in! 🎉"}
-              </h2>
+              <h2 className="text-2xl font-bold text-white mb-2">You're in! 🎉</h2>
               <p className="text-white/60 text-sm mb-2">
-                {alreadyMember ? 'You were already a member of ' : 'Joined '}
-                <strong className="text-white">{foundTrip.name}</strong>
+                Joined <strong className="text-white">{foundTrip.name}</strong>
               </p>
               <p className="text-white/60 text-xs mb-8">Time to start tracking expenses</p>
 

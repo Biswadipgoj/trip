@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { isRemoteEnabled, remoteFindTripByCode, remoteGetMembers, remoteFetchTripBundle } from '@/lib/remote'
 import { ArrowRight, Phone, Hash, Shield } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -14,7 +13,6 @@ export default function LoginPage() {
   const login = useStore(s => s.login)
   const setSession = useStore(s => s.setSession)
   const getTripByCode = useStore(s => s.getTripByCode)
-  const mergeRemoteTrip = useStore(s => s.mergeRemoteTrip)
 
   const [tripCode, setTripCode] = useState('')
   const [mobile, setMobile] = useState('')
@@ -29,7 +27,6 @@ export default function LoginPage() {
     const code = tripCode.trim().toUpperCase()
 
     try {
-      // Local-first: member already on this device
       const member = login(code, mobile.trim(), pin)
       if (member) {
         const trip = getTripByCode(code)
@@ -37,22 +34,6 @@ export default function LoginPage() {
           setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
           router.push(`/dashboard/${trip.id}`)
           return
-        }
-      }
-
-      // Cloud fallback: lets members log in from a brand-new device
-      if (isRemoteEnabled()) {
-        const remoteTrip = await remoteFindTripByCode(code).catch(() => null)
-        if (remoteTrip) {
-          const members = await remoteGetMembers(remoteTrip.id)
-          const remoteMember = members.find(m => m.mobile === mobile.trim() && m.pin === pin)
-          if (remoteMember) {
-            const bundle = await remoteFetchTripBundle(remoteTrip.id)
-            if (bundle) mergeRemoteTrip(bundle)
-            setSession({ tripId: remoteTrip.id, memberId: remoteMember.id, tripCode: remoteTrip.tripCode })
-            router.push(`/dashboard/${remoteTrip.id}`)
-            return
-          }
         }
       }
 
@@ -183,12 +164,6 @@ export default function LoginPage() {
             Have a code?{' '}
             <Link href="/join-trip" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
               Join a trip
-            </Link>
-          </p>
-          <p className="text-white/50 text-xs pt-2">
-            Sync problems?{' '}
-            <Link href="/debug" className="underline hover:text-white transition-colors">
-              Open Sync Doctor
             </Link>
           </p>
         </motion.div>

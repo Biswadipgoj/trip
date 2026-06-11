@@ -11,9 +11,8 @@ import { CountUp } from '@/components/animations/CountUp'
 import { FadeIn } from '@/components/animations/FadeIn'
 import {
   Users, Edit3, Check, X, Wallet, ArrowUpRight, ArrowDownRight,
-  Link2, Crown, Heart, Trash2, Plus, UserPlus, AlertTriangle
+  Link2, Crown, Heart, Trash2, Plus, UserPlus
 } from 'lucide-react'
-import { isRemoteEnabled } from '@/lib/remote'
 import Link from 'next/link'
 
 interface MembersPageProps {
@@ -143,16 +142,6 @@ export default function MembersPage({ params }: MembersPageProps) {
                 {copiedInvite ? 'Copied!' : 'Copy Link'}
               </button>
             </div>
-            {!isRemoteEnabled() && (
-              <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-3 py-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">
-                  Cloud sync is OFF — invites will not work on other devices until the Supabase
-                  environment variables are configured on the deployment.{' '}
-                  <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
-                </p>
-              </div>
-            )}
           </GlassCard>
         </FadeIn>
       )}

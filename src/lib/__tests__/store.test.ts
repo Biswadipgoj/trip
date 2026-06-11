@@ -9,7 +9,7 @@ import type { Expense } from '@/types'
 function resetStore() {
   useStore.setState({
     trips: [], members: [], expenses: [], hotelExpenses: [],
-    settlements: [], settlementGroups: [], sponsorships: [], synced: {}, session: null,
+    settlements: [], settlementGroups: [], sponsorships: [], session: null,
   })
 }
 
@@ -191,75 +191,6 @@ describe('group joining (Issue B)', () => {
   })
 })
 
-describe('remote merge keeps confirmed payments authoritative', () => {
-  it('imports remote confirmed transfers and regenerates residual dues', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-    const state = useStore.getState()
-
-    state.mergeRemoteTrip({
-      trip,
-      members: state.members.filter(m => m.tripId === trip.id),
-      expenses: state.expenses.filter(e => e.tripId === trip.id),
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [{
-        id: crypto.randomUUID(),
-        fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
-        status: 'confirmed', confirmedAt: new Date().toISOString(),
-      }],
-    })
-
-    expect(confirmed(trip.id)).toHaveLength(1)
-    expect(confirmed(trip.id)[0].amount).toBe(1000)
-    const dues = due(trip.id)
-    expect(dues).toHaveLength(1)
-    expect(dues[0].fromMemberId).toBe(pari.id)
-
-    // A second sync of the same payload must be idempotent
-    useStore.getState().mergeRemoteTrip({
-      trip,
-      members: useStore.getState().members.filter(m => m.tripId === trip.id),
-      expenses: useStore.getState().expenses.filter(e => e.tripId === trip.id),
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [{
-        id: crypto.randomUUID(),
-        fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
-        status: 'confirmed', confirmedAt: new Date().toISOString(),
-      }],
-    })
-    expect(confirmed(trip.id)).toHaveLength(1)
-  })
-
-  it('a stale remote "paid" row never downgrades or duplicates local state', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
-    useStore.getState().updateSettlementStatus(manuDue.id, 'paid')
-    useStore.getState().updateSettlementStatus(manuDue.id, 'confirmed')
-
-    useStore.getState().mergeRemoteTrip({
-      trip,
-      members: useStore.getState().members.filter(m => m.tripId === trip.id),
-      expenses: useStore.getState().expenses.filter(e => e.tripId === trip.id),
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [{
-        id: manuDue.id,
-        fromMemberId: manu.id, toMemberId: dip.id, amount: 1000,
-        status: 'paid', paidAt: new Date().toISOString(), // stale: local already confirmed
-      }],
-    })
-
-    const records = confirmed(trip.id)
-    expect(records).toHaveLength(1)
-    expect(records[0].status).toBe('confirmed') // monotonic — never rolled back
-  })
-})
 
 describe('couple groups — confirmed payments settle the whole unit', () => {
   function seedCouple() {
@@ -355,94 +286,6 @@ describe('sponsorships — confirmed sponsor payments clear the sponsored member
   })
 })
 
-describe('remote merge syncs couples and sponsorships across devices', () => {
-  it('imports remote settlement groups and uses them in the minimizer', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-    expect(due(trip.id)).toHaveLength(2) // no group locally yet
-
-    const state = useStore.getState()
-    state.mergeRemoteTrip({
-      trip,
-      members: state.members.filter(m => m.tripId === trip.id),
-      expenses: state.expenses.filter(e => e.tripId === trip.id),
-      hotelExpenses: [],
-      settlementGroups: [{
-        id: crypto.randomUUID(), tripId: trip.id,
-        name: 'Manu & Parijit', memberIds: [manu.id, pari.id],
-      }],
-      sponsorships: [],
-      settlementStatuses: [],
-    })
-
-    expect(useStore.getState().settlementGroups.filter(g => g.tripId === trip.id)).toHaveLength(1)
-    const dues = due(trip.id)
-    expect(dues).toHaveLength(1) // couple now pays as one entity on this device too
-    expect(dues[0].amount).toBe(2000)
-  })
-})
-
-describe('two-way sync semantics', () => {
-  const bundleFor = (trip: any, over: Record<string, unknown> = {}) => {
-    const state = useStore.getState()
-    return {
-      trip,
-      members: state.members.filter(m => m.tripId === trip.id),
-      expenses: state.expenses.filter(e => e.tripId === trip.id),
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [],
-      ...over,
-    }
-  }
-
-  it('keeps local items the server has never seen (push pending)', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    const e = addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-
-    // Pull arrives WITHOUT the freshly-created local expense
-    useStore.getState().mergeRemoteTrip(bundleFor(trip, { expenses: [] }))
-
-    expect(useStore.getState().expenses.find(x => x.id === e.id)).toBeDefined()
-    expect(due(trip.id)).toHaveLength(2) // settlements still computed from it
-  })
-
-  it('propagates remote deletions for items previously synced', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    const e = addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-
-    // First pull contains the expense → marked as known-on-server
-    useStore.getState().mergeRemoteTrip(bundleFor(trip))
-    expect(useStore.getState().synced[e.id]).toBe(true)
-
-    // Second pull no longer contains it → deleted on another device
-    useStore.getState().mergeRemoteTrip(bundleFor(trip, { expenses: [] }))
-
-    expect(useStore.getState().expenses.find(x => x.id === e.id)).toBeUndefined()
-    expect(due(trip.id)).toHaveLength(0) // settlements cascade with the deletion
-  })
-})
-
-describe('admin identity survives sync healing', () => {
-  it('a remote trip row with empty creatorId never demotes the local admin', () => {
-    const { trip, dip } = seedTrip()
-    expect(trip.creatorId).toBe(dip.id)
-
-    // Healed trip rows start with creator_id NULL on the server
-    useStore.getState().mergeRemoteTrip({
-      trip: { ...trip, creatorId: '' },
-      members: useStore.getState().members.filter(m => m.tripId === trip.id),
-      expenses: [],
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [],
-    })
-
-    expect(useStore.getState().trips.find(t => t.id === trip.id)!.creatorId).toBe(dip.id)
-  })
-})
 
 describe('legacy id migration (pre-cloud trips)', () => {
   it('rewrites every non-UUID id to a UUID and keeps all references consistent', async () => {
@@ -509,46 +352,3 @@ describe('legacy id migration (pre-cloud trips)', () => {
   })
 })
 
-describe('clone adoption — same trip code, different id', () => {
-  it('mergeRemoteTrip re-links a local clone onto the server trip id', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-    useStore.getState().setSession({ tripId: trip.id, memberId: dip.id, tripCode: trip.tripCode })
-
-    // The server has the SAME trip (same code) under a different id
-    const serverTripId = crypto.randomUUID()
-    useStore.getState().mergeRemoteTrip({
-      trip: { ...trip, id: serverTripId },
-      members: [],
-      expenses: [],
-      hotelExpenses: [],
-      settlementGroups: [],
-      sponsorships: [],
-      settlementStatuses: [],
-    })
-
-    const state = useStore.getState()
-    // ONE trip with the server id — no same-named duplicate
-    expect(state.trips.filter(t => t.tripCode === trip.tripCode)).toHaveLength(1)
-    expect(state.trips[0].id).toBe(serverTripId)
-    // all local data went with it (and will up-sync from here)
-    expect(state.members.every(m => m.tripId === serverTripId)).toBe(true)
-    expect(state.expenses.every(e => e.tripId === serverTripId)).toBe(true)
-    expect(state.session!.tripId).toBe(serverTripId)
-    // settlements recomputed under the new trip id
-    expect(due(serverTripId)).toHaveLength(2)
-  })
-
-  it('importTrip adopts the incoming id and never duplicates by code', () => {
-    const { trip, dip, manu, pari } = seedTrip()
-    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
-
-    const serverTripId = crypto.randomUUID()
-    useStore.getState().importTrip({ ...trip, id: serverTripId })
-
-    const state = useStore.getState()
-    expect(state.trips.filter(t => t.tripCode === trip.tripCode)).toHaveLength(1)
-    expect(state.trips[0].id).toBe(serverTripId)
-    expect(state.expenses.every(e => e.tripId === serverTripId)).toBe(true)
-  })
-})

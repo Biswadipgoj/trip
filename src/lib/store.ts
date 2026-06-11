@@ -8,24 +8,6 @@ import {
   generateId, generateTripCode, getAvatarColor, isUuid,
   calculateBalances, calculateSettlements, applyConfirmedTransfers
 } from '@/lib/utils'
-import {
-  isRemoteEnabled, remoteCreateTrip, remoteCloseTrip, remoteEnsureTrip,
-  remoteAddManualMember, remoteUpdateMemberUpi,
-  remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
-  remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
-  remotePushSponsorship, remoteDeleteSponsorship, remoteSetTripCreator, TripBundle,
-} from '@/lib/remote'
-import { logSync } from '@/lib/synclog'
-
-// Remote pushes are best-effort: cloud sync must never block or break local UX.
-// Failures are reported to the Sync Doctor (/debug) so they stay diagnosable.
-function fireAndForget(p: Promise<unknown>) {
-  p.catch(err => {
-    console.warn('[sync] push failed (local data is safe):', err)
-    logSync('error', 'push.rejected', err instanceof Error ? err.message : String(err))
-  })
-}
-
 // Two paise-tolerant amounts are "the same payment".
 const sameAmount = (a: number, b: number) => Math.abs(a - b) < 0.01
 
@@ -124,10 +106,6 @@ interface AppState {
   settlements:      Settlement[]
   settlementGroups: SettlementGroup[]
   sponsorships:     Sponsorship[]
-  /** Ids ever seen in a server pull. Lets the sync layer tell "created locally,
-   *  not yet uploaded" apart from "deleted on another device". */
-  synced:           Record<string, true>
-
   // ─── Hydration ──────────────────────────────────────────────────────────────
   hydrated: boolean
   setHydrated: (v: boolean) => void
@@ -143,12 +121,6 @@ interface AppState {
   getTripByCode: (code: string) => Trip | undefined
   importTrip:   (trip: Trip) => void
   setTripBudget: (tripId: string, budget: number) => void
-  mergeRemoteTrip: (bundle: TripBundle) => void
-  /** Uploads local-only data (and the trip itself if missing) to the server,
-   *  so a trip created before cloud sync becomes fully shared. */
-  pushTripToRemote: (tripId: string, remote: TripBundle | null) => Promise<void>
-  /** Replaces a locally-joined member with the authoritative remote one. */
-  upsertMember: (member: Member) => void
 
   // ─── Member Actions ─────────────────────────────────────────────────────────
   getMembersByTrip: (tripId: string) => Member[]
@@ -199,7 +171,6 @@ export const useStore = create<AppState>()(
       settlements:      [],
       settlementGroups: [],
       sponsorships:     [],
-      synced:           {},
       session:          null,
 
       // ─── Trips ──────────────────────────────────────────────────────────────
@@ -218,7 +189,6 @@ export const useStore = create<AppState>()(
           status: 'active', createdAt: new Date().toISOString(),
         }
         set(s => ({ trips: [...s.trips, trip], members: [...s.members, member] }))
-        fireAndForget(remoteCreateTrip(trip, member))
         return { trip, member }
       },
 
@@ -248,7 +218,6 @@ export const useStore = create<AppState>()(
               : t
           ),
         }))
-        fireAndForget(remoteCloseTrip(tripId))
       },
 
       getTripById:   (tripId) => get().trips.find(t => t.id === tripId),
@@ -285,208 +254,6 @@ export const useStore = create<AppState>()(
         }))
       },
 
-      upsertMember: (member) => {
-        set(s => {
-          const exists = s.members.some(m => m.id === member.id)
-          return {
-            members: exists
-              ? s.members.map(m => (m.id === member.id ? { ...m, ...member } : m))
-              : [...s.members, member],
-          }
-        })
-      },
-
-      // Pull-sync: merge the authoritative remote dataset for one trip into the
-      // local store. Remote wins on shared ids. Local items never seen on the
-      // server (created offline / push pending) are kept; local items that WERE
-      // on the server but are now gone were deleted on another device, so they
-      // are dropped — deletions propagate.
-      mergeRemoteTrip: (bundle) => {
-        const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
-        set(state => {
-          // Adopt clones: a local trip with the SAME code but a different id
-          // (legacy id or an old duplicated join) is the same real-world trip —
-          // re-link its records onto the server id so the histories merge.
-          let s = state
-          const clones = state.trips.filter(t => t.tripCode === trip.tripCode && t.id !== trip.id)
-          for (const clone of clones) {
-            s = { ...s, ...relinkTripRecords(s, clone.id, trip.id) }
-          }
-
-          const localTrip = s.trips.find(t => t.id === trip.id) ?? clones[0]
-          // budget is device-local; creatorId may be empty on a freshly-healed
-          // remote row — never let it wipe the locally-known admin.
-          const mergedTrip: Trip = {
-            ...trip,
-            budget: localTrip?.budget,
-            creatorId: trip.creatorId || localTrip?.creatorId || '',
-          }
-
-          const mergeById = <T extends { id: string }>(local: T[], remote: T[], tripScoped: (x: T) => boolean) => {
-            const remoteIds = new Set(remote.map(r => r.id))
-            const kept = local.filter(
-              x => !tripScoped(x) || (!remoteIds.has(x.id) && !s.synced[x.id])
-            )
-            return [...kept, ...remote]
-          }
-
-          // Everything in this pull is now known to live on the server
-          const synced = { ...s.synced }
-          ;[...members, ...expenses, ...hotelExpenses, ...settlementGroups, ...sponsorships]
-            .forEach(x => { synced[x.id] = true })
-
-          return {
-            synced,
-            trips: s.trips.some(t => t.id === trip.id)
-              ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
-              : [...s.trips, mergedTrip],
-            members: mergeById(s.members, members, m => m.tripId === trip.id),
-            expenses: mergeById(s.expenses, expenses, e => e.tripId === trip.id),
-            hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
-            settlementGroups: mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id),
-            sponsorships: mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id),
-            // relinkTripRecords may have re-pointed these onto the server id
-            settlements: s.settlements,
-            session: s.session,
-          }
-        })
-
-        // Overlay remote payment state, then recompute dues from merged data.
-        // The overlay is MONOTONIC: it only advances a status (pending→paid→
-        // confirmed), never rolls one back, so a stale remote row can never
-        // snap a freshly-confirmed payment back to "DUE".
-        //
-        // CONFIRMED payments are immutable transaction records (cash actually
-        // moved), so they are imported BEFORE regeneration — the settlement
-        // minimizer then runs on the residual balances.
-        const remoteConfirmed = settlementStatuses.filter(r => r.status === 'confirmed')
-        if (remoteConfirmed.length > 0) {
-          set(s => {
-            let tripRows = s.settlements.filter(x => x.tripId === trip.id)
-            const otherRows = s.settlements.filter(x => x.tripId !== trip.id)
-            remoteConfirmed.forEach(r => {
-              const match = tripRows.find(x => x.id === r.id) ?? tripRows.find(
-                x =>
-                  x.fromMemberId === r.fromMemberId &&
-                  x.toMemberId === r.toMemberId &&
-                  sameAmount(x.amount, r.amount)
-              )
-              if (match?.status === 'confirmed') return // already recorded
-              if (match) {
-                tripRows = tripRows.map(x =>
-                  x === match
-                    ? {
-                        ...x,
-                        amount: r.amount, // trust the amount that was actually paid
-                        status: 'confirmed' as const,
-                        paidAt: x.paidAt ?? r.paidAt,
-                        confirmedAt: x.confirmedAt ?? r.confirmedAt,
-                      }
-                    : x
-                )
-              } else {
-                tripRows = [...tripRows, {
-                  id: r.id,
-                  tripId: trip.id,
-                  fromMemberId: r.fromMemberId,
-                  toMemberId: r.toMemberId,
-                  amount: r.amount,
-                  status: 'confirmed' as const,
-                  paidAt: r.paidAt,
-                  confirmedAt: r.confirmedAt,
-                }]
-              }
-            })
-            return { settlements: [...otherRows, ...tripRows] }
-          })
-        }
-
-        get().generateSettlements(trip.id)
-
-        // Advance matching dues to "paid". Amount must match — a remote "paid"
-        // for an outdated amount refers to a payment that no longer exists.
-        const remotePaid = settlementStatuses.filter(r => r.status === 'paid')
-        if (remotePaid.length > 0) {
-          set(s => ({
-            settlements: s.settlements.map(x => {
-              if (x.tripId !== trip.id || x.status !== 'pending') return x
-              const remote = remotePaid.find(
-                r =>
-                  (r.id === x.id ||
-                    (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId)) &&
-                  sameAmount(r.amount, x.amount)
-              )
-              if (!remote) return x
-              return { ...x, status: 'paid' as const, paidAt: x.paidAt ?? remote.paidAt }
-            }),
-          }))
-        }
-      },
-
-      // Up-sync: the missing half of cross-device linking. A trip created
-      // before cloud sync (or while offline) only exists locally — joiners
-      // would get an empty shell with the same name. This uploads the trip row
-      // itself when absent, then every local item the server doesn't have yet.
-      // Items already synced once are skipped, so remote deletions don't get
-      // resurrected.
-      pushTripToRemote: async (tripId, remote) => {
-        if (!isRemoteEnabled()) return
-        const s = get()
-        const trip = s.trips.find(t => t.id === tripId)
-        if (!trip) return
-
-        if (!remote) {
-          const ok = await remoteEnsureTrip(trip)
-          if (!ok) return
-        }
-
-        const onServer = (remoteIds: Set<string>, id: string) =>
-          remoteIds.has(id) || !!s.synced[id]
-
-        const memberIds = new Set((remote?.members ?? []).map(x => x.id))
-        const expenseIds = new Set((remote?.expenses ?? []).map(x => x.id))
-        const hotelIds = new Set((remote?.hotelExpenses ?? []).map(x => x.id))
-        const groupIds = new Set((remote?.settlementGroups ?? []).map(x => x.id))
-        const sponsorshipIds = new Set((remote?.sponsorships ?? []).map(x => x.id))
-
-        // Members first — expenses/settlements reference them via foreign keys
-        const newMembers = s.members.filter(m => m.tripId === tripId && !onServer(memberIds, m.id))
-        for (const m of newMembers) {
-          try { await remoteAddManualMember(m) } catch { /* retried next sync */ }
-        }
-
-        // A healed trip row starts with creator_id NULL — restore the admin
-        // once their member row exists, or the creator loses admin controls
-        // on the next pull.
-        if (trip.creatorId && (!remote || !remote.trip.creatorId)) {
-          fireAndForget(remoteSetTripCreator(tripId, trip.creatorId))
-        }
-
-        s.expenses
-          .filter(e => e.tripId === tripId && !onServer(expenseIds, e.id))
-          .forEach(e => fireAndForget(remotePushExpense(e)))
-        s.hotelExpenses
-          .filter(h => h.tripId === tripId && !onServer(hotelIds, h.id))
-          .forEach(h => fireAndForget(remotePushHotelExpense(h)))
-        s.settlementGroups
-          .filter(g => g.tripId === tripId && !onServer(groupIds, g.id))
-          .forEach(g => fireAndForget(remotePushSettlementGroup(g)))
-        s.sponsorships
-          .filter(sp => sp.tripId === tripId && !onServer(sponsorshipIds, sp.id))
-          .forEach(sp => fireAndForget(remotePushSponsorship(sp)))
-
-        // Confirmed payments are part of the trip's history — upload any the
-        // server is missing so balances agree everywhere.
-        const remoteStatuses = remote?.settlementStatuses ?? []
-        s.settlements
-          .filter(x => x.tripId === tripId && x.status === 'confirmed')
-          .filter(x => !remoteStatuses.some(
-            r => r.id === x.id ||
-              (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId && sameAmount(r.amount, x.amount))
-          ))
-          .forEach(x => fireAndForget(remotePushSettlementStatus(x)))
-      },
-
       // ─── Members ────────────────────────────────────────────────────────────
       getMembersByTrip: (tripId) => get().members.filter(m => m.tripId === tripId),
       getMemberById:    (id)     => get().members.find(m => m.id === id),
@@ -501,7 +268,6 @@ export const useStore = create<AppState>()(
           joinedAt: new Date().toISOString(),
         }
         set(s => ({ members: [...s.members, member] }))
-        fireAndForget(remoteAddManualMember(member))
         return member
       },
 
@@ -511,7 +277,6 @@ export const useStore = create<AppState>()(
             m.id === memberId ? { ...m, upiId, upiName } : m
           ),
         }))
-        fireAndForget(remoteUpdateMemberUpi(memberId, upiId, upiName))
       },
 
       // ─── Expenses ───────────────────────────────────────────────────────────
@@ -519,7 +284,6 @@ export const useStore = create<AppState>()(
         const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() }
         set(s => ({ expenses: [...s.expenses, expense] }))
         get().generateSettlements(data.tripId)
-        fireAndForget(remotePushExpense(expense))
         return expense
       },
 
@@ -527,7 +291,6 @@ export const useStore = create<AppState>()(
         const expense = get().expenses.find(e => e.id === expenseId)
         set(s => ({ expenses: s.expenses.filter(e => e.id !== expenseId) }))
         if (expense) get().generateSettlements(expense.tripId)
-        fireAndForget(remoteDeleteExpense(expenseId))
       },
 
       getExpensesByTrip: (tripId) =>
@@ -544,7 +307,6 @@ export const useStore = create<AppState>()(
         }
         set(s => ({ hotelExpenses: [...s.hotelExpenses, hotel] }))
         get().generateSettlements(data.tripId)
-        fireAndForget(remotePushHotelExpense(hotel))
         return hotel
       },
 
@@ -552,7 +314,6 @@ export const useStore = create<AppState>()(
         const hotel = get().hotelExpenses.find(h => h.id === id)
         set(s => ({ hotelExpenses: s.hotelExpenses.filter(h => h.id !== id) }))
         if (hotel) get().generateSettlements(hotel.tripId)
-        fireAndForget(remoteDeleteHotelExpense(id))
       },
 
       getHotelExpensesByTrip: (tripId) =>
@@ -565,7 +326,6 @@ export const useStore = create<AppState>()(
         const group: SettlementGroup = { id: generateId(), tripId, name, memberIds }
         set(s => ({ settlementGroups: [...s.settlementGroups, group] }))
         get().generateSettlements(tripId)
-        fireAndForget(remotePushSettlementGroup(group))
         return group
       },
 
@@ -573,7 +333,6 @@ export const useStore = create<AppState>()(
         const group = get().settlementGroups.find(g => g.id === id)
         set(s => ({ settlementGroups: s.settlementGroups.filter(g => g.id !== id) }))
         if (group) get().generateSettlements(group.tripId)
-        fireAndForget(remoteDeleteSettlementGroup(id))
       },
 
       getGroupsByTrip: (tripId) =>
@@ -593,7 +352,6 @@ export const useStore = create<AppState>()(
         const sp: Sponsorship = { id: generateId(), tripId, sponsorMemberId, sponsoredMemberId }
         set(s => ({ sponsorships: [...s.sponsorships, sp] }))
         get().generateSettlements(tripId)
-        fireAndForget(remotePushSponsorship(sp))
         return sp
       },
 
@@ -601,7 +359,6 @@ export const useStore = create<AppState>()(
         const sp = get().sponsorships.find(s => s.id === id)
         set(s => ({ sponsorships: s.sponsorships.filter(x => x.id !== id) }))
         if (sp) get().generateSettlements(sp.tripId)
-        fireAndForget(remoteDeleteSponsorship(id))
       },
 
       getSponsorshipsByTrip: (tripId) =>
@@ -639,9 +396,8 @@ export const useStore = create<AppState>()(
         //    (applies sponsorships + settlement groups internally)
         const routes = calculateSettlements(balances, members, groups, sponsorships)
 
-        // Keep due ids stable across regenerations (background sync re-runs
-        // this every 15s — unstable ids would break "Mark Paid" clicks and
-        // remote status pushes). The "paid" marker only survives when it is
+        // Keep due ids stable across regenerations so "Mark Paid" clicks survive.
+        // The "paid" marker only survives when it is
         // the SAME payment: same direction AND same amount. If the amount
         // changed, it is a different due and returns to pending.
         const prevDueByKey: Record<string, Settlement> = {}
@@ -694,12 +450,7 @@ export const useStore = create<AppState>()(
           ),
         }))
         const updated = get().settlements.find(x => x.id === settlementId)
-        if (updated) {
-          fireAndForget(remotePushSettlementStatus(updated))
-          // Confirming means cash moved — recompute the residual dues so the
-          // change cascades across Dashboard, Payments, Members and Report.
-          if (status === 'confirmed') get().generateSettlements(updated.tripId)
-        }
+        if (updated && status === 'confirmed') get().generateSettlements(updated.tripId)
       },
 
       // ─── Session ─────────────────────────────────────────────────────────────
