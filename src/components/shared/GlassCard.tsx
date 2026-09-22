@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { motion, HTMLMotionProps } from 'framer-motion'
 import { ReactNode } from 'react'
 
-interface GlassCardProps extends Omit<HTMLMotionProps<'div'>, 'children'> {
+interface GlassCardProps extends Omit<HTMLMotionProps<'div'>, 'children' | 'key'> {
   children: ReactNode
   className?: string
   hover?: boolean

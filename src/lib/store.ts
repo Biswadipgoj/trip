@@ -516,6 +516,9 @@ export const useStore = create<AppState>()(
 
       // ─── Expenses ───────────────────────────────────────────────────────────
       addExpense: (data) => {
+        if (!Number.isFinite(data.amount) || data.amount <= 0) {
+          throw new Error('Expense amount must be positive')
+        }
         const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() }
         set(s => ({ expenses: [...s.expenses, expense] }))
         get().generateSettlements(data.tripId)
@@ -537,6 +540,9 @@ export const useStore = create<AppState>()(
 
       // ─── Hotel Expenses ──────────────────────────────────────────────────────
       addHotelExpense: (data) => {
+        if (!Number.isFinite(data.totalAmount) || data.totalAmount <= 0) {
+          throw new Error('Hotel totalAmount must be positive')
+        }
         const hotel: HotelExpense = {
           ...data,
           id: generateId(),
@@ -581,6 +587,9 @@ export const useStore = create<AppState>()(
 
       // ─── Sponsorships ────────────────────────────────────────────────────────
       addSponsorship: (tripId, sponsorMemberId, sponsoredMemberId) => {
+        if (sponsorMemberId === sponsoredMemberId) {
+          throw new Error('Self-sponsorship is not allowed')
+        }
         // Check for duplicate or reverse
         const existing = get().sponsorships.find(
           sp =>

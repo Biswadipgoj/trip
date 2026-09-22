@@ -238,11 +238,15 @@ export const useStore = create<AppState>()(
         tripId, title, amount, paidBy, payers, category, subcategory,
         participants, splitType, splits = [], notes
       }) => {
+        const numericAmount = Number(amount)
+        if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+          throw new Error('Expense amount must be positive')
+        }
         const expense: Expense = {
           id: generateId(),
           tripId,
           title: title.trim(),
-          amount: Number(amount),
+          amount: numericAmount,
           paidBy,
           payers,
           category,
@@ -269,6 +273,9 @@ export const useStore = create<AppState>()(
 
       addHotelExpense: ({ tripId, title, paidBy, rooms }) => {
         const totalAmount = rooms.reduce((sum, r) => sum + Number(r.cost), 0)
+        if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+          throw new Error('Hotel total amount must be positive')
+        }
         const hotel: HotelExpense = {
           id: generateId(),
           tripId,
@@ -319,6 +326,9 @@ export const useStore = create<AppState>()(
       },
 
       addSponsorship: (tripId, sponsorMemberId, sponsoredMemberId) => {
+        if (sponsorMemberId === sponsoredMemberId) {
+          throw new Error('Self-sponsorship is not allowed')
+        }
         const sponsorship: Sponsorship = {
           id: generateId(),
           tripId,

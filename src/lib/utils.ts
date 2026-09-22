@@ -153,8 +153,24 @@ export function createInviteLink(trip: Trip, origin: string): string {
 export function parseInviteToken(raw: string | null): InviteParseResult {
   if (!raw) return { ok: false, reason: 'invalid' }
   try {
-    const payload = JSON.parse(fromBase64Url(raw)) as InvitePayload
-    if (!payload?.trip?.id || !payload.trip.tripCode || !payload.sig) {
+    const parsed = JSON.parse(fromBase64Url(raw))
+    if (!parsed || typeof parsed !== 'object' || !parsed.trip || typeof parsed.trip !== 'object') {
+      return { ok: false, reason: 'invalid' }
+    }
+    const payload: InvitePayload = {
+      v: parsed.v,
+      trip: {
+        id: String(parsed.trip.id || ''),
+        tripCode: String(parsed.trip.tripCode || ''),
+        name: String(parsed.trip.name || ''),
+        creatorId: String(parsed.trip.creatorId || ''),
+        status: parsed.trip.status === 'closed' ? 'closed' : 'active',
+        createdAt: String(parsed.trip.createdAt || ''),
+      },
+      exp: typeof parsed.exp === 'number' ? parsed.exp : undefined,
+      sig: typeof parsed.sig === 'string' ? parsed.sig : '',
+    }
+    if (!payload.trip.id || !payload.trip.tripCode || !payload.sig) {
       return { ok: false, reason: 'invalid' }
     }
     if (typeof payload.exp === 'number' && Date.now() > payload.exp) {
@@ -166,8 +182,9 @@ export function parseInviteToken(raw: string | null): InviteParseResult {
   }
 }
 
-/** Round to 2 decimals (paise-accurate). */
+/** Round to 2 decimals (paise-accurate). Safe against NaN/Infinity. */
 export function roundMoney(n: number): number {
+  if (!Number.isFinite(n)) return 0
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
@@ -240,9 +257,13 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
  * leftover paise are assigned to the first participants so the shares always
  * sum exactly to the expense amount (no floating-point drift).
  */
-function distributeEqually(amount: number, participantIds: string[], out: Record<string, number>) {
+export function distributeEqually(amount: number, participantIds: string[], out: Record<string, number>) {
   const n = participantIds.length
   if (n === 0) return
+  if (!Number.isFinite(amount) || amount <= 0) {
+    participantIds.forEach(pid => { out[pid] = 0 })
+    return
+  }
   const totalPaise = Math.round(amount * 100)
   const base = Math.floor(totalPaise / n)
   let remainder = totalPaise - base * n
@@ -453,7 +474,7 @@ export function calculateNetBalances(
  */
 export function applySponsorships(
   balances: MemberBalance[],
-  sponsorships: Sponsorship[]
+  sponsorships: Sponsorship[] = []
 ): MemberBalance[] {
   const result = balances.map(b => ({ ...b }))
   const balanceMap: Record<string, MemberBalance> = {}
@@ -485,9 +506,9 @@ export function applySponsorships(
  */
 export function calculateSettlements(
   rawBalances: MemberBalance[],
-  members: Member[],
-  groups: SettlementGroup[],
-  sponsorships: Sponsorship[]
+  members: Member[] = [],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
 ): SettlementRoute[] {
   // Step 1: Apply sponsorships
   const balancesAfterSponsorship = applySponsorships(rawBalances, sponsorships)
@@ -715,11 +736,15 @@ export function getSplitTypeIcon(type: string): string {
 
 // Build UPI payment link
 export function buildUpiLink(upiId: string, name: string, amount: number, note: string): string {
+  const safeAmount = Number.isFinite(amount) && amount > 0 ? roundMoney(amount) : 0
+  const cleanUpi = (upiId || '').trim().replace(/[\r\n\t]/g, '')
+  const cleanName = (name || '').trim().replace(/[\r\n\t]/g, '')
+  const cleanNote = (note || '').trim().replace(/[\r\n\t]/g, '')
   const params = new URLSearchParams({
-    pa: upiId,
-    pn: name,
-    am: amount.toFixed(2),
-    tn: note,
+    pa: cleanUpi,
+    pn: cleanName,
+    am: safeAmount.toFixed(2),
+    tn: cleanNote,
     cu: 'INR',
   })
   return `upi://pay?${params.toString()}`

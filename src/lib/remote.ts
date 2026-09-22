@@ -57,7 +57,14 @@ function unpackNotes(raw: string | null): { notes?: string; payers?: ExpensePaye
   if (!raw.startsWith(META_PREFIX)) return { notes: raw }
   try {
     const meta = JSON.parse(raw.slice(META_PREFIX.length))
-    return { notes: meta.n || undefined, payers: meta.p || undefined, subcategory: meta.sc || undefined }
+    if (!meta || typeof meta !== 'object') return { notes: raw }
+    const result: { notes?: string; payers?: ExpensePayer[]; subcategory?: string } = Object.create(null)
+    if (typeof meta.n === 'string') result.notes = meta.n
+    if (Array.isArray(meta.p)) {
+      result.payers = meta.p.filter((x: any) => x && typeof x.memberId === 'string' && Number.isFinite(x.amount))
+    }
+    if (typeof meta.sc === 'string') result.subcategory = meta.sc
+    return result
   } catch {
     return { notes: raw }
   }
