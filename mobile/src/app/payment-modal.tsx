@@ -1,447 +1,405 @@
-import React, { useEffect, useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  Linking,
-  Alert,
-} from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
+// Settle one payment: amount and who pays whom, the recipient's UPI ID, a
+// one-tap "Pay via UPI app" + QR code, the UPI screenshot upload (proof), and
+// the status steps Due → Paid → Confirmed. Coming back from the UPI app
+// prompts for the screenshot; adding one marks the payment as paid.
+import { useEffect, useRef, useState } from 'react'
+import { AppState, Linking, ScrollView, StyleSheet, View } from 'react-native'
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
+import { router, useLocalSearchParams } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
-import * as Haptics from 'expo-haptics'
-import QRCode from 'qrcode'
-import { Image } from 'expo-image'
 import {
-  ArrowLeft,
-  Copy,
-  Zap,
-  CheckCircle,
-  CreditCard,
-  ExternalLink,
+  ArrowRight, Camera, CircleCheck, Copy, CreditCard, ExternalLink, QrCode, ShieldCheck, TriangleAlert, X,
 } from 'lucide-react-native'
 import { useStore } from '../lib/store'
-import { Colors } from '../theme/colors'
-import { Typography } from '../theme/typography'
-import { SpringPressable } from '../components/animated/SpringPressable'
+import { proofsFor, useTripData } from '../lib/hooks'
+import { attachImage } from '../lib/uploads'
+import { cloudSetPaymentStatus, withCloud } from '../lib/cloud'
+import { confirmAction } from '../lib/dialogs'
+import { toast } from '../lib/toast'
+import { buildUpiLink, formatCurrency, formatDate } from '../lib/utils'
+import type { PreparedImage } from '../lib/media'
+import { Screen } from '../components/ui/Screen'
 import { GlassCard } from '../components/ui/GlassCard'
-import { formatCurrency, buildUpiLink } from '../lib/utils'
+import { T } from '../components/ui/Text'
+import { Button } from '../components/ui/Button'
+import { Avatar } from '../components/ui/Avatar'
+import { QRCode } from '../components/ui/QRCode'
+import { AttachmentPicker } from '../components/attachments/AttachmentPicker'
+import { AttachmentStrip } from '../components/attachments/AttachmentStrip'
+import { StatusBadge } from '../components/animated/PulseBadge'
+import { CountUp } from '../components/animated/SlotCounter'
+import { Collapsible, FadeIn } from '../components/animated/FadeInView'
+import { Confetti } from '../components/animated/ConfettiBlast'
+import { EmptyState } from '../components/animated/AnimatedEmptyState'
+import { PressScale, tick } from '../components/animated/SpringPressable'
+import { C, amber, brand500, emerald, ink } from '../theme/colors'
+import { F } from '../theme/typography'
 
-export default function PaymentModalScreen() {
-  const router = useRouter()
-  const params = useLocalSearchParams<{
-    fromId: string
-    toId: string
-    amount: string
-    fromName: string
-    toName: string
-    toUpi: string
-  }>()
+export default function PaymentModal() {
+  const insets = useSafeAreaInsets()
+  const reduced = useReducedMotion()
+  const params = useLocalSearchParams<{ id?: string; from?: string; to?: string }>()
+  const session = useStore(s => s.session)
+  const { settlements, memberMap, attachments } = useTripData(session?.tripId)
 
-  const activeTrip = useStore(state => state.getActiveTrip())
-  const tripId = activeTrip?.id || ''
-  const updateSettlementStatus = useStore(state => state.updateSettlementStatus)
+  // Ids are stable across recalculations; direction is the fallback.
+  const settlement =
+    settlements.find(s => s.id === params.id) ??
+    settlements.find(s => s.fromMemberId === params.from && s.toMemberId === params.to && s.status !== 'confirmed')
 
-  const amount = parseFloat(params.amount || '0')
-  const toName = params.toName || 'Recipient'
-  const fromName = params.fromName || 'Payer'
-  const toUpi = params.toUpi || ''
+  const [showQr, setShowQr] = useState(false)
+  const [awaitingProof, setAwaitingProof] = useState(false)
+  const [confetti, setConfetti] = useState(0)
+  const leftForUpi = useRef(false)
 
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-
-  const upiLink = toUpi
-    ? buildUpiLink(
-        toUpi,
-        toName,
-        amount,
-        `TripMate settlement for ${activeTrip?.name || 'trip'}`
-      )
-    : ''
-
-  // Generate QR code data URL
+  // Back from the UPI app → ask for the screenshot.
   useEffect(() => {
-    if (upiLink) {
-      QRCode.toDataURL(upiLink, {
-        width: 260,
-        margin: 1,
-        color: {
-          dark: '#0F172A',
-          light: '#FFFFFF',
-        },
-      })
-        .then(url => setQrDataUrl(url))
-        .catch(err => console.warn('QR generation error:', err))
-    }
-  }, [upiLink])
-
-  // Copy UPI ID
-  const handleCopyUpi = async () => {
-    if (!toUpi) return
-    await Clipboard.setStringAsync(toUpi)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    Alert.alert('Copied! 📋', `UPI ID "${toUpi}" copied to clipboard.`)
-  }
-
-  // Launch Native UPI Intent
-  const handlePayNative = async () => {
-    if (!upiLink) {
-      Alert.alert(
-        'No UPI ID',
-        `${toName} has not added their UPI ID yet. You can ask them to update it in the Members tab.`
-      )
-      return
-    }
-
-    try {
-      const supported = await Linking.canOpenURL(upiLink)
-      if (supported) {
-        await Linking.openURL(upiLink)
-      } else {
-        // Fallback: try opening anyway or prompt user
-        await Linking.openURL(upiLink).catch(() => {
-          Alert.alert(
-            'UPI App Not Found',
-            'No compatible UPI payment app (Google Pay, PhonePe, Paytm, BHIM) was detected. Please copy the UPI ID or scan the QR code.'
-          )
-        })
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active' && leftForUpi.current) {
+        leftForUpi.current = false
+        setAwaitingProof(true)
       }
+    })
+    return () => sub.remove()
+  }, [])
+
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/settlements'))
+
+  if (!settlement || !session) {
+    return (
+      <Screen edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <CloseButton onPress={close} />
+        </View>
+        <EmptyState
+          icon={CircleCheck}
+          color={C.emerald400}
+          title="This payment is no longer due"
+          subtitle="It was settled or recalculated after an expense changed."
+          action={<Button title="Back to Payments" onPress={close} />}
+        />
+      </Screen>
+    )
+  }
+
+  const from = memberMap[settlement.fromMemberId]
+  const to = memberMap[settlement.toMemberId]
+  const fromName = settlement.fromGroupIds?.length
+    ? settlement.fromGroupIds.map(id => memberMap[id]?.name).filter(Boolean).join(' & ')
+    : from?.name ?? 'Someone'
+  const toName = settlement.toGroupIds?.length
+    ? settlement.toGroupIds.map(id => memberMap[id]?.name).filter(Boolean).join(' & ')
+    : to?.name ?? 'Someone'
+  const iPay = session.memberId === settlement.fromMemberId
+  const iReceive = session.memberId === settlement.toMemberId
+  const proofs = proofsFor(attachments, settlement)
+  const upiLink = to?.upiId ? buildUpiLink(to.upiId, to.upiName || to.name, settlement.amount, `TripMate - ${fromName}`) : null
+  const status = settlement.status
+
+  const payViaUpi = async () => {
+    if (!upiLink) return
+    try {
+      leftForUpi.current = true
+      tick('medium')
+      await Linking.openURL(upiLink)
     } catch {
-      Alert.alert(
-        'UPI Error',
-        'Could not open payment app automatically. Please copy the UPI ID or scan the QR code.'
-      )
+      leftForUpi.current = false
+      toast.error('No UPI app found on this phone — scan the QR code from another phone, or pay by cash.')
+      setShowQr(true)
     }
   }
 
-  // Mark as Paid
-  const handleMarkAsPaid = () => {
-    updateSettlementStatus(
+  const copyUpi = async () => {
+    if (!to?.upiId) return
+    await Clipboard.setStringAsync(to.upiId)
+    tick('success')
+    toast.success('UPI ID copied')
+  }
+
+  const addProof = (image: PreparedImage) => {
+    attachImage(
+      image,
       {
-        id: '',
-        fromMemberId: params.fromId || '',
-        toMemberId: params.toId || '',
-        fromName,
-        toName,
-        fromColor: '',
-        toColor: '',
-        amount,
+        kind: 'payment_proof',
+        tripId: settlement.tripId,
+        settlementId: settlement.id,
+        fromMemberId: settlement.fromMemberId,
+        toMemberId: settlement.toMemberId,
+        amount: settlement.amount,
       },
-      tripId,
-      'paid'
+      session.memberId
     )
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    Alert.alert('Payment Recorded! 💸', 'Waiting for recipient to confirm.')
-    router.back()
+    setAwaitingProof(false)
+    if (status === 'pending') {
+      void withCloud(async () => {
+        await cloudSetPaymentStatus(settlement.id, 'paid')
+        return true
+      })
+      toast.success(`Screenshot added and marked as paid — ${toName.split(' ')[0]} can now confirm it`)
+    } else {
+      toast.success('Screenshot added')
+    }
+  }
+
+  const markPaid = async () => {
+    if (proofs.length === 0) {
+      const ok = await confirmAction({
+        title: 'Mark as paid without a screenshot?',
+        message: 'A UPI screenshot helps the receiver confirm quickly. You can still add one later.',
+        confirmLabel: 'Mark as paid',
+      })
+      if (!ok) return
+    }
+    const okDone = await withCloud(async () => {
+      await cloudSetPaymentStatus(settlement.id, 'paid')
+      return true
+    })
+    if (!okDone) return
+    tick('success')
+    toast.success('Marked as paid — waiting for confirmation')
+  }
+
+  const confirmReceived = async () => {
+    const ok = await confirmAction({
+      title: 'Confirm payment received?',
+      message: `${toName} received ${formatCurrency(settlement.amount)} from ${fromName}. Confirmed payments are final and update everyone's balances.`,
+      confirmLabel: 'Confirm',
+    })
+    if (!ok) return
+    const okDone = await withCloud(async () => {
+      await cloudSetPaymentStatus(settlement.id, 'confirmed')
+      return true
+    })
+    if (!okDone) return
+    tick('success')
+    setConfetti(n => n + 1)
+    toast.success('Payment confirmed 🎉')
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <SpringPressable
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft size={22} color={Colors.text} />
-        </SpringPressable>
-        <Text style={styles.headerTitle}>Settle Payment</Text>
-        <View style={{ width: 40 }} />
+    <Screen edges={['top']}>
+      <View style={styles.topBar}>
+        <View style={styles.row}>
+          <View style={styles.titleIcon}>
+            <CreditCard size={18} color={C.brand500} />
+          </View>
+          <T variant="h2">Settle payment</T>
+        </View>
+        <CloseButton onPress={close} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Banner Card */}
-        <LinearGradient
-          colors={Colors.gradients.sunset}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroBanner}
-        >
-          <Text style={styles.bannerLabel}>Transfer Amount</Text>
-          <Text style={styles.bannerAmount}>{formatCurrency(amount)}</Text>
-          <Text style={styles.bannerTransfer}>
-            From <Text style={{ fontWeight: '800' }}>{fromName}</Text> to{' '}
-            <Text style={{ fontWeight: '800' }}>{toName}</Text>
-          </Text>
-        </LinearGradient>
-
-        {/* UPI Details Card */}
-        <GlassCard style={styles.card}>
-          <View style={styles.cardHeader}>
-            <CreditCard size={18} color="#6366F1" />
-            <Text style={styles.cardTitle}>Recipient's UPI ID</Text>
-          </View>
-
-          {toUpi ? (
-            <View style={styles.upiBox}>
-              <Text style={styles.upiIdText} numberOfLines={1}>
-                {toUpi}
-              </Text>
-              <SpringPressable
-                style={styles.copyButton}
-                onPress={handleCopyUpi}
-              >
-                <Copy size={16} color="#6366F1" />
-                <Text style={styles.copyText}>Copy</Text>
-              </SpringPressable>
-            </View>
-          ) : (
-            <View style={styles.noUpiBox}>
-              <Text style={styles.noUpiText}>
-                ⚠️ {toName} has not provided a UPI ID.
-              </Text>
-              <Text style={styles.noUpiSub}>
-                You can settle in cash or ask them to add their UPI ID in the
-                Members tab.
-              </Text>
-            </View>
-          )}
-
-          {/* QR Code Container */}
-          {qrDataUrl && (
-            <View style={styles.qrSection}>
-              <Text style={styles.qrPrompt}>
-                Scan with any UPI App (GPay, PhonePe, Paytm, BHIM)
-              </Text>
-              <View style={styles.qrWrapper}>
-                <Image
-                  source={{ uri: qrDataUrl }}
-                  style={styles.qrImage}
-                  contentFit="contain"
-                />
+      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]} showsVerticalScrollIndicator={false}>
+        {/* Amount + who pays whom */}
+        <FadeIn>
+          <GlassCard strong radius={24} contentStyle={styles.hero}>
+            <StatusBadge status={status} />
+            <CountUp value={settlement.amount} prefix="₹" decimals={settlement.amount % 1 ? 2 : 0} variant="display" style={styles.amount} />
+            <View style={styles.people}>
+              <View style={styles.person}>
+                <Avatar name={fromName} color={from?.avatarColor} size="lg" animate />
+                <T variant="smallSemibold" center numberOfLines={2}>{fromName}{iPay ? '\n(you)' : ''}</T>
+              </View>
+              <ArrowRight size={22} color={C.brand500} />
+              <View style={styles.person}>
+                <Avatar name={toName} color={to?.avatarColor} size="lg" animate />
+                <T variant="smallSemibold" center numberOfLines={2}>{toName}{iReceive ? '\n(you)' : ''}</T>
               </View>
             </View>
-          )}
-        </GlassCard>
+            {settlement.paidAt && status !== 'pending' ? (
+              <T variant="small" color={ink(0.55)}>
+                Paid {formatDate(settlement.paidAt)}{settlement.confirmedAt ? ` · confirmed ${formatDate(settlement.confirmedAt)}` : ''}
+              </T>
+            ) : null}
+          </GlassCard>
+        </FadeIn>
 
-        {/* 1-Tap Pay Native Button */}
-        {toUpi && (
-          <SpringPressable
-            style={styles.payNativeButton}
-            onPress={handlePayNative}
-          >
-            <LinearGradient
-              colors={Colors.gradients.ocean}
-              style={styles.payNativeGradient}
-            >
-              <Zap size={20} color="#FFFFFF" strokeWidth={2.5} />
-              <Text style={styles.payNativeText}>
-                Open UPI App & Pay {formatCurrency(amount)}
-              </Text>
-              <ExternalLink size={16} color="#FFFFFF" />
-            </LinearGradient>
-          </SpringPressable>
+        {/* Step 1 — pay */}
+        {status === 'pending' && (
+          <FadeIn delay={80}>
+            <GlassCard contentStyle={styles.gap12}>
+              <StepTitle n={1} title="Pay with any UPI app" />
+              {to?.upiId ? (
+                <>
+                  <PressScale onPress={() => void copyUpi()} style={styles.upiRow} haptic={false} accessibilityLabel="Copy UPI ID">
+                    <View style={styles.flex}>
+                      <T variant="tiny" color={ink(0.55)}>Pay to</T>
+                      <T variant="bodyMedium" style={styles.mono} numberOfLines={1}>{to.upiId}</T>
+                      {to.upiName ? <T variant="small" color={ink(0.6)}>{to.upiName}</T> : null}
+                    </View>
+                    <Copy size={16} color={C.brand500} />
+                  </PressScale>
+                  <Button title={`Pay ${formatCurrency(settlement.amount)} via UPI app`} icon={ExternalLink} size="lg" onPress={() => void payViaUpi()} full />
+                  <PressScale onPress={() => setShowQr(v => !v)} style={styles.qrToggle} haptic="selection">
+                    <QrCode size={15} color={C.brand500} />
+                    <T variant="smallMedium" color={C.brand500}>{showQr ? 'Hide QR code' : 'Show QR code to scan'}</T>
+                  </PressScale>
+                  <Collapsible open={showQr && !!upiLink}>
+                    {upiLink ? (
+                      <View style={styles.qr}>
+                        <View style={styles.qrBox}>
+                          <QRCode value={upiLink} size={184} />
+                        </View>
+                        <T variant="small" color={ink(0.6)} center>Scan with GPay, PhonePe, Paytm or any UPI app</T>
+                      </View>
+                    ) : null}
+                  </Collapsible>
+                </>
+              ) : (
+                <View style={styles.warning}>
+                  <TriangleAlert size={16} color={C.amber600} />
+                  <T variant="small" color={C.amber700} style={styles.flex}>
+                    {toName.split(' ')[0]} hasn't added a UPI ID yet. Pay by cash, or ask them to add it in Members.
+                  </T>
+                </View>
+              )}
+            </GlassCard>
+          </FadeIn>
         )}
 
-        {/* Mark as Paid Action Button */}
-        <SpringPressable
-          style={styles.markPaidBtn}
-          onPress={handleMarkAsPaid}
-        >
-          <CheckCircle size={18} color="#059669" />
-          <Text style={styles.markPaidBtnText}>
-            I Have Already Paid / Settle Manually
-          </Text>
-        </SpringPressable>
+        {/* Step 2 — proof */}
+        <FadeIn delay={140}>
+          <GlassCard contentStyle={styles.gap12} glow={awaitingProof}>
+            <StepTitle n={status === 'pending' ? 2 : 1} title="Payment screenshot" />
+            {awaitingProof && status === 'pending' && (
+              <Animated.View entering={reduced ? undefined : FadeInDown.springify().damping(16)} style={styles.prompt}>
+                <Camera size={16} color={C.brand500} />
+                <T variant="smallMedium" color={C.brand600} style={styles.flex}>
+                  Paid? Add the UPI screenshot so {toName.split(' ')[0]} can confirm it.
+                </T>
+              </Animated.View>
+            )}
+            {proofs.length > 0 ? (
+              <AttachmentStrip attachments={proofs} size={84} />
+            ) : (
+              <T variant="small" color={ink(0.6)}>
+                {status === 'pending'
+                  ? 'After paying, add the screenshot from your UPI app — it marks this payment as paid.'
+                  : 'No screenshot was added for this payment.'}
+              </T>
+            )}
+            {status !== 'confirmed' && (
+              <AttachmentPicker
+                context={{ kind: 'payment_proof', tripId: settlement.tripId, settlementId: settlement.id }}
+                cameraLabel="Camera"
+                galleryLabel="Screenshot"
+                onPicked={addProof}
+              />
+            )}
+          </GlassCard>
+        </FadeIn>
+
+        {/* Step 3 — status */}
+        <FadeIn delay={200}>
+          {status === 'pending' && (
+            <Button title="Mark as paid" icon={CircleCheck} variant={proofs.length ? 'brand' : 'ghost'} size="lg" onPress={() => void markPaid()} full />
+          )}
+          {status === 'paid' && (
+            <GlassCard contentStyle={styles.gap12}>
+              <View style={styles.row}>
+                <ShieldCheck size={18} color={C.blue500} />
+                <T variant="title" style={styles.flex}>
+                  {iReceive ? 'Did you receive this payment?' : `Waiting for ${toName.split(' ')[0]} to confirm`}
+                </T>
+              </View>
+              <T variant="small" color={ink(0.6)}>
+                {iReceive
+                  ? 'Check your UPI app or bank, then confirm. This settles it for everyone.'
+                  : 'Anyone in the trip can confirm once the money has arrived.'}
+              </T>
+              <Button title="Confirm received" icon={CircleCheck} variant="success" size="lg" onPress={() => void confirmReceived()} full />
+            </GlassCard>
+          )}
+          {status === 'confirmed' && (
+            <View style={styles.done}>
+              <CircleCheck size={22} color={C.emerald400} />
+              <T variant="title" color={C.emerald500}>Payment confirmed — all square!</T>
+            </View>
+          )}
+        </FadeIn>
       </ScrollView>
-    </SafeAreaView>
+      <Confetti shot={confetti} />
+    </Screen>
+  )
+}
+
+function StepTitle({ n, title }: { n: number; title: string }) {
+  return (
+    <View style={styles.row}>
+      <View style={styles.stepDot}>
+        <T style={styles.stepText} maxFontSizeMultiplier={1}>{n}</T>
+      </View>
+      <T variant="title">{title}</T>
+    </View>
+  )
+}
+
+function CloseButton({ onPress }: { onPress: () => void }) {
+  return (
+    <PressScale onPress={onPress} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
+      <X size={18} color={ink(0.65)} />
+    </PressScale>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
+  flex: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  gap12: { gap: 12 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
+  titleIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: brand500(0.12), alignItems: 'center', justifyContent: 'center' },
+  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: ink(0.07), alignItems: 'center', justifyContent: 'center' },
+  scroll: { paddingHorizontal: 16, paddingTop: 4, gap: 16 },
+  hero: { alignItems: 'center', gap: 12 },
+  amount: { fontSize: 40, lineHeight: 48 },
+  people: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+  person: { alignItems: 'center', gap: 8, width: 110 },
+  upiRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-  },
-  headerTitle: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  heroBanner: {
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  bannerLabel: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  bannerAmount: {
-    fontSize: 38,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.5,
-    marginBottom: 6,
-  },
-  bannerTransfer: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  card: {
-    marginBottom: 16,
-    padding: 18,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  cardTitle: {
-    ...Typography.h4,
-    color: Colors.text,
-  },
-  upiBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    gap: 10,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 16,
-  },
-  upiIdText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#4F46E5',
-    flex: 1,
-    marginRight: 8,
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-    gap: 4,
-  },
-  copyText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  noUpiBox: {
-    backgroundColor: '#FFFBEB',
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#FEF3C7',
-    marginBottom: 16,
-  },
-  noUpiText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#B45309',
-    marginBottom: 4,
-  },
-  noUpiSub: {
-    fontSize: 12,
-    color: '#92400E',
-    lineHeight: 16,
-  },
-  qrSection: {
-    alignItems: 'center',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  qrPrompt: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 14,
-    textAlign: 'center',
-  },
-  qrWrapper: {
-    backgroundColor: '#FFFFFF',
+    borderColor: brand500(0.2),
+    backgroundColor: brand500(0.05),
     padding: 12,
-    borderRadius: 20,
+  },
+  mono: { fontFamily: F.mono },
+  qrToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'center', paddingVertical: 4 },
+  qr: { alignItems: 'center', gap: 10 },
+  qrBox: { padding: 12, borderRadius: 18, backgroundColor: C.white, boxShadow: '0px 6px 20px rgba(108,62,200,0.12)' },
+  warning: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'flex-start',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 3,
+    borderColor: amber(0.3),
+    backgroundColor: amber(0.12),
+    padding: 10,
   },
-  qrImage: {
-    width: 220,
-    height: 220,
+  prompt: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderRadius: 12,
+    backgroundColor: brand500(0.08),
+    borderWidth: 1,
+    borderColor: brand500(0.22),
+    padding: 10,
   },
-  payNativeButton: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 12,
-    shadowColor: '#4E65FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  payNativeGradient: {
+  stepDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.brand500, alignItems: 'center', justifyContent: 'center' },
+  stepText: { color: C.white, fontSize: 12, lineHeight: 15, fontFamily: F.bold },
+  done: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  payNativeText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  markPaidBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#DCFCE7',
-    paddingVertical: 14,
-    borderRadius: 18,
+    gap: 10,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
-    gap: 8,
-  },
-  markPaidBtnText: {
-    color: '#15803D',
-    fontSize: 14,
-    fontWeight: '700',
+    borderColor: emerald(0.3),
+    backgroundColor: emerald(0.1),
+    padding: 16,
   },
 })

@@ -1,767 +1,588 @@
-import React, { useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TextInput,
-  Modal,
-  Alert,
-} from 'react-native'
+// Members (web /members/[tripId]): invite link, admin "add member", member
+// cards with paid / owes / balance and UPI IDs, and Units (members settling
+// as one entity, e.g. a couple).
+import { useMemo, useState } from 'react'
+import { Share, StyleSheet, View } from 'react-native'
+import Animated from 'react-native-reanimated'
 import * as Clipboard from 'expo-clipboard'
-import * as Haptics from 'expo-haptics'
-import { LinearGradient } from 'expo-linear-gradient'
 import {
-  UserPlus,
-  Users,
-  HeartHandshake,
-  Copy,
-  Trash2,
-  X,
-  CreditCard,
-  Phone,
-  Lock,
+  ArrowDownRight, ArrowUpRight, Check, ChevronDown, Copy, Crown, Heart, Link2, PenLine, Plus, Share2,
+  Trash2, TriangleAlert, UserPlus, Users, Wallet, X,
 } from 'lucide-react-native'
 import { useStore } from '../../lib/store'
-import { Colors } from '../../theme/colors'
-import { Typography } from '../../theme/typography'
-import { SpringPressable } from '../../components/animated/SpringPressable'
+import { useTripData } from '../../lib/hooks'
+import { syncTrip } from '../../lib/sync'
+import { cloudAddGroup, cloudAddMember, cloudRemoveGroup, cloudUpdateUpi, withCloud } from '../../lib/cloud'
+import { isRemoteEnabled } from '../../lib/remote'
+import { WEB_URL } from '../../lib/config'
+import { confirmAction } from '../../lib/dialogs'
+import { toast } from '../../lib/toast'
+import { createInviteLink, createTripShareMessage, formatCurrency, formatDate, isValidUpiId } from '../../lib/utils'
+import type { Member, MemberBalance } from '../../types'
 import { GlassCard } from '../../components/ui/GlassCard'
+import { T } from '../../components/ui/Text'
+import { Button } from '../../components/ui/Button'
+import { Field } from '../../components/ui/Field'
 import { Avatar } from '../../components/ui/Avatar'
-import { formatCurrency } from '../../lib/utils'
+import { AvatarStack } from '../../components/ui/MemberAvatarStack'
+import { Chip, SelectPill } from '../../components/ui/CategoryChip'
+import { PageHeader, PageScroll } from '../../components/ui/PageHeader'
+import { CountUp } from '../../components/animated/SlotCounter'
+import { Collapsible, FadeIn, SMOOTH_LAYOUT, stagger } from '../../components/animated/FadeInView'
+import { EmptyState } from '../../components/animated/AnimatedEmptyState'
+import { PressScale, tick } from '../../components/animated/SpringPressable'
+import { C, amber, ink } from '../../theme/colors'
+import { F } from '../../theme/typography'
 
 export default function MembersScreen() {
-  const activeTrip = useStore(state => state.getActiveTrip())
-  const tripId = activeTrip?.id || ''
-
-  const members = useStore(state => state.getTripMembers(tripId))
-  const balances = useStore(state => state.getTripBalances(tripId))
-  const settlementGroups = useStore(state => state.settlementGroups.filter(g => g.tripId === tripId))
-  const sponsorships = useStore(state => state.sponsorships.filter(s => s.tripId === tripId))
-
-  const addMember = useStore(state => state.addMember)
-  const addSettlementGroup = useStore(state => state.addSettlementGroup)
-  const deleteSettlementGroup = useStore(state => state.deleteSettlementGroup)
-  const addSponsorship = useStore(state => state.addSponsorship)
-  const deleteSponsorship = useStore(state => state.deleteSponsorship)
-
-  // Modals state
+  const session = useStore(s => s.session)
+  const tripId = session?.tripId
+  const { trip, members, groups: units, balances, totalSpent, isAdmin } = useTripData(tripId)
+  const [busy, setBusy] = useState<'member' | 'unit' | null>(null)
+  const [copied, setCopied] = useState(false)
   const [showAddMember, setShowAddMember] = useState(false)
   const [newMemberName, setNewMemberName] = useState('')
-  const [newMemberMobile, setNewMemberMobile] = useState('')
-  const [newMemberPin, setNewMemberPin] = useState('')
-  const [newMemberUpi, setNewMemberUpi] = useState('')
+  const [showUnitForm, setShowUnitForm] = useState(false)
+  const [unitName, setUnitName] = useState('')
+  const [unitMembers, setUnitMembers] = useState<string[]>([])
+  const [expandedUnit, setExpandedUnit] = useState<string | null>(null)
 
-  const [showAddGroup, setShowAddGroup] = useState(false)
-  const [groupName, setGroupName] = useState('')
-  const [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState<string[]>([])
+  const balanceMap = useMemo(() => {
+    const map: Record<string, MemberBalance> = {}
+    balances.forEach(b => { map[b.memberId] = b })
+    return map
+  }, [balances])
 
-  const [showAddSponsor, setShowAddSponsor] = useState(false)
-  const [sponsorId, setSponsorId] = useState<string>('')
-  const [sponsoredId, setSponsoredId] = useState<string>('')
+  const inviteLink = trip && WEB_URL ? createInviteLink(trip, WEB_URL) : ''
 
-  // Copy UPI
-  const handleCopyUpi = async (upi: string) => {
-    await Clipboard.setStringAsync(upi)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    Alert.alert('Copied! 💳', `UPI ID "${upi}" copied to clipboard.`)
+  const shareInvite = async () => {
+    if (!trip) return
+    try {
+      await Share.share({ message: createTripShareMessage(trip, inviteLink || undefined) })
+    } catch {
+      toast.error('Could not open the share sheet')
+    }
   }
 
-  // Handle Add Member
-  const handleSaveMember = () => {
-    if (!newMemberName.trim()) {
-      Alert.alert('Name Required', 'Please enter the member name.')
-      return
-    }
-    if (!newMemberMobile.trim() || newMemberMobile.trim().length < 10) {
-      Alert.alert('Mobile Required', 'Please enter a valid 10-digit mobile number.')
-      return
-    }
+  const copyInvite = async () => {
+    if (!trip) return
+    await Clipboard.setStringAsync(inviteLink || trip.tripCode)
+    tick('success')
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
-    addMember({
-      tripId,
-      name: newMemberName.trim(),
-      mobile: newMemberMobile.trim(),
-      pin: newMemberPin.trim() || '1234',
-      upiId: newMemberUpi.trim() || undefined,
-    })
-
+  const handleAddMember = async () => {
+    if (!tripId || !newMemberName.trim() || busy) return
+    setBusy('member')
+    const added = await withCloud(() => cloudAddMember(tripId, newMemberName))
+    setBusy(null)
+    if (!added) return
+    tick('success')
+    toast.success(`${added.name} added to the trip`)
     setNewMemberName('')
-    setNewMemberMobile('')
-    setNewMemberPin('')
-    setNewMemberUpi('')
     setShowAddMember(false)
   }
 
-  // Handle Add Group
-  const handleSaveGroup = () => {
-    if (!groupName.trim()) {
-      Alert.alert('Group Name Required', 'e.g. "Rahul & Priya"')
-      return
-    }
-    if (selectedGroupMemberIds.length < 2) {
-      Alert.alert('Select Members', 'Select at least 2 members for this settlement group.')
-      return
-    }
+  const toggleUnitMember = (id: string) =>
+    setUnitMembers(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
 
-    addSettlementGroup(tripId, groupName.trim(), selectedGroupMemberIds)
-    setGroupName('')
-    setSelectedGroupMemberIds([])
-    setShowAddGroup(false)
+  const handleCreateUnit = async () => {
+    if (!tripId || !unitName.trim() || unitMembers.length < 2 || busy) return
+    setBusy('unit')
+    const created = await withCloud(() => cloudAddGroup(tripId, unitName.trim(), unitMembers))
+    setBusy(null)
+    if (!created) return
+    tick('success')
+    setUnitName('')
+    setUnitMembers([])
+    setShowUnitForm(false)
   }
 
-  // Handle Add Sponsorship
-  const handleSaveSponsorship = () => {
-    if (!sponsorId || !sponsoredId) {
-      Alert.alert('Selection Required', 'Please select both sponsor and sponsored member.')
-      return
-    }
-    if (sponsorId === sponsoredId) {
-      Alert.alert('Invalid Selection', 'A member cannot sponsor themselves.')
-      return
-    }
-
-    addSponsorship(tripId, sponsorId, sponsoredId)
-    setSponsorId('')
-    setSponsoredId('')
-    setShowAddSponsor(false)
+  const removeUnit = async (id: string, name: string) => {
+    const ok = await confirmAction({
+      title: `Remove unit “${name}”?`,
+      message: 'Its members will settle individually again. Payments already confirmed stay recorded.',
+      confirmLabel: 'Remove',
+      destructive: true,
+    })
+    if (!ok) return
+    const removed = await withCloud(async () => {
+      await cloudRemoveGroup(id)
+      return true
+    })
+    if (removed) tick('warning')
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Trip Members</Text>
-          <Text style={styles.headerSubtitle}>
-            {members.length} participants in this trip
-          </Text>
-        </View>
+    <PageScroll onRefresh={() => syncTrip(tripId)}>
+      <PageHeader
+        icon={Users}
+        title="Members"
+        subtitle={`${members.length} people · ${formatCurrency(totalSpent)} total spent`}
+      />
 
-        <SpringPressable
-          style={styles.addMemberBtn}
-          onPress={() => setShowAddMember(true)}
-        >
-          <UserPlus size={16} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.addMemberBtnText}>Add</Text>
-        </SpringPressable>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Action Pills for Settlement Groups & Sponsors */}
-        <View style={styles.quickToolsRow}>
-          <SpringPressable
-            style={[styles.toolCard, { flex: 1 }]}
-            onPress={() => setShowAddGroup(true)}
-          >
-            <View style={[styles.toolIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Users size={18} color="#6366F1" />
-            </View>
-            <View>
-              <Text style={styles.toolTitle}>Couples / Group</Text>
-              <Text style={styles.toolSub}>Settle as one unit</Text>
-            </View>
-          </SpringPressable>
-
-          <SpringPressable
-            style={[styles.toolCard, { flex: 1 }]}
-            onPress={() => setShowAddSponsor(true)}
-          >
-            <View style={[styles.toolIcon, { backgroundColor: '#FFF1F2' }]}>
-              <HeartHandshake size={18} color="#EC4899" />
-            </View>
-            <View>
-              <Text style={styles.toolTitle}>Sponsorship</Text>
-              <Text style={styles.toolSub}>Cover someone's debt</Text>
-            </View>
-          </SpringPressable>
-        </View>
-
-        {/* Active Groups & Sponsorships Badges (if any) */}
-        {settlementGroups.length > 0 && (
-          <View style={styles.groupSection}>
-            <Text style={styles.sectionHeader}>Settlement Groups (Couples/Families)</Text>
-            {settlementGroups.map(g => {
-              const groupMembers = members.filter(m => g.memberIds.includes(m.id))
-              return (
-                <GlassCard key={g.id} style={styles.groupCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.groupTitle}>🤝 {g.name}</Text>
-                    <Text style={styles.groupMembersText}>
-                      {groupMembers.map(m => m.name).join(' & ')}
-                    </Text>
-                  </View>
-                  <SpringPressable
-                    style={styles.deleteGroupBtn}
-                    onPress={() => deleteSettlementGroup(g.id)}
-                  >
-                    <Trash2 size={16} color="#EF4444" />
-                  </SpringPressable>
-                </GlassCard>
-              )
-            })}
-          </View>
-        )}
-
-        {sponsorships.length > 0 && (
-          <View style={styles.groupSection}>
-            <Text style={styles.sectionHeader}>Active Sponsorships</Text>
-            {sponsorships.map(sp => {
-              const sponsor = members.find(m => m.id === sp.sponsorMemberId)
-              const sponsored = members.find(m => m.id === sp.sponsoredMemberId)
-              return (
-                <GlassCard key={sp.id} style={styles.groupCard}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.groupTitle}>
-                      🎗️ {sponsor?.name} covers {sponsored?.name}
-                    </Text>
-                    <Text style={styles.groupMembersText}>
-                      {sponsored?.name}'s debt merges into {sponsor?.name} at settlement.
-                    </Text>
-                  </View>
-                  <SpringPressable
-                    style={styles.deleteGroupBtn}
-                    onPress={() => deleteSponsorship(sp.id)}
-                  >
-                    <Trash2 size={16} color="#EF4444" />
-                  </SpringPressable>
-                </GlassCard>
-              )
-            })}
-          </View>
-        )}
-
-        {/* Members List */}
-        <Text style={[styles.sectionHeader, { marginTop: 12 }]}>All Members</Text>
-        {members.map(member => {
-          const bal = balances.find(b => b.memberId === member.id)
-          const net = bal?.netBalance || 0
-          const isPositive = net > 0.01
-          const isNegative = net < -0.01
-
-          return (
-            <GlassCard key={member.id} style={styles.memberCard}>
-              <View style={styles.memberCardTop}>
-                <Avatar name={member.name} color={member.avatarColor} size={44} />
-                <View style={styles.memberInfo}>
-                  <Text style={styles.memberName}>{member.name}</Text>
-                  <Text style={styles.memberMobile}>{member.mobile}</Text>
-                  {member.upiId && (
-                    <SpringPressable
-                      style={styles.upiRow}
-                      onPress={() => handleCopyUpi(member.upiId!)}
-                    >
-                      <CreditCard size={12} color="#6366F1" />
-                      <Text style={styles.upiText} numberOfLines={1}>
-                        {member.upiId}
-                      </Text>
-                      <Copy size={11} color="#6366F1" />
-                    </SpringPressable>
-                  )}
+      {/* Invite */}
+      {trip && (
+        <FadeIn delay={50}>
+          <GlassCard padding={16} contentStyle={styles.gap12}>
+            <View style={styles.row}>
+              <View style={styles.flex}>
+                <View style={styles.row}>
+                  <Link2 size={16} color={C.brand500} />
+                  <T variant="title">Invite friends</T>
                 </View>
+                <T variant="small" color={ink(0.6)} style={styles.sub}>
+                  {inviteLink ? 'Share the join link — works on any device, valid 30 days' : 'Share the trip code — friends join with the trip password'}
+                </T>
+              </View>
+            </View>
+            <View style={styles.row}>
+              <Button title="Share" icon={Share2} size="sm" onPress={() => void shareInvite()} style={styles.flex} />
+              <Button
+                title={copied ? 'Copied!' : inviteLink ? 'Copy Link' : 'Copy Code'}
+                icon={copied ? Check : Copy}
+                variant={copied ? 'success' : 'soft'}
+                size="sm"
+                onPress={() => void copyInvite()}
+                style={styles.flex}
+                testID="copy-invite-link-btn"
+              />
+            </View>
+            {!isRemoteEnabled() && (
+              <View style={styles.warning}>
+                <TriangleAlert size={15} color={C.amber600} />
+                <T variant="small" color={C.amber700} style={styles.flex}>
+                  Cloud sync is OFF in this build — invites will not work on other devices until it is rebuilt with the
+                  Supabase settings.
+                </T>
+              </View>
+            )}
+          </GlassCard>
+        </FadeIn>
+      )}
 
-                {/* Net Balance Status */}
-                <View style={styles.balanceCol}>
-                  <Text
-                    style={[
-                      styles.netBalanceAmount,
-                      {
-                        color: isPositive
-                          ? '#10B981'
-                          : isNegative
-                          ? '#EF4444'
-                          : '#64748B',
-                      },
-                    ]}
+      {/* Admin: add a member by name */}
+      {isAdmin && (
+        <FadeIn delay={80}>
+          <Animated.View layout={SMOOTH_LAYOUT}>
+            <GlassCard padding={16}>
+              <View style={styles.row}>
+                <View style={styles.flex}>
+                  <View style={styles.row}>
+                    <UserPlus size={16} color={C.accent400} />
+                    <T variant="title">Add member</T>
+                  </View>
+                  <T variant="small" color={ink(0.6)} style={styles.sub}>Add friends by name — they can join with the link later</T>
+                </View>
+                {!showAddMember && (
+                  <Button title="Add" icon={Plus} variant="soft" tone={C.accent500} size="sm" onPress={() => setShowAddMember(true)} testID="show-add-member-btn" />
+                )}
+              </View>
+              <Collapsible open={showAddMember}>
+                <View style={[styles.row, styles.formRow]}>
+                  <Field
+                    placeholder="Member name, e.g. Aman"
+                    value={newMemberName}
+                    onChangeText={setNewMemberName}
+                    maxLength={40}
+                    autoCapitalize="words"
+                    autoFocus
+                    dense
+                    containerStyle={styles.flex}
+                    returnKeyType="done"
+                    onSubmitEditing={() => void handleAddMember()}
+                    testID="new-member-name-input"
+                  />
+                  <Button
+                    title="Add"
+                    size="sm"
+                    loading={busy === 'member'}
+                    disabled={!newMemberName.trim()}
+                    onPress={() => void handleAddMember()}
+                    testID="add-member-btn"
+                  />
+                  <PressScale
+                    onPress={() => { setShowAddMember(false); setNewMemberName('') }}
+                    style={styles.iconBtn}
+                    accessibilityLabel="Cancel"
                   >
-                    {isPositive ? '+' : ''}
-                    {formatCurrency(net)}
-                  </Text>
-                  <Text style={styles.balanceStatusText}>
-                    {isPositive ? 'gets back' : isNegative ? 'owes' : 'settled'}
-                  </Text>
+                    <X size={15} color={ink(0.6)} />
+                  </PressScale>
+                </View>
+              </Collapsible>
+            </GlassCard>
+          </Animated.View>
+        </FadeIn>
+      )}
+
+      {/* Member cards */}
+      {balances.map((balance, i) => {
+        const member = members.find(m => m.id === balance.memberId)
+        if (!member) return null
+        return (
+          <FadeIn key={balance.memberId} delay={stagger(i, 100, 70)}>
+            <MemberCard
+              member={member}
+              balance={balance}
+              isMe={session?.memberId === member.id}
+              isCreator={trip?.creatorId === member.id}
+              viewerIsAdmin={isAdmin}
+            />
+          </FadeIn>
+        )
+      })}
+
+      {/* Units */}
+      {members.length >= 2 && (
+        <FadeIn delay={150}>
+          <Animated.View layout={SMOOTH_LAYOUT}>
+            <GlassCard>
+              <View style={styles.cardHead}>
+                <View style={styles.row}>
+                  <Heart size={16} color={C.accent400} />
+                  <T variant="title">Units</T>
+                </View>
+                {!showUnitForm && (
+                  <PressScale onPress={() => setShowUnitForm(true)} style={styles.row} haptic="selection" testID="add-unit-btn">
+                    <Plus size={13} color={C.brand500} />
+                    <T variant="smallMedium" color={C.brand500}>Create unit</T>
+                  </PressScale>
+                )}
+              </View>
+              <T variant="small" color={ink(0.6)} style={styles.unitIntro}>
+                Group members (e.g. a couple) into one unit — they settle as a single entity
+              </T>
+
+              <View style={styles.gap8}>
+                {units.map(unit => {
+                  const unitList = members.filter(m => unit.memberIds.includes(m.id))
+                  const combined = unit.memberIds.reduce((s, id) => s + (balanceMap[id]?.netBalance ?? 0), 0)
+                  const open = expandedUnit === unit.id
+                  return (
+                    <Animated.View key={unit.id} layout={SMOOTH_LAYOUT} style={styles.unit}>
+                      <View style={styles.row}>
+                        <PressScale
+                          onPress={() => setExpandedUnit(open ? null : unit.id)}
+                          scaleTo={0.98}
+                          haptic="selection"
+                          style={[styles.row, styles.flex]}
+                          accessibilityRole="button"
+                          accessibilityState={{ expanded: open }}
+                          accessibilityLabel={`${unit.name}, show split`}
+                        >
+                          <AvatarStack members={unitList} />
+                          <T variant="bodyMedium" numberOfLines={1} style={styles.flex}>{unit.name}</T>
+                          <T variant="smallSemibold" color={combined > 0.01 ? C.emerald400 : combined < -0.01 ? C.red500 : ink(0.6)}>
+                            {combined > 0 ? '+' : ''}{formatCurrency(combined)}
+                          </T>
+                          <ChevronDown size={15} color={ink(0.45)} style={open ? styles.flip : undefined} />
+                        </PressScale>
+                        <PressScale onPress={() => void removeUnit(unit.id, unit.name)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove unit" haptic={false}>
+                          <Trash2 size={15} color={ink(0.45)} />
+                        </PressScale>
+                      </View>
+                      <Collapsible open={open}>
+                        <View style={styles.unitSplit}>
+                          {unitList.map(m => {
+                            const b = balanceMap[m.id]
+                            const net = b?.netBalance ?? 0
+                            return (
+                              <View key={m.id} style={styles.between}>
+                                <T variant="small" color={ink(0.65)}>{m.name}</T>
+                                <T variant="small" color={net > 0.01 ? C.emerald400 : net < -0.01 ? C.red500 : ink(0.6)}>
+                                  {net > 0 ? '+' : ''}{formatCurrency(net)}
+                                </T>
+                              </View>
+                            )
+                          })}
+                        </View>
+                      </Collapsible>
+                    </Animated.View>
+                  )
+                })}
+                {units.length === 0 && !showUnitForm && (
+                  <T variant="small" color={ink(0.5)} style={styles.italic}>No units yet</T>
+                )}
+              </View>
+
+              <Collapsible open={showUnitForm}>
+                <View style={styles.unitForm}>
+                  <Field
+                    placeholder='Unit name, e.g. "Rahul & Priya"'
+                    value={unitName}
+                    onChangeText={setUnitName}
+                    maxLength={40}
+                    dense
+                    testID="unit-name-input"
+                  />
+                  <View style={styles.wrap}>
+                    {members.map(m => {
+                      const inAnotherUnit = units.some(u => u.memberIds.includes(m.id))
+                      return (
+                        <SelectPill
+                          key={m.id}
+                          selected={unitMembers.includes(m.id)}
+                          onPress={() => toggleUnitMember(m.id)}
+                          disabled={inAnotherUnit}
+                          dense
+                        >
+                          <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                          <T variant="small">{m.name}</T>
+                        </SelectPill>
+                      )
+                    })}
+                  </View>
+                  <View style={styles.row}>
+                    <Button
+                      title="Cancel"
+                      variant="ghost"
+                      size="sm"
+                      onPress={() => { setShowUnitForm(false); setUnitName(''); setUnitMembers([]) }}
+                      style={styles.flex}
+                    />
+                    <Button
+                      title="Create Unit"
+                      size="sm"
+                      disabled={!unitName.trim() || unitMembers.length < 2}
+                      loading={busy === 'unit'}
+                      onPress={() => void handleCreateUnit()}
+                      style={styles.flex}
+                      testID="create-unit-btn"
+                    />
+                  </View>
+                  <T variant="tiny" color={ink(0.5)}>Pick at least 2 members. A member can only belong to one unit.</T>
+                </View>
+              </Collapsible>
+            </GlassCard>
+          </Animated.View>
+        </FadeIn>
+      )}
+
+      {members.length === 0 && <EmptyState icon={Users} title="No members yet" />}
+    </PageScroll>
+  )
+}
+
+function MemberCard({ member, balance, isMe, isCreator, viewerIsAdmin }: {
+  member: Member
+  balance: MemberBalance
+  isMe: boolean
+  isCreator: boolean
+  viewerIsAdmin: boolean
+}) {
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [upiInput, setUpiInput] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  // A member edits their own UPI; the trip creator can edit everyone's.
+  const canEditUpi = isMe || viewerIsAdmin
+  const firstName = balance.name.split(' ')[0]
+  const net = balance.netBalance
+
+  const save = async () => {
+    const value = upiInput.trim()
+    if (value && !isValidUpiId(value)) {
+      setError('That doesn’t look like a UPI ID — e.g. name@okhdfcbank')
+      return
+    }
+    if (saving) return
+    setSaving(true)
+    const saved = await withCloud(async () => {
+      await cloudUpdateUpi(member.id, value)
+      return true
+    })
+    setSaving(false)
+    if (!saved) return
+    tick('success')
+    setEditing(false)
+    setError(null)
+  }
+
+  return (
+    <Animated.View layout={SMOOTH_LAYOUT}>
+      <GlassCard>
+        <View style={styles.memberTop}>
+          <View>
+            <Avatar name={balance.name} color={balance.avatarColor} size="lg" animate />
+            {isMe && (
+              <View style={styles.youBadge}>
+                <T style={styles.youText} maxFontSizeMultiplier={1}>You</T>
+              </View>
+            )}
+          </View>
+          <View style={styles.flex}>
+            <View style={[styles.row, styles.wrap]}>
+              <T variant="h3" numberOfLines={1}>{balance.name}</T>
+              {isCreator && <Chip label="Admin" icon={Crown} color={C.amber600} />}
+            </View>
+            <T variant="small" color={ink(0.6)} style={styles.meta}>
+              {member.mobile && !member.mobile.startsWith('manual-') ? member.mobile : 'Added by admin'} · Joined {formatDate(member.joinedAt)}
+            </T>
+            <View style={styles.stats}>
+              <Stat label="Paid" value={balance.totalPaid} />
+              <Stat label="Owes" value={balance.totalOwed} />
+              <View style={styles.flex}>
+                <T variant="tiny" color={ink(0.5)}>Balance</T>
+                <View style={styles.inline}>
+                  {net > 0 ? <ArrowUpRight size={12} color={C.emerald400} /> : net < 0 ? <ArrowDownRight size={12} color={C.red500} /> : null}
+                  <CountUp
+                    value={Math.abs(net)}
+                    prefix="₹"
+                    duration={1}
+                    variant="title"
+                    color={net > 0 ? C.emerald400 : net < 0 ? C.red500 : ink(0.6)}
+                  />
                 </View>
               </View>
-            </GlassCard>
-          )
-        })}
-      </ScrollView>
-
-      {/* Add Member Modal */}
-      <Modal visible={showAddMember} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <GlassCard style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add New Member</Text>
-              <SpringPressable onPress={() => setShowAddMember(false)}>
-                <X size={20} color={Colors.text} />
-              </SpringPressable>
             </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Full Name *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Priya Sharma"
-                placeholderTextColor={Colors.textMuted}
-                value={newMemberName}
-                onChangeText={setNewMemberName}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mobile Number *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="10-digit number"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="phone-pad"
-                maxLength={10}
-                value={newMemberMobile}
-                onChangeText={setNewMemberMobile}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>4-Digit PIN (Default 1234)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="1234"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="numeric"
-                maxLength={4}
-                value={newMemberPin}
-                onChangeText={setNewMemberPin}
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>UPI ID (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="name@upi"
-                placeholderTextColor={Colors.textMuted}
-                autoCapitalize="none"
-                value={newMemberUpi}
-                onChangeText={setNewMemberUpi}
-              />
-            </View>
-
-            <SpringPressable style={styles.modalSaveBtn} onPress={handleSaveMember}>
-              <LinearGradient
-                colors={Colors.gradients.sunset}
-                style={styles.modalSaveGradient}
-              >
-                <Text style={styles.modalSaveText}>Add to Trip</Text>
-              </LinearGradient>
-            </SpringPressable>
-          </GlassCard>
+          </View>
         </View>
-      </Modal>
 
-      {/* Settlement Group Modal */}
-      <Modal visible={showAddGroup} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <GlassCard style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Settlement Group</Text>
-              <SpringPressable onPress={() => setShowAddGroup(false)}>
-                <X size={20} color={Colors.text} />
-              </SpringPressable>
+        {(canEditUpi || member.upiId) && (
+          <View style={styles.upi}>
+            <View style={styles.between}>
+              <View style={styles.row}>
+                <Wallet size={14} color={ink(0.6)} />
+                <T variant="smallMedium" color={ink(0.6)}>{isMe ? 'Your UPI ID' : `${firstName}'s UPI ID`}</T>
+                {!isMe && viewerIsAdmin && <Chip label="Admin" icon={Crown} color={C.brand500} />}
+              </View>
+              {canEditUpi && !editing && (
+                <PressScale
+                  onPress={() => { setEditing(true); setUpiInput(member.upiId || ''); setError(null) }}
+                  style={styles.row}
+                  haptic="selection"
+                  testID={`edit-upi-${member.id}`}
+                >
+                  <PenLine size={12} color={C.brand500} />
+                  <T variant="smallMedium" color={C.brand500}>{member.upiId ? 'Edit' : 'Add'}</T>
+                </PressScale>
+              )}
             </View>
-
-            <Text style={styles.modalSub}>
-              Members in a group are treated as ONE financial entity at settlement
-              (e.g. couples/roommates settling with a single payment).
-            </Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Group Name *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. Rahul & Priya"
-                placeholderTextColor={Colors.textMuted}
-                value={groupName}
-                onChangeText={setGroupName}
-              />
-            </View>
-
-            <Text style={styles.label}>Select Members in Group:</Text>
-            <View style={styles.chipSelectContainer}>
-              {members.map(m => {
-                const isSelected = selectedGroupMemberIds.includes(m.id)
-                return (
-                  <SpringPressable
-                    key={m.id}
-                    style={[
-                      styles.selectableChip,
-                      isSelected && styles.selectableChipActive,
-                    ]}
-                    onPress={() => {
-                      if (isSelected) {
-                        setSelectedGroupMemberIds(prev => prev.filter(id => id !== m.id))
-                      } else {
-                        setSelectedGroupMemberIds(prev => [...prev, m.id])
-                      }
-                    }}
+            {editing ? (
+              <Collapsible open>
+                <View style={[styles.row, styles.formRow]}>
+                  <Field
+                    placeholder={isMe ? 'yourname@paytm' : `${firstName.toLowerCase()}@upi`}
+                    value={upiInput}
+                    onChangeText={v => { setUpiInput(v.replace(/\s/g, '')); setError(null) }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    mono
+                    dense
+                    autoFocus
+                    error={error}
+                    containerStyle={styles.flex}
+                    returnKeyType="done"
+                    onSubmitEditing={() => void save()}
+                  />
+                  <PressScale
+                    onPress={() => void save()}
+                    disabled={saving}
+                    style={[styles.iconBtn, styles.saveBtn, saving && styles.dim]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Save UPI ID"
                   >
-                    <Avatar name={m.name} color={m.avatarColor} size={24} />
-                    <Text
-                      style={[
-                        styles.selectableChipText,
-                        isSelected && styles.selectableChipTextActive,
-                      ]}
-                    >
-                      {m.name}
-                    </Text>
-                  </SpringPressable>
-                )
-              })}
-            </View>
-
-            <SpringPressable style={styles.modalSaveBtn} onPress={handleSaveGroup}>
-              <LinearGradient
-                colors={Colors.gradients.ocean}
-                style={styles.modalSaveGradient}
+                    <Check size={15} color={C.emerald400} />
+                  </PressScale>
+                  <PressScale onPress={() => setEditing(false)} style={styles.iconBtn} accessibilityLabel="Cancel">
+                    <X size={15} color={ink(0.6)} />
+                  </PressScale>
+                </View>
+              </Collapsible>
+            ) : (
+              <T
+                variant="body"
+                color={member.upiId ? C.ink : ink(0.5)}
+                style={[styles.upiText, !member.upiId && styles.italic]}
+                selectable={!!member.upiId}
               >
-                <Text style={styles.modalSaveText}>Save Group</Text>
-              </LinearGradient>
-            </SpringPressable>
-          </GlassCard>
-        </View>
-      </Modal>
+                {member.upiId || (canEditUpi ? 'No UPI ID set — tap Add' : 'No UPI ID set')}
+              </T>
+            )}
+          </View>
+        )}
+      </GlassCard>
+    </Animated.View>
+  )
+}
 
-      {/* Sponsorship Modal */}
-      <Modal visible={showAddSponsor} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <GlassCard style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Link Sponsorship</Text>
-              <SpringPressable onPress={() => setShowAddSponsor(false)}>
-                <X size={20} color={Colors.text} />
-              </SpringPressable>
-            </View>
-
-            <Text style={styles.modalSub}>
-              The sponsor will financially absorb the sponsored member's debt at settlement.
-            </Text>
-
-            <Text style={styles.label}>Select Sponsor (Who Pays):</Text>
-            <View style={styles.chipSelectContainer}>
-              {members.map(m => {
-                const isSelected = sponsorId === m.id
-                return (
-                  <SpringPressable
-                    key={m.id}
-                    style={[
-                      styles.selectableChip,
-                      isSelected && styles.selectableChipActive,
-                    ]}
-                    onPress={() => setSponsorId(m.id)}
-                  >
-                    <Avatar name={m.name} color={m.avatarColor} size={24} />
-                    <Text
-                      style={[
-                        styles.selectableChipText,
-                        isSelected && styles.selectableChipTextActive,
-                      ]}
-                    >
-                      {m.name}
-                    </Text>
-                  </SpringPressable>
-                )
-              })}
-            </View>
-
-            <Text style={[styles.label, { marginTop: 12 }]}>
-              Select Sponsored Member (Covered):
-            </Text>
-            <View style={styles.chipSelectContainer}>
-              {members.map(m => {
-                const isSelected = sponsoredId === m.id
-                return (
-                  <SpringPressable
-                    key={m.id}
-                    style={[
-                      styles.selectableChip,
-                      isSelected && styles.selectableChipActive,
-                    ]}
-                    onPress={() => setSponsoredId(m.id)}
-                  >
-                    <Avatar name={m.name} color={m.avatarColor} size={24} />
-                    <Text
-                      style={[
-                        styles.selectableChipText,
-                        isSelected && styles.selectableChipTextActive,
-                      ]}
-                    >
-                      {m.name}
-                    </Text>
-                  </SpringPressable>
-                )
-              })}
-            </View>
-
-            <SpringPressable style={styles.modalSaveBtn} onPress={handleSaveSponsorship}>
-              <LinearGradient
-                colors={Colors.gradients.sunset}
-                style={styles.modalSaveGradient}
-              >
-                <Text style={styles.modalSaveText}>Link Sponsorship</Text>
-              </LinearGradient>
-            </SpringPressable>
-          </GlassCard>
-        </View>
-      </Modal>
-    </SafeAreaView>
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.flex}>
+      <T variant="tiny" color={ink(0.5)}>{label}</T>
+      <CountUp value={value} prefix="₹" duration={1} variant="title" />
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    ...Typography.h2,
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  addMemberBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#6366F1',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
-    gap: 6,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  addMemberBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  quickToolsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  toolCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 16,
-    gap: 10,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  toolIcon: {
+  flex: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  wrap: { flexWrap: 'wrap', flexDirection: 'row', gap: 6 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  gap8: { gap: 8 },
+  gap12: { gap: 12 },
+  sub: { marginTop: 2 },
+  formRow: { marginTop: 12, alignItems: 'flex-start' },
+  iconBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 10,
+    backgroundColor: ink(0.05),
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-  toolTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  toolSub: {
-    fontSize: 10,
-    color: Colors.textMuted,
-  },
-  groupSection: {
-    marginBottom: 16,
-  },
-  sectionHeader: {
-    ...Typography.h4,
-    color: Colors.text,
-    marginBottom: 10,
-  },
-  groupCard: {
+  saveBtn: { backgroundColor: 'rgba(29,165,120,0.14)', borderWidth: 1, borderColor: 'rgba(29,165,120,0.3)' },
+  dim: { opacity: 0.5 },
+  warning: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
+    gap: 8,
+    alignItems: 'flex-start',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: amber(0.3),
+    backgroundColor: amber(0.12),
+    padding: 10,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  unitIntro: { marginBottom: 14 },
+  unit: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: ink(0.1),
+    backgroundColor: ink(0.03),
     padding: 12,
   },
-  groupTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 2,
+  unitSplit: { marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: ink(0.08), gap: 6 },
+  unitForm: {
+    marginTop: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: ink(0.1),
+    backgroundColor: ink(0.03),
+    padding: 12,
+    gap: 12,
   },
-  groupMembersText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  deleteGroupBtn: {
-    padding: 8,
-  },
-  memberCard: {
-    marginBottom: 10,
-    padding: 14,
-  },
-  memberCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  memberName: {
-    ...Typography.h4,
-    color: Colors.text,
-  },
-  memberMobile: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginTop: 1,
-  },
-  upiRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    backgroundColor: '#F1F5F9',
-    alignSelf: 'flex-start',
+  italic: { fontStyle: 'italic' },
+  flip: { transform: [{ rotate: '180deg' }] },
+  memberTop: { flexDirection: 'row', gap: 16, alignItems: 'flex-start' },
+  youBadge: {
+    position: 'absolute',
+    right: -6,
+    bottom: -4,
+    backgroundColor: C.brand500,
+    borderRadius: 999,
     paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingVertical: 1,
+    borderWidth: 1.5,
+    borderColor: C.surface0,
   },
-  upiText: {
-    fontSize: 11,
-    color: '#4F46E5',
-    fontWeight: '600',
-    maxWidth: 140,
-  },
-  balanceCol: {
-    alignItems: 'flex-end',
-  },
-  netBalanceAmount: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  balanceStatusText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontWeight: '500',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 20,
-    paddingBottom: 36,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  modalSub: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    height: 46,
-    fontSize: 14,
-    color: Colors.text,
-  },
-  chipSelectContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 14,
-  },
-  selectableChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  selectableChipActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  selectableChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  selectableChipTextActive: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  modalSaveBtn: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    marginTop: 8,
-  },
-  modalSaveGradient: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  modalSaveText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
+  youText: { color: C.white, fontSize: 9, lineHeight: 12, fontFamily: F.bold },
+  meta: { marginTop: 2, marginBottom: 12 },
+  stats: { flexDirection: 'row', gap: 12 },
+  upi: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: ink(0.08), gap: 8 },
+  upiText: { fontFamily: F.mono },
 })

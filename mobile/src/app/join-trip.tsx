@@ -1,387 +1,585 @@
-import React, { useState } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native'
-import { useRouter } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
-import { ArrowLeft, Users, Key, User, Phone, Lock, CreditCard } from 'lucide-react-native'
+// Join a trip (web /join-trip): find & verify → your details → PIN → success.
+// Joining NEVER creates a trip — it attaches a member to the existing one.
+// Accepts ?invite= (signed link), ?code= and legacy ?d= params, and pasted
+// invite links or codes.
+import { useEffect, useRef, useState } from 'react'
+import { StyleSheet, View, type TextInput } from 'react-native'
+import Animated, { FadeInLeft, FadeInRight, useReducedMotion } from 'react-native-reanimated'
+import { useLocalSearchParams } from 'expo-router'
+import * as Clipboard from 'expo-clipboard'
+import { ArrowRight, Check, ClipboardPaste, Link2, Lock, Phone, Search, TriangleAlert, Users } from 'lucide-react-native'
+import type { InvitePayload, Trip } from '../types'
 import { useStore } from '../lib/store'
-import { Colors } from '../theme/colors'
-import { Typography } from '../theme/typography'
-import { SpringPressable } from '../components/animated/SpringPressable'
+import {
+  isRemoteEnabled, joinLog, remoteEnsureTrip, remoteFetchTripBundle, remoteFindTripByCode,
+  remoteGetMembers, remoteJoinTrip, describeError,
+} from '../lib/remote'
+import { extractJoinInput, getAvatarColor, inviteSignature, parseInviteToken } from '../lib/utils'
+import { enterTrip } from '../lib/nav'
+import { toast } from '../lib/toast'
+import { Screen } from '../components/ui/Screen'
+import { KeyboardScroll } from '../components/ui/KeyboardScroll'
 import { GlassCard } from '../components/ui/GlassCard'
-import { parseInviteToken } from '../lib/utils'
+import { Field } from '../components/ui/Field'
+import { Button } from '../components/ui/Button'
+import { T } from '../components/ui/Text'
+import { BackLink, SuccessCheck } from '../components/ui/PageHeader'
+import { Confetti } from '../components/animated/ConfettiBlast'
+import { EASE_OUT, FadeIn } from '../components/animated/FadeInView'
+import { PressScale, tick } from '../components/animated/SpringPressable'
+import { C, amber, emerald, ink, red } from '../theme/colors'
+import { F } from '../theme/typography'
+
+type Step = 'find' | 'join' | 'pin' | 'success'
+const STEPS: Step[] = ['find', 'join', 'pin', 'success']
+
+const INVITE_ERROR = {
+  expired: 'This invite link has expired. Ask the trip creator for a new invite.',
+  invalid: 'Invalid or expired invite link. Try requesting a new invite from the trip creator.',
+}
+
+/** Legacy ?d= links carried a base64 trip object. */
+function decodeLegacyTrip(encoded: string): Trip | null {
+  try {
+    const decode = (globalThis as { atob?: (s: string) => string }).atob
+    if (!decode) return null
+    const trip = JSON.parse(decode(encoded.trim().replace(/\s/g, '+'))) as Trip
+    return trip?.tripCode && trip?.id ? trip : null
+  } catch {
+    return null
+  }
+}
 
 export default function JoinTripScreen() {
-  const router = useRouter()
-  const joinTrip = useStore(state => state.joinTrip)
-  const trips = useStore(state => state.trips)
+  const reduced = useReducedMotion()
+  const params = useLocalSearchParams<{ invite?: string; code?: string; d?: string }>()
+  const getTripByCode = useStore(s => s.getTripByCode)
+  const joinTrip = useStore(s => s.joinTrip)
+  const setSession = useStore(s => s.setSession)
+  const importTrip = useStore(s => s.importTrip)
+  const upsertMember = useStore(s => s.upsertMember)
+  const mergeRemoteTrip = useStore(s => s.mergeRemoteTrip)
+  const getMembersByTrip = useStore(s => s.getMembersByTrip)
 
-  const [tripInput, setTripInput] = useState('')
-  const [password, setPassword] = useState('')
+  const [step, setStep] = useState<Step>('find')
+  const [forward, setForward] = useState(true)
+  const [tripCode, setTripCode] = useState('')
+  const [tripPassword, setTripPassword] = useState('')
   const [name, setName] = useState('')
   const [mobile, setMobile] = useState('')
   const [pin, setPin] = useState('')
-  const [upiId, setUpiId] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [pinConfirm, setPinConfirm] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [foundTrip, setFoundTrip] = useState<Trip | null>(null)
+  const [foundViaRemote, setFoundViaRemote] = useState(false)
+  const [memberCount, setMemberCount] = useState<number | null>(null)
+  const [invite, setInvite] = useState<InvitePayload | null>(null)
+  const [inviteError, setInviteError] = useState<string | null>(null)
+  const [importedFromLink, setImportedFromLink] = useState(false)
+  const [alreadyMember, setAlreadyMember] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [confetti, setConfetti] = useState(0)
 
-  // Smart code extraction (handles raw code "TRP-ABCD", short url "?c=TRP-ABCD", or base64 token)
-  const extractCode = (input: string): string => {
-    const raw = input.trim()
-    if (!raw) return ''
+  const passwordRef = useRef<TextInput>(null)
+  const mobileRef = useRef<TextInput>(null)
+  const pinConfirmRef = useRef<TextInput>(null)
 
-    // 1. If it's a short URL or contains ?c=
-    const cMatch = raw.match(/[?&]c=([A-Za-z0-9-]+)/i)
-    if (cMatch && cMatch[1]) return cMatch[1].toUpperCase()
+  const go = (next: Step) => {
+    setForward(STEPS.indexOf(next) > STEPS.indexOf(step))
+    setStep(next)
+  }
 
-    // 2. If it contains ?code=
-    const codeMatch = raw.match(/[?&]code=([A-Za-z0-9-]+)/i)
-    if (codeMatch && codeMatch[1]) return codeMatch[1].toUpperCase()
+  const applyInvite = (token: string) => {
+    const result = parseInviteToken(token)
+    if (result.ok) {
+      setInvite(result.payload)
+      setTripCode(result.payload.trip.tripCode.toUpperCase())
+      setImportedFromLink(true)
+      setInviteError(null)
+      joinLog('invite.parsed', { tripCode: result.payload.trip.tripCode, tripId: result.payload.trip.id })
+    } else {
+      joinLog('invite.invalid', { reason: result.reason })
+      setInviteError(INVITE_ERROR[result.reason])
+    }
+  }
 
-    // 3. If it contains ?invite=
-    const inviteMatch = raw.match(/[?&]invite=([^&\s]+)/i)
-    if (inviteMatch && inviteMatch[1]) {
-      const parsed = parseInviteToken(inviteMatch[1])
-      if (parsed.ok && parsed.payload?.trip?.tripCode) {
-        return parsed.payload.trip.tripCode.toUpperCase()
+  // Deep links: ?invite= (newest), ?code=, legacy ?d=.
+  useEffect(() => {
+    if (params.invite) {
+      applyInvite(String(params.invite))
+      return
+    }
+    if (params.code) {
+      setTripCode(String(params.code).trim().toUpperCase().slice(0, 8))
+      setImportedFromLink(true)
+      return
+    }
+    if (params.d) {
+      const trip = decodeLegacyTrip(String(params.d))
+      if (trip) {
+        importTrip(trip)
+        setTripCode(trip.tripCode.toUpperCase())
+        setImportedFromLink(true)
+      } else {
+        setInviteError(INVITE_ERROR.invalid)
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.invite, params.code, params.d])
 
-    // 4. Default: strip spaces and take code
-    return raw.replace(/[^A-Za-z0-9-]/g, '').toUpperCase()
+  /** A pasted invite link or code, from the field or the clipboard. */
+  const applyPasted = (raw: string) => {
+    const { invite: token, code } = extractJoinInput(raw)
+    if (token) applyInvite(token)
+    else if (code) {
+      setTripCode(code.slice(0, 8))
+      setInviteError(null)
+    }
   }
 
-  const handleJoin = () => {
-    const code = extractCode(tripInput)
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await Clipboard.getStringAsync()
+      if (!text.trim()) {
+        toast.info('Clipboard is empty — copy the invite link or trip code first')
+        return
+      }
+      tick('selection')
+      applyPasted(text)
+    } catch {
+      toast.error('Could not read the clipboard')
+    }
+  }
+
+  // ── Step 1: verify the trip EXISTS, then validate the password ─────────────
+  const handleFind = async () => {
+    const code = tripCode.trim().toUpperCase()
+    const password = tripPassword
     if (!code) {
-      Alert.alert('Trip Code Required', 'Please enter or paste the 6-character trip code.')
+      setErrors({ tripCode: 'Enter the trip code' })
+      tick('error')
       return
     }
-    if (!password.trim()) {
-      Alert.alert('Password Required', 'Please enter the trip password / PIN provided by the organizer.')
-      return
-    }
-    if (!name.trim()) {
-      Alert.alert('Your Name Required', 'Please enter your name.')
-      return
-    }
-    if (!mobile.trim() || mobile.trim().length < 10) {
-      Alert.alert('Valid Mobile Required', 'Please enter a valid 10-digit mobile number.')
-      return
-    }
-    if (!pin.trim() || pin.trim().length < 4) {
-      Alert.alert('4-Digit PIN Required', 'Please enter a 4-digit PIN for your profile.')
-      return
-    }
+    setBusy(true)
+    setErrors({})
+    joinLog('find.start', { tripCode: code, viaInvite: !!invite, remote: isRemoteEnabled() })
 
-    setLoading(true)
-    const res = joinTrip({
-      tripCode: code,
-      password: password.trim(),
-      name: name.trim(),
-      mobile: mobile.trim(),
-      pin: pin.trim(),
-      upiId: upiId.trim() || undefined,
-    })
+    try {
+      // 1. Cloud (preferred): the one shared trip lives on the server.
+      if (isRemoteEnabled()) {
+        let remoteTrip: Trip | null = null
+        try {
+          remoteTrip = await remoteFindTripByCode(code)
+        } catch (err) {
+          setErrors({ general: describeError(err) })
+          tick('error')
+          return
+        }
+        if (remoteTrip) {
+          if (remoteTrip.password !== password) {
+            joinLog('find.wrongPassword', { tripCode: code })
+            setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
+            tick('error')
+            return
+          }
+          const existingMembers = await remoteGetMembers(remoteTrip.id)
+          importTrip(remoteTrip) // upsert by code — never duplicates
+          setFoundTrip(remoteTrip)
+          setFoundViaRemote(true)
+          setMemberCount(existingMembers.length)
+          joinLog('find.verified', { tripId: remoteTrip.id, tripCode: code, members: existingMembers.length })
+          tick('success')
+          go('join')
+          return
+        }
+        // Not on the server → invite-link / local paths (trips from before cloud sync).
+      }
 
-    setLoading(false)
+      // 2. Invite link: verify the password against the link's signature.
+      if (invite && invite.trip.tripCode.toUpperCase() === code) {
+        if (inviteSignature(code, password) !== invite.sig) {
+          joinLog('find.wrongPassword', { tripCode: code, via: 'invite' })
+          setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
+          tick('error')
+          return
+        }
+        const inviteTrip: Trip = { ...invite.trip, password }
+        importTrip(inviteTrip)
+        setFoundTrip(inviteTrip)
+        setFoundViaRemote(false)
+        setMemberCount(null)
+        joinLog('find.verified', { tripId: inviteTrip.id, tripCode: code, via: 'invite' })
+        tick('success')
+        go('join')
+        return
+      }
 
-    if (!res.ok) {
-      Alert.alert('Could Not Join', res.error || 'Trip not found or incorrect password.')
-      return
+      // 3. Local: the trip already exists on this phone.
+      const trip = getTripByCode(code)
+      if (!trip) {
+        joinLog('find.notFound', { tripCode: code })
+        setErrors({
+          tripCode: invite
+            ? 'This code doesn’t match your invite link. Use the code from the link or ask for a new invite.'
+            : 'This trip doesn’t exist. Double-check the code, or ask your friend for an invite link.',
+        })
+        tick('error')
+        return
+      }
+      if (trip.password !== password) {
+        joinLog('find.wrongPassword', { tripCode: code, via: 'local' })
+        setErrors({ tripPassword: 'Wrong trip password.' })
+        tick('error')
+        return
+      }
+      setFoundTrip(trip)
+      setFoundViaRemote(false)
+      setMemberCount(getMembersByTrip(trip.id).length)
+      joinLog('find.verified', { tripId: trip.id, tripCode: code, via: 'local' })
+      tick('success')
+      go('join')
+    } finally {
+      setBusy(false)
     }
-
-    router.replace('/(tabs)/dashboard')
   }
+
+  const handleJoinDetails = () => {
+    const errs: Record<string, string> = {}
+    if (!name.trim()) errs.name = 'Name is required'
+    if (!/^[6-9]\d{9}$/.test(mobile)) errs.mobile = 'Enter a valid 10-digit mobile'
+    setErrors(errs)
+    if (Object.keys(errs).length === 0) go('pin')
+    else tick('error')
+  }
+
+  // ── Final step: attach the member to the EXISTING trip ────────────────────
+  const handleJoin = async () => {
+    const errs: Record<string, string> = {}
+    if (!/^\d{4}$/.test(pin)) errs.pin = 'PIN must be 4 digits'
+    if (pin !== pinConfirm) errs.pinConfirm = 'PINs do not match'
+    setErrors(errs)
+    if (Object.keys(errs).length > 0 || !foundTrip) {
+      tick('error')
+      return
+    }
+
+    setBusy(true)
+    try {
+      if (isRemoteEnabled()) {
+        // Provision the SAME trip row (same id + code) when it was verified via
+        // an invite or locally but isn't on the server yet.
+        const remoteReady = foundViaRemote || (await remoteEnsureTrip(foundTrip))
+        if (!remoteReady) {
+          joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
+          setErrors({
+            general:
+              'Could not attach you to the shared trip on the server. Check your internet connection and try again — joining offline would create a disconnected copy.',
+          })
+          tick('error')
+          return
+        }
+        const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
+          name: name.trim(), mobile, pin, avatarColor: getAvatarColor(memberCount ?? 0),
+        })
+        // Pull the whole existing trip so the dashboard shows real data.
+        const bundle = await remoteFetchTripBundle(foundTrip.id)
+        if (bundle) mergeRemoteTrip(bundle)
+        else upsertMember(member)
+
+        setAlreadyMember(existed)
+        setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
+        joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
+        tick('success')
+        go('success')
+        setConfetti(n => n + 1)
+        return
+      }
+
+      // Local-only build: duplicate-safe by mobile number.
+      const member = joinTrip(foundTrip.tripCode, foundTrip.password, name.trim(), mobile, pin)
+      if (!member) {
+        joinLog('join.localFailed', { tripId: foundTrip.id })
+        setErrors({ general: 'Could not join trip. Try again or request a new invite link.' })
+        tick('error')
+        return
+      }
+      setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
+      joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, via: 'local' })
+      tick('success')
+      go('success')
+      setConfetti(n => n + 1)
+    } catch (err) {
+      setErrors({ general: describeError(err) })
+      tick('error')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const enter = reduced ? undefined : (forward ? FadeInRight : FadeInLeft).duration(350).easing(EASE_OUT)
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <SpringPressable
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={22} color={Colors.text} />
-          </SpringPressable>
-          <Text style={styles.headerTitle}>Join Trip</Text>
-          <View style={{ width: 40 }} />
-        </View>
+    <Screen>
+      <KeyboardScroll contentContainerStyle={styles.scroll}>
+        {step !== 'success' && <BackLink />}
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Banner */}
-          <LinearGradient
-            colors={Colors.gradients.ocean}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.banner}
-          >
-            <View style={styles.bannerIconBox}>
-              <Users size={24} color="#4E65FF" />
-            </View>
-            <Text style={styles.bannerTitle}>Join Your Crew 🌴</Text>
-            <Text style={styles.bannerSub}>
-              Enter the trip code or paste the invite link shared by your friend.
-            </Text>
-          </LinearGradient>
+        {step === 'find' && (
+          <Animated.View key="find" entering={enter}>
+            <GlassCard radius={24} padding={24} contentStyle={styles.card}>
+              <View>
+                <T variant="h1">Join a Trip</T>
+                <T variant="body" color={ink(0.65)}>
+                  {invite ? 'You’ve been invited — confirm to join' : 'Enter the trip code shared by your friend'}
+                </T>
+              </View>
 
-          {/* Trip Pass Card */}
-          <GlassCard style={styles.card}>
-            <Text style={styles.cardSectionTitle}>🔑 Trip Credentials</Text>
+              {inviteError && (
+                <Notice tone="red" icon>{inviteError}</Notice>
+              )}
+              {!isRemoteEnabled() && (
+                <Notice tone="amber" icon>
+                  Cloud sync is off in this build, so joining only works on the phone where the trip was created.
+                </Notice>
+              )}
+              {invite && (
+                <View style={styles.inviteCard}>
+                  <View style={styles.inline}>
+                    <Link2 size={14} color={C.emerald400} />
+                    <T variant="smallSemibold" color={C.emerald400}>Invite found</T>
+                  </View>
+                  <T variant="h3">{invite.trip.name}</T>
+                  <T variant="small" color={ink(0.6)}>Enter the trip password to confirm joining</T>
+                </View>
+              )}
+              {importedFromLink && !invite && !inviteError && (
+                <Notice tone="emerald">Trip found via link — just enter the password to join</Notice>
+              )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Trip Code or Invite Link *</Text>
-              <View style={styles.inputContainer}>
-                <TextInput
-                  style={[styles.input, { letterSpacing: 1, fontWeight: '700' }]}
-                  placeholder="e.g. TRP-ABCD or paste link"
-                  placeholderTextColor={Colors.textMuted}
+              <View>
+                <Field
+                  label="Trip Code"
+                  icon={Search}
+                  placeholder="TRP-XXXX"
+                  value={tripCode}
+                  onChangeText={v => {
+                    // A pasted link or long text: pull the code / invite out of it.
+                    if (v.length > 9 || /[/=]/.test(v)) applyPasted(v)
+                    else setTripCode(v.toUpperCase().slice(0, 8))
+                  }}
                   autoCapitalize="characters"
-                  value={tripInput}
-                  onChangeText={setTripInput}
+                  autoCorrect={false}
+                  style={styles.codeInput}
+                  error={errors.tripCode}
+                  returnKeyType="next"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
+                  submitBehavior="submit"
+                  testID="join-trip-code-input"
+                />
+                <PressScale onPress={() => void pasteFromClipboard()} style={styles.paste} haptic={false} accessibilityRole="button" accessibilityLabel="Paste invite link or code">
+                  <ClipboardPaste size={14} color={C.brand500} />
+                  <T variant="smallSemibold" color={C.brand500}>Paste invite link or code</T>
+                </PressScale>
+              </View>
+
+              <Field
+                ref={passwordRef}
+                label="Trip Password"
+                icon={Lock}
+                placeholder="Ask the trip creator"
+                value={tripPassword}
+                onChangeText={setTripPassword}
+                secureTextEntry
+                autoCapitalize="none"
+                error={errors.tripPassword}
+                returnKeyType="go"
+                onSubmitEditing={() => void handleFind()}
+                testID="join-password-input"
+              />
+              {errors.general ? <T variant="small" color={C.red500}>{errors.general}</T> : null}
+
+              <Button
+                title={busy ? 'Verifying trip…' : invite ? 'Confirm & Continue' : 'Find Trip'}
+                iconRight={invite ? ArrowRight : Search}
+                loading={busy}
+                onPress={() => void handleFind()}
+                full
+                testID="find-trip-btn"
+              />
+            </GlassCard>
+          </Animated.View>
+        )}
+
+        {step === 'join' && foundTrip && (
+          <Animated.View key="join" entering={enter} style={styles.stack}>
+            <GlassCard padding={16}>
+              <View style={styles.inline}>
+                <View style={styles.verified}>
+                  <Check size={20} color={C.emerald400} strokeWidth={2.6} />
+                </View>
+                <View style={styles.flex}>
+                  <T variant="small" color={ink(0.6)}>Existing trip verified</T>
+                  <T variant="title" numberOfLines={1}>{foundTrip.name}</T>
+                  {memberCount !== null && memberCount > 0 && (
+                    <T variant="small" color={ink(0.6)}>{memberCount} member{memberCount !== 1 ? 's' : ''} already in</T>
+                  )}
+                </View>
+              </View>
+            </GlassCard>
+
+            <GlassCard radius={24} padding={24} contentStyle={styles.card}>
+              <View>
+                <T variant="h2">Your Details</T>
+                <T variant="body" color={ink(0.65)}>How should your friends identify you?</T>
+              </View>
+              <Field
+                label="Your Name"
+                icon={Users}
+                placeholder="Your name"
+                value={name}
+                onChangeText={setName}
+                autoCapitalize="words"
+                maxLength={40}
+                error={errors.name}
+                returnKeyType="next"
+                onSubmitEditing={() => mobileRef.current?.focus()}
+                submitBehavior="submit"
+                autoFocus
+              />
+              <Field
+                ref={mobileRef}
+                label="Mobile Number"
+                icon={Phone}
+                placeholder="10-digit mobile"
+                value={mobile}
+                onChangeText={v => setMobile(v.replace(/\D/g, '').slice(0, 10))}
+                keyboardType="number-pad"
+                autoComplete="tel"
+                error={errors.mobile}
+                returnKeyType="done"
+                onSubmitEditing={handleJoinDetails}
+              />
+              <View style={styles.row}>
+                <Button title="Back" variant="ghost" onPress={() => go('find')} style={styles.flex} />
+                <Button title="Continue" iconRight={ArrowRight} onPress={handleJoinDetails} style={styles.flex} />
+              </View>
+            </GlassCard>
+          </Animated.View>
+        )}
+
+        {step === 'pin' && (
+          <Animated.View key="pin" entering={enter}>
+            <GlassCard radius={24} padding={24} contentStyle={styles.card}>
+              <View>
+                <T variant="h1">Set Your PIN</T>
+                <T variant="body" color={ink(0.65)}>You'll use this to log in</T>
+              </View>
+              <Field
+                label="4-Digit PIN"
+                placeholder="••••"
+                value={pin}
+                onChangeText={v => {
+                  const next = v.replace(/\D/g, '').slice(0, 4)
+                  setPin(next)
+                  if (next.length === 4) pinConfirmRef.current?.focus()
+                }}
+                keyboardType="number-pad"
+                secureTextEntry
+                maxLength={4}
+                style={styles.pinInput}
+                error={errors.pin}
+                autoFocus
+              />
+              <Field
+                ref={pinConfirmRef}
+                label="Confirm PIN"
+                placeholder="••••"
+                value={pinConfirm}
+                onChangeText={v => setPinConfirm(v.replace(/\D/g, '').slice(0, 4))}
+                keyboardType="number-pad"
+                secureTextEntry
+                maxLength={4}
+                style={styles.pinInput}
+                error={errors.pinConfirm}
+                returnKeyType="done"
+                onSubmitEditing={() => void handleJoin()}
+              />
+              {errors.general ? <T variant="small" color={C.red500} center>{errors.general}</T> : null}
+              <View style={styles.row}>
+                <Button title="Back" variant="ghost" onPress={() => go('join')} style={styles.flex} />
+                <Button
+                  title={busy ? 'Joining…' : 'Join Trip'}
+                  icon={busy ? undefined : Check}
+                  loading={busy}
+                  onPress={() => void handleJoin()}
+                  style={styles.flex}
+                  testID="join-final-btn"
                 />
               </View>
-            </View>
+            </GlassCard>
+          </Animated.View>
+        )}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Trip Password *</Text>
-              <View style={styles.inputContainer}>
-                <Key size={18} color={Colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter trip password"
-                  placeholderTextColor={Colors.textMuted}
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                />
-              </View>
-            </View>
-          </GlassCard>
+        {step === 'success' && foundTrip && (
+          <View style={styles.success}>
+            <SuccessCheck />
+            <FadeIn delay={200}>
+              <T variant="h1" center>{alreadyMember ? 'Welcome back! 👋' : "You're in! 🎉"}</T>
+              <T variant="body" color={ink(0.6)} center style={styles.successText}>
+                {alreadyMember ? 'You were already a member of ' : 'Joined '}
+                <T variant="title">{foundTrip.name}</T>
+              </T>
+              <T variant="small" color={ink(0.6)} center>Time to start tracking expenses</T>
+            </FadeIn>
+            <FadeIn delay={350}>
+              <Button title="Go to Dashboard" iconRight={ArrowRight} size="lg" onPress={enterTrip} full testID="join-go-dashboard-btn" />
+            </FadeIn>
+          </View>
+        )}
+      </KeyboardScroll>
+      <Confetti shot={confetti} />
+    </Screen>
+  )
+}
 
-          {/* Member Profile Card */}
-          <GlassCard style={styles.card}>
-            <Text style={styles.cardSectionTitle}>👤 Your Info</Text>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Your Name *</Text>
-              <View style={styles.inputContainer}>
-                <User size={18} color={Colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your full name"
-                  placeholderTextColor={Colors.textMuted}
-                  value={name}
-                  onChangeText={setName}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mobile Number *</Text>
-              <View style={styles.inputContainer}>
-                <Phone size={18} color={Colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="10-digit mobile"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="phone-pad"
-                  maxLength={10}
-                  value={mobile}
-                  onChangeText={setMobile}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Your 4-Digit Security PIN *</Text>
-              <View style={styles.inputContainer}>
-                <Lock size={18} color={Colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••"
-                  placeholderTextColor={Colors.textMuted}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  secureTextEntry
-                  value={pin}
-                  onChangeText={setPin}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>UPI ID (for payments & receiving)</Text>
-              <View style={styles.inputContainer}>
-                <CreditCard size={18} color={Colors.textMuted} style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. name@upi"
-                  placeholderTextColor={Colors.textMuted}
-                  autoCapitalize="none"
-                  value={upiId}
-                  onChangeText={setUpiId}
-                />
-              </View>
-            </View>
-          </GlassCard>
-
-          {/* Join Button */}
-          <SpringPressable
-            style={styles.submitButton}
-            onPress={handleJoin}
-            disabled={loading}
-          >
-            <LinearGradient
-              colors={Colors.gradients.ocean}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.submitGradient}
-            >
-              <Text style={styles.submitButtonText}>
-                {loading ? 'Joining Trip...' : 'Enter Trip 🚀'}
-              </Text>
-            </LinearGradient>
-          </SpringPressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+function Notice({ tone, icon, children }: { tone: 'red' | 'amber' | 'emerald'; icon?: boolean; children: string }) {
+  const color = tone === 'red' ? C.red500 : tone === 'amber' ? C.amber700 : C.emerald400
+  const bg = tone === 'red' ? red(0.08) : tone === 'amber' ? amber(0.12) : emerald(0.1)
+  const border = tone === 'red' ? red(0.2) : tone === 'amber' ? amber(0.3) : emerald(0.22)
+  return (
+    <View style={[styles.notice, { backgroundColor: bg, borderColor: border }]}>
+      {icon ? <TriangleAlert size={15} color={color} /> : <Link2 size={14} color={color} />}
+      <T variant="small" color={color} style={styles.flex}>{children}</T>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  headerTitle: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  banner: {
-    borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
-    shadowColor: '#4E65FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  bannerIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  bannerTitle: {
-    ...Typography.h2,
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  bannerSub: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.95)',
-    lineHeight: 18,
-  },
-  card: {
-    marginBottom: 16,
-    padding: 18,
-  },
-  cardSectionTitle: {
-    ...Typography.h4,
-    color: Colors.text,
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+  scroll: { padding: 20, paddingBottom: 48, gap: 18, flexGrow: 1 },
+  card: { gap: 16 },
+  stack: { gap: 14 },
+  flex: { flex: 1 },
+  row: { flexDirection: 'row', gap: 10 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  notice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderRadius: 12, borderWidth: 1, padding: 10 },
+  inviteCard: {
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: emerald(0.22),
+    backgroundColor: emerald(0.08),
+    padding: 14,
+    gap: 2,
+  },
+  codeInput: { textAlign: 'center', fontFamily: F.display, fontSize: 20, letterSpacing: 3 },
+  paste: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 8, paddingVertical: 4 },
+  verified: {
+    width: 42,
+    height: 42,
     borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 48,
-  },
-  inputIcon: {
-    marginRight: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.text,
-    height: '100%',
-  },
-  submitButton: {
-    borderRadius: 20,
-    marginTop: 8,
-    overflow: 'hidden',
-    shadowColor: '#4E65FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  submitGradient: {
-    paddingVertical: 16,
+    backgroundColor: emerald(0.16),
     alignItems: 'center',
     justifyContent: 'center',
   },
-  submitButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
+  pinInput: { textAlign: 'center', fontSize: 24, letterSpacing: 12, fontFamily: F.display },
+  success: { flex: 1, justifyContent: 'center', gap: 20, paddingTop: 24 },
+  successText: { marginTop: 6, marginBottom: 2 },
 })

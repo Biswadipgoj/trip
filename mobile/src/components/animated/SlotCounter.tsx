@@ -1,66 +1,63 @@
-import React, { useEffect, useState, useRef } from 'react'
-import { Text, TextStyle, StyleProp } from 'react-native'
-import { formatCurrency } from '../../lib/utils'
+// CountUp — animates a number towards its value with an ease-out cubic (web
+// CountUp). Formats with Indian digit grouping (₹1,25,000). Re-animates from
+// the previous value when the number changes, e.g. after a sync.
+import { useEffect, useRef, useState } from 'react'
+import type { StyleProp, TextStyle } from 'react-native'
+import { useReducedMotion } from 'react-native-reanimated'
+import { formatIndianNumber } from '../../lib/utils'
+import { T } from '../ui/Text'
+import type { TypeVariant } from '../../theme/typography'
 
-interface SlotCounterProps {
+interface CountUpProps {
   value: number
+  /** Seconds, like the web component. */
+  duration?: number
+  decimals?: number
   prefix?: string
   suffix?: string
-  isCurrency?: boolean
+  variant?: TypeVariant
+  color?: string
   style?: StyleProp<TextStyle>
-  duration?: number
+  numberOfLines?: number
 }
 
-export const SlotCounter: React.FC<SlotCounterProps> = ({
-  value,
-  prefix = '',
-  suffix = '',
-  isCurrency = true,
-  style,
-  duration = 800,
-}) => {
-  const [displayValue, setDisplayValue] = useState(value)
-  const prevValueRef = useRef(value)
+export function CountUp({
+  value, duration = 1.2, decimals = 0, prefix = '', suffix = '', variant = 'money', color, style, numberOfLines = 1,
+}: CountUpProps) {
+  const reduced = useReducedMotion()
+  const safe = Number.isFinite(value) ? value : 0
+  const [shown, setShown] = useState(reduced ? safe : 0)
+  const from = useRef(reduced ? safe : 0)
+  const frame = useRef(0)
 
   useEffect(() => {
-    const startValue = prevValueRef.current
-    const endValue = value
-    const startTime = Date.now()
-
-    if (startValue === endValue) return
-
-    let animationFrameId: number
-
-    const updateCounter = () => {
-      const now = Date.now()
-      const progress = Math.min((now - startTime) / duration, 1)
-      // Ease out cubic
-      const ease = 1 - Math.pow(1 - progress, 3)
-      const current = startValue + (endValue - startValue) * ease
-
-      setDisplayValue(current)
-
-      if (progress < 1) {
-        animationFrameId = requestAnimationFrame(updateCounter)
-      } else {
-        prevValueRef.current = endValue
-        setDisplayValue(endValue)
-      }
+    if (reduced) {
+      from.current = safe
+      setShown(safe)
+      return
     }
+    const start = from.current
+    const t0 = Date.now()
+    const ms = duration * 1000
+    const step = () => {
+      const p = Math.min((Date.now() - t0) / ms, 1)
+      const eased = 1 - Math.pow(1 - p, 3)
+      const current = start + (safe - start) * eased
+      from.current = current
+      setShown(current)
+      if (p < 1) frame.current = requestAnimationFrame(step)
+    }
+    frame.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame.current)
+  }, [safe, duration, reduced])
 
-    animationFrameId = requestAnimationFrame(updateCounter)
-    return () => cancelAnimationFrame(animationFrameId)
-  }, [value, duration])
-
-  const formatted = isCurrency
-    ? formatCurrency(Math.round(displayValue))
-    : Math.round(displayValue).toLocaleString('en-IN')
+  const text = decimals > 0
+    ? formatIndianNumber(shown, decimals)
+    : formatIndianNumber(Math.round(shown), 0)
 
   return (
-    <Text style={style}>
-      {prefix}
-      {formatted}
-      {suffix}
-    </Text>
+    <T variant={variant} color={color} style={style} numberOfLines={numberOfLines} adjustsFontSizeToFit={numberOfLines === 1}>
+      {prefix}{text}{suffix}
+    </T>
   )
 }

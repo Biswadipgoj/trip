@@ -1,768 +1,581 @@
-import React, { useState, useMemo } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native'
-import { useRouter } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
-import {
-  ArrowLeft,
-  Receipt,
-  Users,
-  Check,
-} from 'lucide-react-native'
+// Add an expense (web expenses modal) as a full screen: title, amount,
+// category + subcategory, Stay mode with rooms & occupants, one or several
+// payers, participants, equal / custom split with live totals, notes — and
+// bill photos (kept as drafts, linked + uploaded once the expense is saved).
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { StyleSheet, View, type TextInput } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
+import { router, useLocalSearchParams } from 'expo-router'
+import { BedDouble, Check, IndianRupee, Paperclip, Plus, Tag, Users, X } from 'lucide-react-native'
+import type { ExpenseCategory, ExpensePayer, ParticipantSplit, Room, SplitType } from '../types'
 import { useStore } from '../lib/store'
-import { Colors } from '../theme/colors'
-import { Typography } from '../theme/typography'
-import { SpringPressable } from '../components/animated/SpringPressable'
-import { GlassCard } from '../components/ui/GlassCard'
-import { Avatar } from '../components/ui/Avatar'
+import { useTripData } from '../lib/hooks'
+import { attachImage, consumeRecoveredBill } from '../lib/uploads'
+import { deleteLocalFiles, type PreparedImage } from '../lib/media'
+import { cloudAddExpense, cloudAddHotel, cloudMessage } from '../lib/cloud'
+import { toast } from '../lib/toast'
 import {
-  formatCurrency,
-  SUBCATEGORIES,
-  getCategoryIcon,
-  getCategoryLabel,
-  getSplitTypeIcon,
-  getSplitTypeLabel,
-  distributeEqually,
+  CATEGORIES, SUBCATEGORIES, formatCurrency, generateId, getCategoryIcon, getSplitTypeIcon, getSplitTypeLabel,
 } from '../lib/utils'
-import { ExpenseCategory, SplitType, ParticipantSplit } from '../types'
+import { Screen } from '../components/ui/Screen'
+import { KeyboardScroll } from '../components/ui/KeyboardScroll'
+import { GlassCard } from '../components/ui/GlassCard'
+import { Field } from '../components/ui/Field'
+import { Button } from '../components/ui/Button'
+import { Avatar } from '../components/ui/Avatar'
+import { Checkbox, SelectPill } from '../components/ui/CategoryChip'
+import { T } from '../components/ui/Text'
+import { AttachmentPicker } from '../components/attachments/AttachmentPicker'
+import { DraftStrip } from '../components/attachments/AttachmentStrip'
+import { Collapsible, FadeIn, SMOOTH_LAYOUT } from '../components/animated/FadeInView'
+import { PressScale, tick } from '../components/animated/SpringPressable'
+import { C, brand500, ink } from '../theme/colors'
 
-const CATEGORY_LIST: ExpenseCategory[] = [
-  'food', 'travel', 'stay', 'entertainment', 'shopping', 'alcohol', 'fuel', 'tickets', 'misc'
-]
-
-const SPLIT_TYPES: SplitType[] = ['equal', 'custom', 'percentage', 'quantity']
+const SPLIT_TYPES: SplitType[] = ['equal', 'custom']
+const newRoom = (n: number): Room => ({ id: generateId(), name: `Room ${n}`, cost: 0, occupantIds: [] })
+const cleanNumber = (v: string) => v.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
 
 export default function AddExpenseScreen() {
-  const router = useRouter()
-  const activeTrip = useStore(state => state.getActiveTrip())
-  const currentMember = useStore(state => state.getCurrentMember())
-  const tripId = activeTrip?.id || ''
-
-  const members = useStore(state => state.getTripMembers(tripId))
-  const addExpense = useStore(state => state.addExpense)
+  const reduced = useReducedMotion()
+  const params = useLocalSearchParams<{ category?: string }>()
+  const session = useStore(s => s.session)
+  const tripId = session?.tripId
+  const { members } = useTripData(tripId)
 
   const [title, setTitle] = useState('')
-  const [amountStr, setAmountStr] = useState('')
-  const [category, setCategory] = useState<ExpenseCategory>('food')
-  const [subcategory, setSubcategory] = useState<string | undefined>(undefined)
-  const [paidBy, setPaidBy] = useState<string>(currentMember?.id || members[0]?.id || '')
-
-  // Participants (default: all members)
-  const [participants, setParticipants] = useState<string[]>(members.map(m => m.id))
-
-  // Split type
+  const [amount, setAmount] = useState('')
+  const [paidBy, setPaidBy] = useState(session?.memberId ?? '')
+  const [multiPayer, setMultiPayer] = useState(false)
+  const [payerAmounts, setPayerAmounts] = useState<Record<string, string>>({})
+  const [category, setCategory] = useState<ExpenseCategory>(params.category === 'stay' ? 'stay' : 'misc')
+  const [subcategory, setSubcategory] = useState('')
   const [splitType, setSplitType] = useState<SplitType>('equal')
-  // Map of memberId -> string input for custom / % / qty
-  const [customValues, setCustomValues] = useState<Record<string, string>>({})
+  const [participants, setParticipants] = useState<string[]>(() => members.map(m => m.id))
+  const [splitValues, setSplitValues] = useState<Record<string, string>>({})
+  const [notes, setNotes] = useState('')
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [rooms, setRooms] = useState<Room[]>([newRoom(1)])
+  const [drafts, setDrafts] = useState<PreparedImage[]>([])
+  const [saving, setSaving] = useState(false)
+  const amountRef = useRef<TextInput>(null)
+  const saved = useRef(false)
+  const draftsRef = useRef<PreparedImage[]>([])
+  draftsRef.current = drafts
 
-  const totalAmount = parseFloat(amountStr) || 0
+  // A bill photo recovered after Android killed the app mid-capture.
+  useEffect(() => {
+    const recovered = consumeRecoveredBill()
+    if (recovered) setDrafts(d => [...d, recovered])
+  }, [])
 
-  // Live calculated shares preview
-  const previewShares = useMemo(() => {
+  // Discarded drafts: remove their on-device copies.
+  useEffect(
+    () => () => {
+      if (!saved.current && draftsRef.current.length > 0) deleteLocalFiles(draftsRef.current.map(d => d.uri))
+    },
+    []
+  )
+
+  const isStay = category === 'stay'
+  const totalRoomCost = rooms.reduce((s, r) => s + (r.cost || 0), 0)
+  const totalAmt = isStay ? totalRoomCost : parseFloat(amount) || 0
+
+  const resolvedShares = useMemo(() => {
     const shares: Record<string, number> = {}
-    if (participants.length === 0 || totalAmount <= 0) return shares
-
+    if (participants.length === 0 || totalAmt === 0) return shares
     if (splitType === 'equal') {
-      distributeEqually(totalAmount, participants, shares)
+      participants.forEach(id => { shares[id] = totalAmt / participants.length })
     } else if (splitType === 'custom') {
-      participants.forEach(pid => {
-        shares[pid] = parseFloat(customValues[pid] || '0') || 0
-      })
-    } else if (splitType === 'percentage') {
-      participants.forEach(pid => {
-        const pct = parseFloat(customValues[pid] || '0') || 0
-        shares[pid] = Math.round(((pct / 100) * totalAmount) * 100) / 100
-      })
-    } else if (splitType === 'quantity') {
-      const totalUnits = participants.reduce(
-        (sum, pid) => sum + (parseFloat(customValues[pid] || '0') || 0),
-        0
-      )
-      if (totalUnits > 0) {
-        participants.forEach(pid => {
-          const qty = parseFloat(customValues[pid] || '0') || 0
-          shares[pid] = Math.round(((qty / totalUnits) * totalAmount) * 100) / 100
-        })
-      }
+      participants.forEach(id => { shares[id] = parseFloat(splitValues[id] || '0') })
     }
     return shares
-  }, [totalAmount, participants, splitType, customValues])
+  }, [splitType, participants, splitValues, totalAmt])
 
-  const handleToggleParticipant = (memberId: string) => {
-    if (participants.includes(memberId)) {
-      if (participants.length === 1) {
-        Alert.alert('Required', 'At least one participant must share the expense.')
+  const splitSum = Object.values(resolvedShares).reduce((a, b) => a + b, 0)
+  const splitDiff = Math.abs(splitSum - totalAmt)
+  const payerSum = Object.values(payerAmounts).reduce((s, v) => s + (parseFloat(v) || 0), 0)
+  const activePayers: ExpensePayer[] = Object.entries(payerAmounts)
+    .map(([memberId, v]) => ({ memberId, amount: parseFloat(v) || 0 }))
+    .filter(p => p.amount > 0)
+
+  const toggleParticipant = (id: string) =>
+    setParticipants(prev => (prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]))
+  const updateRoom = (id: string, patch: Partial<Room>) =>
+    setRooms(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)))
+  const toggleOccupant = (roomId: string, memberId: string) =>
+    setRooms(prev =>
+      prev.map(r =>
+        r.id !== roomId
+          ? r
+          : { ...r, occupantIds: r.occupantIds.includes(memberId) ? r.occupantIds.filter(x => x !== memberId) : [...r.occupantIds, memberId] }
+      )
+    )
+
+  const fail = (errs: Record<string, string>) => {
+    setErrors(errs)
+    tick('error')
+    toast.error(Object.values(errs)[0])
+  }
+
+  const finish = (target: { expenseId?: string; hotelExpenseId?: string }, label: string) => {
+    if (tripId) drafts.forEach(img => attachImage(img, { kind: 'bill', tripId, ...target }, session?.memberId))
+    saved.current = true
+    tick('success')
+    toast.success(drafts.length > 0 ? `${label} added with ${drafts.length} bill photo${drafts.length !== 1 ? 's' : ''}` : `${label} added`)
+    if (router.canGoBack()) router.back()
+    else router.replace('/expenses')
+  }
+
+  const handleAdd = async () => {
+    if (!tripId || saving) return
+    setSaving(true)
+    try {
+      if (isStay) {
+        const errs: Record<string, string> = {}
+        if (!title.trim()) errs.title = 'Hotel / stay name is required'
+        if (totalRoomCost <= 0) errs.amount = 'Add at least one room with a cost'
+        if (!paidBy) errs.paidBy = 'Select who paid'
+        if (Object.keys(errs).length > 0) return fail(errs)
+        const hotel = await cloudAddHotel({ tripId, title: title.trim(), totalAmount: totalRoomCost, paidBy, rooms })
+        finish({ hotelExpenseId: hotel.id }, 'Stay')
         return
       }
-      setParticipants(prev => prev.filter(id => id !== memberId))
-    } else {
-      setParticipants(prev => [...prev, memberId])
+
+      const errs: Record<string, string> = {}
+      if (!title.trim()) errs.title = 'Title is required'
+      if (!totalAmt || totalAmt <= 0) errs.amount = 'Enter a valid amount'
+      if (participants.length === 0) errs.participants = 'Select at least one participant'
+      if (multiPayer) {
+        if (activePayers.length === 0) errs.paidBy = 'Enter how much each payer contributed'
+        else if (Math.abs(payerSum - totalAmt) > 0.5) {
+          errs.paidBy = `Payer amounts must sum to ${formatCurrency(totalAmt)} (current: ${formatCurrency(payerSum)})`
+        }
+      } else if (!paidBy) {
+        errs.paidBy = 'Select who paid'
+      }
+      if (splitType === 'custom' && splitDiff > 0.5) {
+        errs.split = `Custom amounts must sum to ${formatCurrency(totalAmt)} (current: ${formatCurrency(splitSum)})`
+      }
+      if (Object.keys(errs).length > 0) return fail(errs)
+
+      const splits: ParticipantSplit[] = participants.map(id => ({
+        memberId: id,
+        value: parseFloat(splitValues[id] || '0'),
+        resolvedAmount: resolvedShares[id] ?? 0,
+      }))
+      // Primary payer = largest contributor (kept for backward compatibility)
+      const primaryPayer = multiPayer ? [...activePayers].sort((a, b) => b.amount - a.amount)[0].memberId : paidBy
+      const expense = await cloudAddExpense({
+        tripId,
+        title: title.trim(),
+        amount: totalAmt,
+        paidBy: primaryPayer,
+        payers: multiPayer ? activePayers : undefined,
+        category,
+        subcategory: subcategory || undefined,
+        participants,
+        splitType,
+        splits,
+        notes: notes.trim(),
+      })
+      finish({ expenseId: expense.id }, 'Expense')
+    } catch (err) {
+      toast.error(cloudMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
-  const handleSave = () => {
-    if (!title.trim()) {
-      Alert.alert('Title Required', 'Please enter a description for this expense.')
-      return
-    }
-    if (totalAmount <= 0) {
-      Alert.alert('Valid Amount Required', 'Please enter an amount greater than ₹0.')
-      return
-    }
-    if (participants.length === 0) {
-      Alert.alert('Select Participants', 'At least one member must share this expense.')
-      return
-    }
-
-    // Validation for custom / percentage
-    const splits: ParticipantSplit[] = []
-    if (splitType === 'custom') {
-      const sum = participants.reduce(
-        (s, pid) => s + (parseFloat(customValues[pid] || '0') || 0),
-        0
-      )
-      if (Math.abs(sum - totalAmount) > 0.05) {
-        Alert.alert(
-          'Split Mismatch',
-          `The custom amounts sum to ${formatCurrency(sum)}, but the total is ${formatCurrency(
-            totalAmount
-          )}.`
-        )
-        return
-      }
-      participants.forEach(pid => {
-        splits.push({
-          memberId: pid,
-          value: parseFloat(customValues[pid] || '0') || 0,
-        })
-      })
-    } else if (splitType === 'percentage') {
-      const totalPct = participants.reduce(
-        (s, pid) => s + (parseFloat(customValues[pid] || '0') || 0),
-        0
-      )
-      if (Math.abs(totalPct - 100) > 0.1) {
-        Alert.alert(
-          'Percentage Mismatch',
-          `The percentages sum to ${totalPct.toFixed(1)}%. They must equal 100%.`
-        )
-        return
-      }
-      participants.forEach(pid => {
-        splits.push({
-          memberId: pid,
-          value: parseFloat(customValues[pid] || '0') || 0,
-        })
-      })
-    } else if (splitType === 'quantity') {
-      participants.forEach(pid => {
-        splits.push({
-          memberId: pid,
-          value: parseFloat(customValues[pid] || '0') || 0,
-        })
-      })
-    }
-
-    addExpense({
-      tripId,
-      title: title.trim(),
-      amount: totalAmount,
-      paidBy,
-      category,
-      subcategory,
-      participants,
-      splitType,
-      splits,
-    })
-
-    router.back()
-  }
+  const close = () => (router.canGoBack() ? router.back() : router.replace('/expenses'))
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <SpringPressable
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
-            <ArrowLeft size={22} color={Colors.text} />
-          </SpringPressable>
-          <Text style={styles.headerTitle}>Add Expense</Text>
-          <View style={{ width: 40 }} />
-        </View>
+    <Screen edges={['top']}>
+      <View style={styles.topBar}>
+        <T variant="h2">{isStay ? 'Add Stay / Hotel' : 'Add Expense'}</T>
+        <PressScale onPress={close} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
+          <X size={18} color={ink(0.65)} />
+        </PressScale>
+      </View>
 
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Main Details Card */}
-          <GlassCard style={styles.card}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>What was it for? *</Text>
-              <TextInput
-                style={styles.titleInput}
-                placeholder="e.g. Seafood Dinner at Brittos"
-                placeholderTextColor={Colors.textMuted}
-                value={title}
-                onChangeText={setTitle}
-              />
-            </View>
-
-            <View style={styles.amountInputRow}>
-              <Text style={styles.currencySymbol}>₹</Text>
-              <TextInput
-                style={styles.amountInput}
+      <KeyboardScroll contentContainerStyle={styles.scroll}>
+        {/* Title + amount */}
+        <FadeIn>
+          <GlassCard contentStyle={styles.gap16}>
+            <Field
+              label={isStay ? 'Hotel / Stay Name' : 'Expense Title'}
+              icon={Tag}
+              placeholder={isStay ? 'e.g. Goa Beach Resort' : 'e.g. Dinner at Olive Bar'}
+              value={title}
+              onChangeText={setTitle}
+              maxLength={80}
+              autoCapitalize="sentences"
+              error={errors.title}
+              returnKeyType={isStay ? 'done' : 'next'}
+              onSubmitEditing={() => !isStay && amountRef.current?.focus()}
+              submitBehavior={isStay ? 'blurAndSubmit' : 'submit'}
+              testID="expense-title"
+            />
+            {!isStay && (
+              <Field
+                ref={amountRef}
+                label="Amount (₹)"
+                icon={IndianRupee}
                 placeholder="0"
-                placeholderTextColor={Colors.textMuted}
-                keyboardType="numeric"
-                value={amountStr}
-                onChangeText={setAmountStr}
+                value={amount}
+                onChangeText={v => setAmount(cleanNumber(v))}
+                keyboardType="decimal-pad"
+                big
+                prefix="₹"
+                error={errors.amount}
+                testID="expense-amount"
               />
-            </View>
-          </GlassCard>
-
-          {/* Category Picker */}
-          <GlassCard style={styles.card}>
-            <Text style={styles.sectionTitle}>Category</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.catRow}
-            >
-              {CATEGORY_LIST.map(cat => {
-                const isSelected = category === cat
-                return (
-                  <SpringPressable
-                    key={cat}
-                    style={[
-                      styles.categoryButton,
-                      isSelected && styles.categoryButtonActive,
-                    ]}
-                    onPress={() => {
-                      setCategory(cat)
-                      setSubcategory(undefined)
-                    }}
-                  >
-                    <Text style={styles.categoryEmoji}>{getCategoryIcon(cat)}</Text>
-                    <Text
-                      style={[
-                        styles.categoryLabel,
-                        isSelected && styles.categoryLabelActive,
-                      ]}
-                    >
-                      {getCategoryLabel(cat)}
-                    </Text>
-                  </SpringPressable>
-                )
-              })}
-            </ScrollView>
-
-            {/* Subcategories if any */}
-            {SUBCATEGORIES[category] && (
-              <View style={styles.subcatContainer}>
-                <Text style={styles.subcatHeading}>Subcategory</Text>
-                <View style={styles.subcatRow}>
-                  {SUBCATEGORIES[category].map(sub => {
-                    const isSelected = subcategory === sub.id
-                    return (
-                      <SpringPressable
-                        key={sub.id}
-                        style={[
-                          styles.subcatChip,
-                          isSelected && styles.subcatChipActive,
-                        ]}
-                        onPress={() => setSubcategory(sub.id)}
-                      >
-                        <Text style={styles.subcatIcon}>{sub.icon}</Text>
-                        <Text
-                          style={[
-                            styles.subcatText,
-                            isSelected && styles.subcatTextActive,
-                          ]}
-                        >
-                          {sub.label}
-                        </Text>
-                      </SpringPressable>
-                    )
-                  })}
-                </View>
-              </View>
             )}
           </GlassCard>
+        </FadeIn>
 
-          {/* Paid By Picker */}
-          <GlassCard style={styles.card}>
-            <Text style={styles.sectionTitle}>Who Paid?</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.payerScroll}
-            >
-              {members.map(m => {
-                const isPayer = paidBy === m.id
-                return (
-                  <SpringPressable
-                    key={m.id}
-                    style={[
-                      styles.payerCard,
-                      isPayer && styles.payerCardActive,
-                    ]}
-                    onPress={() => setPaidBy(m.id)}
+        {/* Category */}
+        <FadeIn delay={60}>
+          <Animated.View layout={SMOOTH_LAYOUT}>
+            <GlassCard>
+              <T variant="smallMedium" color={ink(0.6)} style={styles.label}>Category</T>
+              <View style={styles.grid3}>
+                {CATEGORIES.map(cat => (
+                  <SelectPill
+                    key={cat}
+                    selected={category === cat}
+                    onPress={() => { setCategory(cat); setSubcategory(''); setErrors({}) }}
+                    style={styles.cell3}
+                    dense
+                    accessibilityLabel={cat}
                   >
-                    <Avatar name={m.name} color={m.avatarColor} size={36} />
-                    <Text
-                      style={[
-                        styles.payerName,
-                        isPayer && styles.payerNameActive,
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {m.name}
-                    </Text>
-                    {isPayer && <Check size={14} color="#6366F1" />}
-                  </SpringPressable>
-                )
-              })}
-            </ScrollView>
-          </GlassCard>
+                    <T variant="body">{getCategoryIcon(cat)}</T>
+                    <T variant="smallMedium" color={category === cat ? C.ink : ink(0.65)} numberOfLines={1} style={styles.capital}>{cat}</T>
+                  </SelectPill>
+                ))}
+              </View>
+              {!isStay && SUBCATEGORIES[category] && (
+                <Collapsible open>
+                  <T variant="smallMedium" color={ink(0.6)} style={[styles.label, styles.mt16]}>Type (optional)</T>
+                  <View style={styles.wrap}>
+                    {SUBCATEGORIES[category].map(sub => (
+                      <SelectPill
+                        key={sub.id}
+                        shape="pill"
+                        selected={subcategory === sub.id}
+                        onPress={() => setSubcategory(subcategory === sub.id ? '' : sub.id)}
+                      >
+                        <T variant="small">{sub.icon}</T>
+                        <T variant="smallMedium" color={subcategory === sub.id ? C.ink : ink(0.65)}>{sub.label}</T>
+                      </SelectPill>
+                    ))}
+                  </View>
+                </Collapsible>
+              )}
+            </GlassCard>
+          </Animated.View>
+        </FadeIn>
 
-          {/* Split Type Selector */}
-          <GlassCard style={styles.card}>
-            <Text style={styles.sectionTitle}>Split Method</Text>
-            <View style={styles.splitTypeGrid}>
-              {SPLIT_TYPES.map(type => {
-                const isSelected = splitType === type
-                return (
-                  <SpringPressable
-                    key={type}
-                    style={[
-                      styles.splitTypeCard,
-                      isSelected && styles.splitTypeCardActive,
-                    ]}
-                    onPress={() => setSplitType(type)}
-                  >
-                    <Text style={styles.splitIcon}>{getSplitTypeIcon(type)}</Text>
-                    <Text
-                      style={[
-                        styles.splitLabel,
-                        isSelected && styles.splitLabelActive,
-                      ]}
-                    >
-                      {getSplitTypeLabel(type)}
-                    </Text>
-                  </SpringPressable>
-                )
-              })}
+        {/* Stay: rooms + occupants */}
+        {isStay && (
+          <Animated.View layout={SMOOTH_LAYOUT}>
+            <GlassCard contentStyle={styles.gap12}>
+              <View style={styles.between}>
+                <View style={styles.inline}>
+                  <BedDouble size={14} color={ink(0.6)} />
+                  <T variant="smallMedium" color={ink(0.6)}>Rooms</T>
+                </View>
+                <PressScale onPress={() => setRooms(prev => [...prev, newRoom(prev.length + 1)])} style={styles.inline} haptic="selection">
+                  <Plus size={13} color={C.brand500} />
+                  <T variant="smallMedium" color={C.brand500}>Add room</T>
+                </PressScale>
+              </View>
+              {rooms.map(room => (
+                <Animated.View key={room.id} layout={SMOOTH_LAYOUT} style={styles.room}>
+                  <View style={styles.row}>
+                    <Field
+                      placeholder="Room name"
+                      value={room.name}
+                      onChangeText={v => updateRoom(room.id, { name: v })}
+                      dense
+                      containerStyle={styles.flex}
+                    />
+                    <Field
+                      placeholder="Cost ₹"
+                      value={room.cost ? String(room.cost) : ''}
+                      onChangeText={v => updateRoom(room.id, { cost: parseFloat(cleanNumber(v)) || 0 })}
+                      keyboardType="decimal-pad"
+                      dense
+                      containerStyle={styles.cost}
+                      style={styles.right}
+                    />
+                    {rooms.length > 1 && (
+                      <PressScale onPress={() => setRooms(prev => prev.filter(r => r.id !== room.id))} hitSlop={8} accessibilityLabel="Remove room">
+                        <X size={17} color={C.red500} />
+                      </PressScale>
+                    )}
+                  </View>
+                  <T variant="tiny" color={ink(0.6)} style={styles.occLabel}>Occupants</T>
+                  <View style={styles.wrap}>
+                    {members.map(m => (
+                      <SelectPill key={m.id} dense selected={room.occupantIds.includes(m.id)} onPress={() => toggleOccupant(room.id, m.id)}>
+                        <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                        <T variant="small">{m.name}</T>
+                      </SelectPill>
+                    ))}
+                  </View>
+                </Animated.View>
+              ))}
+              {totalRoomCost > 0 && (
+                <View style={styles.totalBox}>
+                  <View style={styles.inline}>
+                    <IndianRupee size={12} color={ink(0.6)} />
+                    <T variant="small" color={ink(0.6)}>Total stay cost</T>
+                  </View>
+                  <T variant="title">{formatCurrency(totalRoomCost)}</T>
+                </View>
+              )}
+              {errors.amount ? <T variant="small" color={C.red500}>{errors.amount}</T> : null}
+            </GlassCard>
+          </Animated.View>
+        )}
+
+        {/* Paid by */}
+        <Animated.View layout={SMOOTH_LAYOUT}>
+          <GlassCard>
+            <View style={[styles.between, styles.labelRow]}>
+              <View style={styles.inline}>
+                <Users size={14} color={ink(0.6)} />
+                <T variant="smallMedium" color={ink(0.6)}>Paid By</T>
+              </View>
+              {!isStay && (
+                <SelectPill
+                  dense
+                  selected={multiPayer}
+                  onPress={() => { setMultiPayer(v => !v); setPayerAmounts({}) }}
+                >
+                  <T variant="smallMedium" color={multiPayer ? C.brand600 : ink(0.6)}>Multiple payers</T>
+                </SelectPill>
+              )}
             </View>
+            {!multiPayer || isStay ? (
+              <View style={styles.grid2}>
+                {members.map(m => (
+                  <SelectPill key={m.id} selected={paidBy === m.id} onPress={() => setPaidBy(m.id)} style={styles.cell2}>
+                    <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                    <T variant="body" numberOfLines={1} color={paidBy === m.id ? C.ink : ink(0.65)} style={styles.flex}>{m.name}</T>
+                    {paidBy === m.id && <Check size={14} color={C.brand500} strokeWidth={2.6} />}
+                  </SelectPill>
+                ))}
+              </View>
+            ) : (
+              <View style={styles.box}>
+                <T variant="small" color={ink(0.65)}>Enter how much each person paid</T>
+                {members.map(m => (
+                  <View key={m.id} style={styles.row}>
+                    <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                    <T variant="small" style={styles.flex} numberOfLines={1}>{m.name}</T>
+                    <Field
+                      placeholder="0"
+                      prefix="₹"
+                      value={payerAmounts[m.id] || ''}
+                      onChangeText={v => setPayerAmounts(p => ({ ...p, [m.id]: cleanNumber(v) }))}
+                      keyboardType="decimal-pad"
+                      dense
+                      containerStyle={styles.cost}
+                      style={styles.right}
+                    />
+                  </View>
+                ))}
+                {totalAmt > 0 && (
+                  <View style={[styles.between, styles.sumRow]}>
+                    <T variant="small" color={Math.abs(payerSum - totalAmt) > 0.5 ? C.red500 : C.emerald400}>Total paid</T>
+                    <T variant="smallSemibold" color={Math.abs(payerSum - totalAmt) > 0.5 ? C.red500 : C.emerald400}>
+                      {formatCurrency(payerSum)} / {formatCurrency(totalAmt)}
+                    </T>
+                  </View>
+                )}
+              </View>
+            )}
+            {errors.paidBy ? <T variant="small" color={C.red500} style={styles.mt8}>{errors.paidBy}</T> : null}
+          </GlassCard>
+        </Animated.View>
 
-            {/* Participants Checklist with calculated shares */}
-            <Text style={[styles.sectionTitle, { marginTop: 16 }]}>
-              Split Among ({participants.length} selected)
-            </Text>
+        {/* Participants + split */}
+        {!isStay && (
+          <Animated.View layout={SMOOTH_LAYOUT}>
+            <GlassCard contentStyle={styles.gap12}>
+              <View style={styles.between}>
+                <T variant="smallMedium" color={ink(0.6)}>Who's sharing this?</T>
+                <View style={styles.row}>
+                  <T variant="smallMedium" color={C.brand500} onPress={() => setParticipants(members.map(m => m.id))} suppressHighlighting>All</T>
+                  <T variant="smallMedium" color={ink(0.6)} onPress={() => setParticipants([])} suppressHighlighting>None</T>
+                </View>
+              </View>
+              <View style={styles.grid2}>
+                {members.map(m => {
+                  const included = participants.includes(m.id)
+                  return (
+                    <SelectPill key={m.id} selected={included} onPress={() => toggleParticipant(m.id)} style={styles.cell2}>
+                      <Checkbox checked={included} />
+                      <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                      <T variant="small" numberOfLines={1} color={included ? C.ink : ink(0.65)} style={styles.flex}>{m.name}</T>
+                    </SelectPill>
+                  )
+                })}
+              </View>
+              {errors.participants ? <T variant="small" color={C.red500}>{errors.participants}</T> : null}
 
-            {members.map(member => {
-              const isIncluded = participants.includes(member.id)
-              const share = previewShares[member.id] || 0
+              <T variant="smallMedium" color={ink(0.6)} style={styles.mt4}>How to split?</T>
+              <View style={styles.grid2}>
+                {SPLIT_TYPES.map(st => (
+                  <SelectPill key={st} selected={splitType === st} onPress={() => { setSplitType(st); setSplitValues({}) }} style={styles.cell2}>
+                    <T variant="body">{getSplitTypeIcon(st)}</T>
+                    <T variant="smallMedium" color={splitType === st ? C.ink : ink(0.65)}>{getSplitTypeLabel(st)}</T>
+                  </SelectPill>
+                ))}
+              </View>
 
-              return (
-                <View key={member.id} style={styles.participantRow}>
-                  <SpringPressable
-                    style={styles.participantLeft}
-                    onPress={() => handleToggleParticipant(member.id)}
-                  >
-                    <View
-                      style={[
-                        styles.checkbox,
-                        isIncluded && styles.checkboxActive,
-                      ]}
-                    >
-                      {isIncluded && <Check size={12} color="#FFFFFF" strokeWidth={3} />}
-                    </View>
-                    <Avatar name={member.name} color={member.avatarColor} size={32} />
-                    <Text style={styles.participantName}>{member.name}</Text>
-                  </SpringPressable>
-
-                  {/* Input for custom / % / qty */}
-                  {isIncluded && (
-                    <View style={styles.participantRight}>
-                      {splitType === 'equal' && (
-                        <Text style={styles.previewShareText}>
-                          {formatCurrency(share)}
-                        </Text>
-                      )}
-
-                      {splitType === 'custom' && (
-                        <View style={styles.splitInputContainer}>
-                          <Text style={styles.inputPrefix}>₹</Text>
-                          <TextInput
-                            style={styles.splitInput}
-                            placeholder="0"
-                            placeholderTextColor={Colors.textMuted}
-                            keyboardType="numeric"
-                            value={customValues[member.id] || ''}
-                            onChangeText={v =>
-                              setCustomValues(prev => ({ ...prev, [member.id]: v }))
-                            }
-                          />
-                        </View>
-                      )}
-
-                      {splitType === 'percentage' && (
-                        <View style={styles.splitInputContainer}>
-                          <TextInput
-                            style={styles.splitInput}
-                            placeholder="0"
-                            placeholderTextColor={Colors.textMuted}
-                            keyboardType="numeric"
-                            value={customValues[member.id] || ''}
-                            onChangeText={v =>
-                              setCustomValues(prev => ({ ...prev, [member.id]: v }))
-                            }
-                          />
-                          <Text style={styles.inputSuffix}>%</Text>
-                        </View>
-                      )}
-
-                      {splitType === 'quantity' && (
-                        <View style={styles.splitInputContainer}>
-                          <TextInput
-                            style={styles.splitInput}
-                            placeholder="1"
-                            placeholderTextColor={Colors.textMuted}
-                            keyboardType="numeric"
-                            value={customValues[member.id] || ''}
-                            onChangeText={v =>
-                              setCustomValues(prev => ({ ...prev, [member.id]: v }))
-                            }
-                          />
-                          <Text style={styles.inputSuffix}>qty</Text>
-                        </View>
-                      )}
+              <Collapsible open={splitType !== 'equal' && participants.length > 0}>
+                <View style={styles.box}>
+                  <T variant="small" color={ink(0.65)}>Enter amount for each person</T>
+                  {participants.map(pid => {
+                    const m = members.find(x => x.id === pid)
+                    if (!m) return null
+                    return (
+                      <View key={pid} style={styles.row}>
+                        <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                        <T variant="small" style={styles.flex} numberOfLines={1}>{m.name}</T>
+                        <Field
+                          placeholder="0"
+                          prefix="₹"
+                          value={splitValues[pid] || ''}
+                          onChangeText={v => setSplitValues(p => ({ ...p, [pid]: cleanNumber(v) }))}
+                          keyboardType="decimal-pad"
+                          dense
+                          containerStyle={styles.cost}
+                          style={styles.right}
+                        />
+                      </View>
+                    )
+                  })}
+                  {totalAmt > 0 && (
+                    <View style={[styles.between, styles.sumRow]}>
+                      <T variant="small" color={splitDiff > 0.5 ? C.red500 : C.emerald400}>Total</T>
+                      <T variant="smallSemibold" color={splitDiff > 0.5 ? C.red500 : C.emerald400}>
+                        {formatCurrency(splitSum)} / {formatCurrency(totalAmt)}
+                      </T>
                     </View>
                   )}
                 </View>
-              )
-            })}
-          </GlassCard>
+                {errors.split ? <T variant="small" color={C.red500} style={styles.mt8}>{errors.split}</T> : null}
+              </Collapsible>
 
-          {/* Submit Button */}
-          <SpringPressable style={styles.submitBtn} onPress={handleSave}>
-            <LinearGradient
-              colors={Colors.gradients.sunset}
-              style={styles.submitGradient}
-            >
-              <Text style={styles.submitText}>Save Expense 💸</Text>
-            </LinearGradient>
-          </SpringPressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+              {splitType === 'equal' && totalAmt > 0 && participants.length > 0 && (
+                <Animated.View style={styles.preview}>
+                  <T variant="small" color={C.brand600}>
+                    Each person pays: <T variant="smallSemibold" color={C.brand600}>{formatCurrency(totalAmt / participants.length)}</T>
+                    {` (${participants.length} people)`}
+                  </T>
+                </Animated.View>
+              )}
+            </GlassCard>
+          </Animated.View>
+        )}
+
+        {/* Notes */}
+        {!isStay && (
+          <GlassCard>
+            <Field
+              label="Notes (optional)"
+              placeholder="Any additional context..."
+              value={notes}
+              onChangeText={setNotes}
+              maxLength={200}
+              testID="expense-notes"
+            />
+          </GlassCard>
+        )}
+
+        {/* Bill photos */}
+        <GlassCard contentStyle={styles.gap12}>
+          <View style={styles.inline}>
+            <Paperclip size={14} color={ink(0.6)} />
+            <T variant="smallMedium" color={ink(0.6)}>Bill photos (optional)</T>
+          </View>
+          <DraftStrip images={drafts} onRemove={uri => { deleteLocalFiles([uri]); setDrafts(d => d.filter(x => x.uri !== uri)) }} />
+          <AttachmentPicker
+            context={{ kind: 'bill' }}
+            cameraLabel="Snap bill"
+            galleryLabel="From gallery"
+            onPicked={image => setDrafts(d => [...d, image])}
+          />
+          <T variant="tiny" color={ink(0.5)}>Photos are compressed and uploaded securely to your cloud trip.</T>
+        </GlassCard>
+
+        <Button
+          title={isStay ? 'Add Stay' : 'Add Expense'}
+          icon={Plus}
+          size="lg"
+          loading={saving}
+          onPress={handleAdd}
+          full
+          testID="submit-expense-btn"
+        />
+        {totalAmt > 0 && !reduced ? (
+          <T variant="small" color={ink(0.55)} center>
+            Total {formatCurrency(totalAmt)}
+            {drafts.length > 0 ? ` · ${drafts.length} bill photo${drafts.length !== 1 ? 's' : ''}` : ''}
+          </T>
+        ) : null}
+      </KeyboardScroll>
+    </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
+  flex: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  gap12: { gap: 12 },
+  gap16: { gap: 16 },
+  mt4: { marginTop: 4 },
+  mt8: { marginTop: 8 },
+  mt16: { marginTop: 16 },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
+  close: { width: 36, height: 36, borderRadius: 18, backgroundColor: ink(0.07), alignItems: 'center', justifyContent: 'center' },
+  scroll: { paddingHorizontal: 16, paddingTop: 4, paddingBottom: 40, gap: 14 },
+  label: { marginBottom: 10 },
+  labelRow: { marginBottom: 10 },
+  grid3: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cell3: { width: '31.6%' },
+  grid2: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  cell2: { width: '48.6%' },
+  capital: { textTransform: 'capitalize', flexShrink: 1 },
+  room: { borderRadius: 14, borderWidth: 1, borderColor: ink(0.1), backgroundColor: ink(0.03), padding: 12, gap: 8 },
+  cost: { width: 118 },
+  right: { textAlign: 'right' },
+  occLabel: { marginTop: 2 },
+  totalBox: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 2,
-  },
-  headerTitle: {
-    ...Typography.h3,
-    color: Colors.text,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  card: {
-    marginBottom: 16,
-    padding: 16,
-  },
-  inputGroup: {
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 6,
-  },
-  titleInput: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    paddingVertical: 6,
-  },
-  amountInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  currencySymbol: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: '#FF6B6B',
-    marginRight: 8,
-  },
-  amountInput: {
-    fontSize: 34,
-    fontWeight: '800',
-    color: Colors.text,
-    flex: 1,
-  },
-  sectionTitle: {
-    ...Typography.h4,
-    color: Colors.text,
-    marginBottom: 12,
-  },
-  catRow: {
-    gap: 10,
-  },
-  categoryButton: {
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    minWidth: 80,
-  },
-  categoryButtonActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  categoryEmoji: {
-    fontSize: 22,
-    marginBottom: 4,
-  },
-  categoryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  categoryLabelActive: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  subcatContainer: {
-    marginTop: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  subcatHeading: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textMuted,
-    marginBottom: 8,
-  },
-  subcatRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  subcatChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 4,
-  },
-  subcatChipActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  subcatIcon: {
-    fontSize: 12,
-  },
-  subcatText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  subcatTextActive: {
-    color: '#6366F1',
-  },
-  payerScroll: {
-    gap: 10,
-  },
-  payerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    borderColor: brand500(0.2),
+    backgroundColor: brand500(0.07),
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 8,
-  },
-  payerCardActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  payerName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  payerNameActive: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  splitTypeGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  splitTypeCard: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
     paddingVertical: 10,
-    borderRadius: 14,
+  },
+  box: { borderRadius: 14, borderWidth: 1, borderColor: ink(0.1), backgroundColor: ink(0.03), padding: 12, gap: 10 },
+  sumRow: { paddingTop: 8, borderTopWidth: 1, borderTopColor: ink(0.08) },
+  preview: {
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  splitTypeCardActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  splitIcon: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  splitLabel: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  splitLabelActive: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  participantRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
-  },
-  participantLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: '#CBD5E1',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxActive: {
-    backgroundColor: '#6366F1',
-    borderColor: '#6366F1',
-  },
-  participantName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  participantRight: {
-    minWidth: 90,
-    alignItems: 'flex-end',
-  },
-  previewShareText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  splitInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    height: 36,
-  },
-  inputPrefix: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    marginRight: 4,
-  },
-  inputSuffix: {
-    fontSize: 12,
-    color: Colors.textMuted,
-    marginLeft: 4,
-  },
-  splitInput: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.text,
-    width: 50,
-    textAlign: 'center',
-    padding: 0,
-  },
-  submitBtn: {
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#FF6B6B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  submitGradient: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
+    borderColor: brand500(0.2),
+    backgroundColor: brand500(0.07),
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
 })

@@ -2,25 +2,31 @@
   "expo": {
     "name": "TripMate",
     "slug": "tripmate",
-    "version": "1.0.0",
+    "version": "4.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "tripmate",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#FDF9F2",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.tripmate.app"
+      "bundleIdentifier": "com.tripmate.app",
+      "buildNumber": "4.0.0"
     },
     "android": {
       "package": "com.tripmate.app",
+      "versionCode": 400,
       "adaptiveIcon": {
-        "backgroundColor": "#F8FAFC",
-        "foregroundImage": "./assets/images/android-icon-foreground.png"
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
+        "backgroundImage": "./assets/images/adaptive-background.png",
+        "monochromeImage": "./assets/images/adaptive-monochrome.png",
+        "backgroundColor": "#F2567C"
       },
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"],
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -28,14 +34,35 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#F8FAFC",
+          "backgroundColor": "#FDF9F2",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 120
+          "imageWidth": 288
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "TripMate uses your photos so you can attach bills and UPI payment screenshots to your trip.",
+          "cameraPermission": "TripMate uses the camera so you can snap bills and receipts for your trip.",
+          "microphonePermission": false
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ff88ebb1-d4dc-4ecc-85ad-889ce009a090"
+      }
+    },
+    "owner": "biswodip",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ff88ebb1-d4dc-4ecc-85ad-889ce009a090"
     }
   }
 }

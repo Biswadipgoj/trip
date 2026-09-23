@@ -1,74 +1,131 @@
-// Vibrant Light Theme Design System
-export const Colors = {
-  // Base backgrounds
-  background: '#F8FAFC',       // Clean, bright pearl white/slate
-  surface: '#FFFFFF',          // Pure crisp white card surface
-  surfaceSubtle: '#F1F5F9',    // Light gray-blue for chips and inputs
-  border: '#E2E8F0',           // Delicate border
-  borderLight: '#EDF2F7',
+// Design tokens — a direct port of the web theme (src/app/globals.css and
+// tailwind.config.ts): warm cream surfaces, vivid violet → fuchsia brand,
+// mint accent, dark-violet ink. The web remaps Tailwind's `white` to ink, so a
+// web `text-white/60` is `ink(0.6)` here and `bg-white/5` is `ink(0.05)`.
 
-  // Typography
-  text: '#0F172A',             // Slate 900 - high contrast readability
-  textSecondary: '#475569',    // Slate 600 - subheadings
-  textMuted: '#94A3B8',        // Slate 400 - placeholders/hints
+export const C = {
+  // Surfaces (warm cream)
+  surface0: '#FDF9F2',
+  surface1: '#F9F3E7',
+  surface2: '#F4EDDD',
+  surface3: '#ECE3D0',
+  surface4: '#E3DAC4',
 
-  // Vivid Accent Palette
-  primary: '#6366F1',          // Electric Indigo
-  primaryLight: '#818CF8',
-  secondary: '#EC4899',        // Fuchsia / Pink
-  accent: '#06B6D4',           // Cyan
-  success: '#10B981',          // Emerald
-  warning: '#F59E0B',          // Amber
-  danger: '#EF4444',           // Coral Red
+  // Text
+  ink: '#2A1F3D',
+  white: '#FFFFFF',
 
-  // Pastel & Vivid Gradients [start, end]
-  gradients: {
-    sunset: ['#FF6B6B', '#FFA07A'] as [string, string],      // Coral -> Peach
-    ocean: ['#4E65FF', '#92EFFD'] as [string, string],       // Deep Blue -> Cyan
-    mint: ['#0575E6', '#00F260'] as [string, string],        // Aqua -> Neon Mint
-    berry: ['#8A2387', '#E94057'] as [string, string],       // Violet -> Rose
-    amber: ['#F7971E', '#FFD200'] as [string, string],       // Orange -> Honey Gold
-    purple: ['#8B5CF6', '#EC4899'] as [string, string],      // Purple -> Pink
-    emerald: ['#10B981', '#34D399'] as [string, string],     // Deep Emerald -> Mint
-    pearl: ['#FFFFFF', '#F8FAFC'] as [string, string],
-  },
+  // Brand violet
+  brand50: '#F5F0FF',
+  brand100: '#ECE1FE',
+  brand200: '#DCC9FD',
+  brand300: '#C09FF9',
+  brand400: '#9B68F3',
+  brand500: '#7C3BED',
+  brand600: '#6620DF',
+  brand700: '#5720B6',
+  brand800: '#4A2092',
+  fuchsia: '#E935CB',
 
-  // Soft glowing colored shadows
-  shadows: {
-    sm: {
-      shadowColor: '#64748B',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.06,
-      shadowRadius: 6,
-      elevation: 2,
-    },
-    md: {
-      shadowColor: '#64748B',
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 12,
-      elevation: 4,
-    },
-    lg: {
-      shadowColor: '#475569',
-      shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.12,
-      shadowRadius: 20,
-      elevation: 8,
-    },
-    primaryGlow: {
-      shadowColor: '#6366F1',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 14,
-      elevation: 6,
-    },
-    sunsetGlow: {
-      shadowColor: '#FF6B6B',
-      shadowOffset: { width: 0, height: 6 },
-      shadowOpacity: 0.25,
-      shadowRadius: 14,
-      elevation: 6,
-    },
-  },
-}
+  // Mint accent + emerald
+  accent50: '#E8FCF8',
+  accent400: '#22C3A3',
+  accent500: '#16A286',
+  accent600: '#0F856D',
+  emerald400: '#1DA578',
+  emerald500: '#148A63',
+
+  // Tailwind defaults the web uses as-is
+  red400: '#F87171',
+  red500: '#EF4444',
+  red600: '#DC2626',
+  amber400: '#FBBF24',
+  amber500: '#F59E0B',
+  amber600: '#D97706',
+  amber700: '#B45309',
+  blue400: '#60A5FA',
+  blue500: '#3B82F6',
+  sky500: '#0EA5E9',
+  orange500: '#F97316',
+  fuchsia500: '#D946EF',
+  slate400: '#94A3B8',
+} as const
+
+/** Ink at an opacity — the web's `text-white/NN`, `bg-white/NN`, `border-white/NN`. */
+export const ink = (alpha: number) => `rgba(42, 31, 61, ${alpha})`
+/** The web's rgba(139, 78, 245, …) violet used for input borders, glows, tracks. */
+export const violet = (alpha: number) => `rgba(139, 78, 245, ${alpha})`
+/** Brand-500 / brand-600 / emerald / red / amber at an opacity (tinted chips, badges). */
+export const brand500 = (alpha: number) => `rgba(124, 59, 237, ${alpha})`
+export const brand600 = (alpha: number) => `rgba(102, 32, 223, ${alpha})`
+export const emerald = (alpha: number) => `rgba(29, 165, 120, ${alpha})`
+export const accent = (alpha: number) => `rgba(22, 162, 134, ${alpha})`
+export const red = (alpha: number) => `rgba(239, 68, 68, ${alpha})`
+export const amber = (alpha: number) => `rgba(245, 158, 11, ${alpha})`
+export const whiteA = (alpha: number) => `rgba(255, 255, 255, ${alpha})`
+
+type Stops = readonly [string, string, ...string[]]
+
+/** Gradient stops, for expo-linear-gradient (135° = start {0,0} → end {1,1}). */
+export const G = {
+  brand: ['#7C3BED', '#E935CB'],
+  /** text-gradient-brand: brand-500 → fuchsia (55%) → accent-400 */
+  brandText: ['#7C3BED', '#E935CB', '#22C3A3'],
+  indigoPurple: ['#453CEC', '#AC37E6'],
+  orangePink: ['#F97924', '#F23681'],
+  blueCyan: ['#1E71F6', '#07C2E4'],
+  emeraldTeal: ['#1FAD6B', '#15ACAC'],
+  violetFuchsia: ['#7C3BED', '#E935CB'],
+  settle: ['#7C3BED', '#17AB8D'],
+  budgetOk: ['#1FAD6B', '#15ACAC'],
+  budgetWarn: ['#F9A410', '#F97924'],
+  budgetOver: ['#F97924', '#F22C54'],
+  glass: ['rgba(255,255,255,0.88)', 'rgba(247,242,255,0.78)', 'rgba(240,248,255,0.80)'],
+  glassStrong: ['rgba(255,255,255,0.95)', 'rgba(248,244,255,0.90)', 'rgba(243,249,255,0.92)'],
+  nameplate: ['#7A34F4', '#F73BB2', '#FF7029', '#238FFB'],
+} as const satisfies Record<string, Stops>
+
+export type GradientName = keyof typeof G
+
+/** Brand footer — "Mastermind Behind The Code: Biswodip Goj", one gradient per word. */
+export const FOOTER_WORDS: readonly (readonly [string, string])[] = [
+  ['#813DF5', '#CC49F3'],
+  ['#F73BB2', '#F5476A'],
+  ['#FF7029', '#FFA51F'],
+  ['#15C19F', '#0AAFEB'],
+  ['#238FFB', '#813FF3'],
+  ['#CA3DF5', '#F73BB2'],
+]
+
+/** Liquid backdrop blobs (web body::before / ::after), as [color, alpha, cx%, cy%, rx%, ry%]. */
+export const BLOBS_A: readonly (readonly [string, number, number, number, number, number])[] = [
+  ['#9F69FC', 0.62, 12, 18, 38, 34],
+  ['#5DD3FD', 0.58, 88, 12, 34, 30],
+  ['#FB6AC6', 0.56, 82, 86, 36, 32],
+  ['#FF9966', 0.5, 14, 84, 34, 30],
+  ['#E089FA', 0.46, 50, 52, 40, 36],
+  ['#6065FB', 0.42, 38, 24, 28, 26],
+  ['#FFCB70', 0.38, 64, 30, 30, 26],
+]
+export const BLOBS_B: readonly (readonly [string, number, number, number, number, number])[] = [
+  ['#FC7DE7', 0.42, 30, 70, 30, 28],
+  ['#73B8FC', 0.4, 72, 64, 28, 26],
+  ['#FF8370', 0.38, 24, 36, 26, 24],
+]
+
+/** CSS box-shadows (React Native `boxShadow`, New Architecture). */
+export const shadow = {
+  glass: '0px 8px 32px rgba(108, 62, 200, 0.12)',
+  card: '0px 4px 22px rgba(108, 62, 200, 0.09)',
+  cardHover: '0px 14px 40px rgba(108, 62, 200, 0.16)',
+  strong: '0px 18px 52px rgba(108, 62, 200, 0.20)',
+  elevated: '0px 20px 60px rgba(108, 62, 200, 0.2)',
+  glowBrand: '0px 10px 36px rgba(139, 78, 245, 0.38)',
+  glowSm: '0px 4px 18px rgba(139, 78, 245, 0.24)',
+  btnBrand: '0px 6px 22px rgba(139, 78, 245, 0.4)',
+  indigoPurple: '0px 14px 36px rgba(119, 53, 233, 0.4)',
+  orangePink: '0px 14px 36px rgba(242, 44, 84, 0.38)',
+  blueCyan: '0px 14px 36px rgba(13, 147, 242, 0.38)',
+  emeraldTeal: '0px 14px 36px rgba(27, 167, 134, 0.38)',
+  violetFuchsia: '0px 14px 36px rgba(191, 53, 233, 0.4)',
+} as const

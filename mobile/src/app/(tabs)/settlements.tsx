@@ -1,459 +1,315 @@
-import React, { useState } from 'react'
+// Payments (web /payments/[tripId]) — settlement transactions only: net
+// balances, the minimum set of "who pays whom", UPI QR per payment, and the
+// history of confirmed payments. Mobile: "Pay" opens a focused settle screen
+// (UPI app + QR + screenshot upload); UPI screenshots show on each payment.
+import { useEffect, useState } from 'react'
+import { StyleSheet, View } from 'react-native'
+import Animated, { useReducedMotion } from 'react-native-reanimated'
+import { router } from 'expo-router'
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  Alert,
-} from 'react-native'
-import { useRouter } from 'expo-router'
-import { LinearGradient } from 'expo-linear-gradient'
-import {
-  HandCoins,
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Sparkles,
-  Zap,
+  ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles,
 } from 'lucide-react-native'
 import { useStore } from '../../lib/store'
-import { Colors } from '../../theme/colors'
-import { Typography } from '../../theme/typography'
-import { SpringPressable } from '../../components/animated/SpringPressable'
-import { ConfettiBlast } from '../../components/animated/ConfettiBlast'
+import { proofsFor, useTripData, type Due } from '../../lib/hooks'
+import { syncTrip } from '../../lib/sync'
+import { cloudSetPaymentStatus, withCloud } from '../../lib/cloud'
+import { confirmAction } from '../../lib/dialogs'
+import { toast } from '../../lib/toast'
+import { buildUpiLink, formatCurrency, formatDate } from '../../lib/utils'
+import type { Attachment, Member } from '../../types'
 import { GlassCard } from '../../components/ui/GlassCard'
+import { T } from '../../components/ui/Text'
+import { Button } from '../../components/ui/Button'
 import { Avatar } from '../../components/ui/Avatar'
-import { formatCurrency } from '../../lib/utils'
-import { SettlementRoute } from '../../types'
+import { QRCode } from '../../components/ui/QRCode'
+import { PageHeader, PageScroll } from '../../components/ui/PageHeader'
+import { AttachmentStrip } from '../../components/attachments/AttachmentStrip'
+import { StatusBadge } from '../../components/animated/PulseBadge'
+import { Collapsible, FadeIn, SMOOTH_LAYOUT, stagger } from '../../components/animated/FadeInView'
+import { EmptyState } from '../../components/animated/AnimatedEmptyState'
+import { Confetti } from '../../components/animated/ConfettiBlast'
+import { PressScale, tick } from '../../components/animated/SpringPressable'
+import { C, ink } from '../../theme/colors'
+import { F } from '../../theme/typography'
 
-export default function SettlementsScreen() {
-  const router = useRouter()
-  const activeTrip = useStore(state => state.getActiveTrip())
-  const currentMember = useStore(state => state.getCurrentMember())
-  const tripId = activeTrip?.id || ''
+// Web .money-flow: the arrow drifts left↔right between the two people.
+const MONEY_FLOW = {
+  animationName: {
+    '0%': { transform: [{ translateX: -5 }], opacity: 0.5 },
+    '50%': { transform: [{ translateX: 5 }], opacity: 1 },
+    '100%': { transform: [{ translateX: -5 }], opacity: 0.5 },
+  },
+  animationDuration: '1.5s',
+  animationIterationCount: 'infinite',
+  animationTimingFunction: 'ease-in-out',
+} as const
 
-  const routes = useStore(state => state.getTripSettlementRoutes(tripId))
-  const settlements = useStore(state => state.getTripSettlements(tripId))
-  const updateSettlementStatus = useStore(state => state.updateSettlementStatus)
+export default function PaymentsScreen() {
+  const session = useStore(s => s.session)
+  const tripId = session?.tripId
+  const { balances, routes, dues, confirmed, settlements, memberMap, attachments } = useTripData(tripId)
+  const generateSettlements = useStore(s => s.generateSettlements)
+  const [qrFor, setQrFor] = useState<string | null>(null)
+  const [confetti, setConfetti] = useState(0)
 
-  const [celebrate, setCelebrate] = useState(routes.length === 0)
+  // Keep stored dues in step with the expense engine.
+  useEffect(() => {
+    if (tripId) generateSettlements(tripId)
+  }, [tripId, generateSettlements])
 
-  const getRouteStatus = (route: SettlementRoute) => {
-    const existing = settlements.find(
-      s => s.fromMemberId === route.fromMemberId && s.toMemberId === route.toMemberId
-    )
-    return existing?.status || 'pending'
+  const pendingCount = settlements.filter(s => s.status === 'pending').length
+  const confirmedCount = confirmed.length
+  const nonZero = balances.filter(b => Math.abs(b.netBalance) > 0.01)
+
+  const confirmDue = async (due: Due) => {
+    if (!due.settlement) return
+    const ok = await confirmAction({
+      title: 'Confirm payment received?',
+      message: `${due.route.toName} received ${formatCurrency(due.route.amount)} from ${due.route.fromName}. Confirmed payments are final.`,
+      confirmLabel: 'Confirm',
+    })
+    if (!ok) return
+    const success = await withCloud(async () => {
+      await cloudSetPaymentStatus(due.settlement!.id, 'confirmed')
+      return true
+    })
+    if (!success) return
+    tick('success')
+    setConfetti(n => n + 1)
+    toast.success('Payment confirmed — balances updated 🎉')
   }
 
-  const handleMarkPaid = (route: SettlementRoute) => {
-    updateSettlementStatus(route, tripId, 'paid')
-    Alert.alert('Payment Marked as Sent! 💸', 'Waiting for receiver to confirm.')
-  }
-
-  const handleConfirmPayment = (route: SettlementRoute) => {
-    updateSettlementStatus(route, tripId, 'confirmed')
-    Alert.alert('Payment Confirmed! ✅', 'Balances have been updated.')
-  }
-
-  const handleOpenPayment = (route: SettlementRoute) => {
+  const openPay = (due: Due) => {
+    if (!due.settlement) return
     router.push({
       pathname: '/payment-modal',
-      params: {
-        fromId: route.fromMemberId,
-        toId: route.toMemberId,
-        amount: route.amount.toString(),
-        fromName: route.fromName,
-        toName: route.toName,
-        toUpi: route.toUpiId || '',
-      },
+      params: { id: due.settlement.id, from: due.route.fromMemberId, to: due.route.toMemberId },
     })
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      {routes.length === 0 && <ConfettiBlast />}
+    <View style={styles.fill}>
+      <PageScroll onRefresh={async () => { await syncTrip(tripId); if (tripId) generateSettlements(tripId) }}>
+        <PageHeader
+          icon={CreditCard}
+          title="Payments"
+          subtitle={
+            routes.length === 0
+              ? confirmedCount > 0
+                ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
+                : 'All balances are clear'
+              : `${routes.length} payment${routes.length !== 1 ? 's' : ''} still due · ${pendingCount} pending · ${confirmedCount} confirmed`
+          }
+        />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Settlements</Text>
-          <Text style={styles.headerSubtitle}>
-            Minimized debt matching with 1-tap UPI
-          </Text>
+        {/* Net balances — the settlement engine's input */}
+        {nonZero.length > 0 && (
+          <FadeIn delay={50}>
+            <GlassCard>
+              <T variant="title" style={styles.cardTitle}>Net Balances</T>
+              <View style={styles.gap8}>
+                {nonZero.map(b => (
+                  <View key={b.memberId} style={styles.row}>
+                    <Avatar name={b.name} color={b.avatarColor} size="xs" glow={false} />
+                    <T variant="small" color={ink(0.72)} numberOfLines={1} style={styles.flex}>{b.name}</T>
+                    <View style={styles.inline}>
+                      {b.netBalance > 0 ? <ArrowUpRight size={12} color={C.emerald400} /> : <ArrowDownRight size={12} color={C.red500} />}
+                      <T variant="smallSemibold" color={b.netBalance > 0 ? C.emerald400 : C.red500}>
+                        {b.netBalance > 0 ? '+' : '−'}{formatCurrency(Math.abs(b.netBalance))}
+                      </T>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              <View style={[styles.inline, styles.note]}>
+                <Sparkles size={12} color={ink(0.5)} />
+                <T variant="tiny" color={ink(0.5)}>Optimized to the minimum number of transactions</T>
+              </View>
+            </GlassCard>
+          </FadeIn>
+        )}
+
+        {routes.length === 0 && (
+          <EmptyState
+            icon={CircleCheck}
+            color={C.emerald400}
+            title={confirmedCount > 0 ? 'Everything is settled 🎉' : 'No payments needed'}
+            subtitle={confirmedCount > 0 ? 'All confirmed payments are recorded below' : 'Add expenses to see who pays whom'}
+          />
+        )}
+
+        {/* Dues */}
+        {dues.map((due, i) => {
+          const to = memberMap[due.route.toMemberId]
+          const proofs = due.settlement ? proofsFor(attachments, due.settlement) : []
+          const upiLink = to?.upiId
+            ? buildUpiLink(to.upiId, to.upiName || to.name, due.route.amount, `TripMate - ${due.route.fromName}`)
+            : null
+          return (
+            <FadeIn key={due.key} delay={stagger(i, 100, 70)}>
+              <DueCard
+                due={due}
+                to={to}
+                me={session?.memberId}
+                proofs={proofs}
+                upiLink={upiLink}
+                showQr={qrFor === due.key}
+                onToggleQr={() => setQrFor(qrFor === due.key ? null : due.key)}
+                onPay={() => openPay(due)}
+                onConfirm={() => void confirmDue(due)}
+              />
+            </FadeIn>
+          )
+        })}
+
+        {/* History */}
+        {confirmed.length > 0 && (
+          <FadeIn delay={150} style={styles.gap12}>
+            <View style={styles.row}>
+              <CircleCheck size={16} color={C.emerald400} />
+              <T variant="title">Completed Payments</T>
+            </View>
+            {confirmed.map(p => {
+              const from = memberMap[p.fromMemberId]
+              const to = memberMap[p.toMemberId]
+              if (!from || !to) return null
+              const proofs = proofsFor(attachments, p)
+              return (
+                <GlassCard
+                  key={p.id}
+                  padding={14}
+                  onPress={proofs[0] ? () => router.push({ pathname: '/viewer', params: { id: proofs[0].id } }) : undefined}
+                  accessibilityLabel={proofs[0] ? 'Open payment screenshot' : undefined}
+                >
+                  <View style={styles.row}>
+                    <Avatar name={from.name} color={from.avatarColor} size="sm" glow={false} />
+                    <View style={styles.flex}>
+                      <T variant="body" numberOfLines={1}>
+                        <T variant="title">{from.name}</T>
+                        <T variant="body" color={ink(0.6)}> paid </T>
+                        <T variant="title">{to.name}</T>
+                      </T>
+                      <View style={styles.inline}>
+                        {p.confirmedAt ? <T variant="small" color={ink(0.6)}>{formatDate(p.confirmedAt)}</T> : null}
+                        {proofs.length > 0 && (
+                          <>
+                            <Paperclip size={11} color={C.brand500} />
+                            <T variant="tinySemibold" color={C.brand500}>screenshot</T>
+                          </>
+                        )}
+                      </View>
+                    </View>
+                    <T variant="title" color={C.emerald400}>{formatCurrency(p.amount)}</T>
+                    <Avatar name={to.name} color={to.avatarColor} size="sm" glow={false} />
+                  </View>
+                </GlassCard>
+              )
+            })}
+          </FadeIn>
+        )}
+      </PageScroll>
+      <Confetti shot={confetti} />
+    </View>
+  )
+}
+
+function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onConfirm }: {
+  due: Due
+  to?: Member
+  me?: string
+  proofs: Attachment[]
+  upiLink: string | null
+  showQr: boolean
+  onToggleQr: () => void
+  onPay: () => void
+  onConfirm: () => void
+}) {
+  const reduced = useReducedMotion()
+  const { route, status, settlement } = due
+  const iPay = me === route.fromMemberId
+  return (
+    <Animated.View layout={SMOOTH_LAYOUT}>
+      <GlassCard>
+        <View style={styles.flow}>
+          <Avatar name={route.fromName} color={route.fromColor} size="md" />
+          <View style={styles.flex}>
+            <T variant="title" numberOfLines={2}>{route.fromName}{iPay ? ' (you)' : ''}</T>
+            <T variant="small" color={ink(0.6)}>pays</T>
+          </View>
+          <View style={styles.amountCol}>
+            <T variant="moneySm">{formatCurrency(route.amount)}</T>
+            <Animated.View style={!reduced && MONEY_FLOW}>
+              <ArrowRight size={16} color={C.brand500} />
+            </Animated.View>
+          </View>
+          <View style={[styles.flex, styles.rightText]}>
+            <T variant="title" numberOfLines={2} style={styles.rightAlign}>{route.toName}</T>
+            {to?.upiId ? <T variant="tiny" color={C.brand500} numberOfLines={1} style={styles.upi}>{to.upiId}</T> : null}
+          </View>
+          <Avatar name={route.toName} color={route.toColor} size="md" />
         </View>
 
-        <View style={styles.minimizerPill}>
-          <Zap size={14} color="#6366F1" />
-          <Text style={styles.minimizerText}>
-            {routes.length} transfers needed
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* If completely settled */}
-        {routes.length === 0 ? (
-          <GlassCard style={styles.celebrationCard}>
-            <LinearGradient
-              colors={Colors.gradients.mint}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.celebrationGradient}
-            >
-              <Text style={styles.celebrationEmoji}>🎉🏆</Text>
-              <Text style={styles.celebrationTitle}>All Settled Up!</Text>
-              <Text style={styles.celebrationSubtitle}>
-                Everyone has balanced out! There are zero outstanding dues in
-                this trip.
-              </Text>
-            </LinearGradient>
-          </GlassCard>
-        ) : (
-          <View style={styles.infoBanner}>
-            <Sparkles size={16} color="#6366F1" />
-            <Text style={styles.infoBannerText}>
-              Algorithm reduced everyone's expenses into the absolute minimum
-              number of transfers!
-            </Text>
+        {proofs.length > 0 && (
+          <View style={styles.proofs}>
+            <View style={styles.inline}>
+              <Paperclip size={12} color={ink(0.6)} />
+              <T variant="smallMedium" color={ink(0.6)}>UPI screenshot</T>
+            </View>
+            <AttachmentStrip attachments={proofs} size={52} />
           </View>
         )}
 
-        {/* Routes List */}
-        {routes.map(route => {
-          const status = getRouteStatus(route)
-          const isPending = status === 'pending'
-          const isPaid = status === 'paid'
-          const isConfirmed = status === 'confirmed'
+        <View style={styles.actions}>
+          <StatusBadge status={status} />
+          <View style={styles.actionRow}>
+            {upiLink && (
+              <PressScale onPress={onToggleQr} style={styles.inline} haptic="selection" accessibilityRole="button" accessibilityLabel="Show UPI QR code">
+                <QrCode size={15} color={ink(0.6)} />
+                <T variant="smallMedium" color={ink(0.6)}>UPI</T>
+              </PressScale>
+            )}
+            {settlement && status === 'pending' && (
+              <Button title={iPay ? 'Pay' : 'Settle'} size="sm" onPress={onPay} />
+            )}
+            {settlement && status === 'paid' && (
+              <Button title="Confirm" variant="success" size="sm" icon={CircleCheck} onPress={onConfirm} />
+            )}
+          </View>
+        </View>
 
-          const isUserPaying = currentMember?.id === route.fromMemberId
-          const isUserReceiving = currentMember?.id === route.toMemberId
-
-          return (
-            <GlassCard key={route.id} style={styles.routeCard}>
-              <View style={styles.routeHeader}>
-                {/* From member */}
-                <View style={styles.memberSide}>
-                  <Avatar name={route.fromName} color={route.fromColor} size={36} />
-                  <Text style={styles.memberName} numberOfLines={1}>
-                    {route.fromName}
-                  </Text>
-                  <Text style={styles.roleText}>Owes</Text>
-                </View>
-
-                {/* Arrow and amount */}
-                <View style={styles.arrowCol}>
-                  <Text style={styles.routeAmount}>
-                    {formatCurrency(route.amount)}
-                  </Text>
-                  <View style={styles.arrowCircle}>
-                    <ArrowRight size={14} color="#6366F1" />
-                  </View>
-                </View>
-
-                {/* To member */}
-                <View style={styles.memberSide}>
-                  <Avatar name={route.toName} color={route.toColor} size={36} />
-                  <Text style={styles.memberName} numberOfLines={1}>
-                    {route.toName}
-                  </Text>
-                  <Text style={styles.roleText}>Receives</Text>
-                </View>
+        <Collapsible open={showQr && !!upiLink}>
+          {upiLink ? (
+            <View style={styles.qr}>
+              <View style={styles.qrBox}>
+                <QRCode value={upiLink} size={150} />
               </View>
-
-              {/* Status pill */}
-              <View style={styles.statusRow}>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    isPending && styles.badgePending,
-                    isPaid && styles.badgePaid,
-                    isConfirmed && styles.badgeConfirmed,
-                  ]}
-                >
-                  {isPending && <Clock size={12} color="#D97706" />}
-                  {isPaid && <HandCoins size={12} color="#2563EB" />}
-                  {isConfirmed && <CheckCircle2 size={12} color="#059669" />}
-                  <Text
-                    style={[
-                      styles.statusText,
-                      isPending && styles.textPending,
-                      isPaid && styles.textPaid,
-                      isConfirmed && styles.textConfirmed,
-                    ]}
-                  >
-                    {isPending
-                      ? 'Payment Pending'
-                      : isPaid
-                      ? 'Marked as Paid'
-                      : 'Confirmed & Settled'}
-                  </Text>
-                </View>
-
-                {/* UPI ID note */}
-                {route.toUpiId && (
-                  <Text style={styles.upiNoteText}>UPI: {route.toUpiId}</Text>
-                )}
-              </View>
-
-              {/* Action Buttons */}
-              {!isConfirmed && (
-                <View style={styles.actionButtonsRow}>
-                  {/* Pay via UPI button */}
-                  <SpringPressable
-                    style={[styles.payUpiButton, { flex: 1 }]}
-                    onPress={() => handleOpenPayment(route)}
-                  >
-                    <LinearGradient
-                      colors={Colors.gradients.sunset}
-                      style={styles.payUpiGradient}
-                    >
-                      <HandCoins size={16} color="#FFFFFF" />
-                      <Text style={styles.payUpiText}>Pay via UPI ⚡</Text>
-                    </LinearGradient>
-                  </SpringPressable>
-
-                  {/* Mark Paid / Confirm */}
-                  {isPending ? (
-                    <SpringPressable
-                      style={styles.markPaidButton}
-                      onPress={() => handleMarkPaid(route)}
-                    >
-                      <Text style={styles.markPaidText}>Mark Paid</Text>
-                    </SpringPressable>
-                  ) : (
-                    <SpringPressable
-                      style={styles.confirmButton}
-                      onPress={() => handleConfirmPayment(route)}
-                    >
-                      <Text style={styles.confirmText}>Confirm Receipt</Text>
-                    </SpringPressable>
-                  )}
-                </View>
-              )}
-            </GlassCard>
-          )
-        })}
-      </ScrollView>
-    </SafeAreaView>
+              <T variant="small" color={ink(0.6)}>Scan to pay via UPI</T>
+              <T variant="smallMedium" color={C.brand500} onPress={onPay} suppressHighlighting>Open payment screen</T>
+            </View>
+          ) : null}
+        </Collapsible>
+      </GlassCard>
+    </Animated.View>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    ...Typography.h2,
-    color: Colors.text,
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  minimizerPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    gap: 4,
-  },
-  minimizerText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  celebrationCard: {
-    padding: 0,
-    overflow: 'hidden',
-    marginBottom: 20,
-  },
-  celebrationGradient: {
-    padding: 28,
-    alignItems: 'center',
-    borderRadius: 20,
-  },
-  celebrationEmoji: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  celebrationTitle: {
-    ...Typography.h1,
-    color: '#FFFFFF',
-    marginBottom: 6,
-  },
-  celebrationSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.95)',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EEF2FF',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
-    gap: 8,
-  },
-  infoBannerText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#4338CA',
-    lineHeight: 16,
-    fontWeight: '500',
-  },
-  routeCard: {
-    marginBottom: 14,
-    padding: 16,
-  },
-  routeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-  },
-  memberSide: {
-    alignItems: 'center',
-    width: 84,
-  },
-  memberName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.text,
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  roleText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginTop: 1,
-  },
-  arrowCol: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  routeAmount: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  arrowCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    gap: 4,
-  },
-  badgePending: {
-    backgroundColor: '#FEF3C7',
-  },
-  badgePaid: {
-    backgroundColor: '#DBEAFE',
-  },
-  badgeConfirmed: {
-    backgroundColor: '#DCFCE7',
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  textPending: {
-    color: '#B45309',
-  },
-  textPaid: {
-    color: '#1D4ED8',
-  },
-  textConfirmed: {
-    color: '#15803D',
-  },
-  upiNoteText: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontWeight: '500',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
-  },
-  payUpiButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  payUpiGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 6,
-    borderRadius: 14,
-  },
-  payUpiText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  markPaidButton: {
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  markPaidText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-  },
-  confirmButton: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#15803D',
-  },
+  fill: { flex: 1 },
+  flex: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  gap8: { gap: 9 },
+  gap12: { gap: 12 },
+  cardTitle: { marginBottom: 12 },
+  note: { marginTop: 12 },
+  flow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  amountCol: { alignItems: 'center', paddingHorizontal: 2 },
+  rightText: { alignItems: 'flex-end' },
+  rightAlign: { textAlign: 'right' },
+  upi: { fontFamily: F.mono },
+  proofs: { gap: 8, marginBottom: 12 },
+  actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  qr: { alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: ink(0.08) },
+  qrBox: { padding: 10, borderRadius: 16, backgroundColor: C.white },
 })

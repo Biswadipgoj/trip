@@ -1,20 +1,65 @@
+// Business logic — a faithful port of the web app's src/lib/utils.ts. The
+// money maths (splits, balances, settlements) must stay identical on both
+// clients: parity is enforced by mobile/__tests__/parity.test.ts.
+// Mobile-only differences: no DOM/Buffer (pure-JS base64 + UTF-8), cached Intl
+// formatters with manual fallbacks, hex gradient pairs for LinearGradient.
 import {
   MemberBalance, Expense, Member, SettlementRoute,
-  SettlementGroup, Sponsorship, HotelExpense, ParticipantSplit,
+  SettlementGroup, Sponsorship, HotelExpense,
   Trip, InvitePayload, InviteParseResult, Settlement
 } from '../types'
 
-export function formatCurrency(amount: number): string {
-  try {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount)
-  } catch {
-    return `₹${amount.toFixed(2)}`
+// ─── Formatting ───────────────────────────────────────────────────────────────
+
+/** Indian digit grouping: 1234567 → "12,34,567". */
+export function groupIndian(intDigits: string): string {
+  if (intDigits.length <= 3) return intDigits
+  const last3 = intDigits.slice(-3)
+  let rest = intDigits.slice(0, -3)
+  const parts: string[] = []
+  while (rest.length > 2) {
+    parts.unshift(rest.slice(-2))
+    rest = rest.slice(0, -2)
   }
+  if (rest) parts.unshift(rest)
+  return `${parts.join(',')},${last3}`
+}
+
+/** "12,34,567.5" style number (no symbol), up to `maxDecimals` decimals. */
+export function formatIndianNumber(value: number, maxDecimals = 2): string {
+  if (!Number.isFinite(value)) value = 0
+  const sign = value < 0 ? '-' : ''
+  const fixed = Math.abs(value).toFixed(maxDecimals)
+  const [int, rawDec = ''] = fixed.split('.')
+  const dec = rawDec.replace(/0+$/, '')
+  return `${sign}${groupIndian(int)}${dec ? `.${dec}` : ''}`
+}
+
+let inrFormatter: Intl.NumberFormat | null | undefined
+let dateFormatter: Intl.DateTimeFormat | null | undefined
+
+export function formatCurrency(amount: number): string {
+  if (inrFormatter === undefined) {
+    try {
+      inrFormatter = new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      })
+    } catch {
+      inrFormatter = null
+    }
+  }
+  const safe = Number.isFinite(amount) ? amount : 0
+  if (inrFormatter) {
+    try {
+      return inrFormatter.format(safe)
+    } catch {
+      /* fall through to the manual formatter */
+    }
+  }
+  return `${safe < 0 ? '-' : ''}₹${formatIndianNumber(Math.abs(safe))}`
 }
 
 /** Compact Indian formatting for big numbers: ₹3,250 · ₹1.25L · ₹2.4Cr */
@@ -26,16 +71,48 @@ export function formatCompactINR(amount: number): string {
   return formatCurrency(amount)
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sept', 'Oct', 'Nov', 'Dec']
+
 export function formatDate(dateStr: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }).format(new Date(dateStr))
-  } catch {
-    return dateStr
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  if (dateFormatter === undefined) {
+    try {
+      dateFormatter = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+    } catch {
+      dateFormatter = null
+    }
   }
+  if (dateFormatter) {
+    try {
+      return dateFormatter.format(d)
+    } catch {
+      /* fall through */
+    }
+  }
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
+}
+
+/** "22 Sept" — short day label for charts. */
+export function formatDayShort(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return dateStr
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}`
+}
+
+/** "2 min ago" style relative time for sync/upload status. */
+export function formatRelativeTime(iso: string | null | undefined, now = Date.now()): string {
+  if (!iso) return 'never'
+  const t = new Date(iso).getTime()
+  if (Number.isNaN(t)) return 'never'
+  const s = Math.max(0, Math.round((now - t) / 1000))
+  if (s < 10) return 'just now'
+  if (s < 60) return `${s}s ago`
+  const m = Math.round(s / 60)
+  if (m < 60) return `${m} min ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  return formatDate(iso)
 }
 
 export function generateTripCode(): string {
@@ -47,13 +124,15 @@ export function generateTripCode(): string {
   return code
 }
 
+// UUIDs so locally-created entities can be stored in Supabase (UUID columns).
 export function generateId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
+  const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto
+  if (c && typeof c.randomUUID === 'function') {
+    return c.randomUUID()
   }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, ch => {
     const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    const v = ch === 'x' ? r : (r & 0x3) | 0x8
     return v.toString(16)
   })
 }
@@ -63,25 +142,25 @@ export function isUuid(id: string): boolean {
 }
 
 export function getInitials(name: string): string {
-  if (!name) return 'TM'
-  return name
+  const initials = (name || '')
     .trim()
     .split(/\s+/)
-    .map(n => n[0])
+    .map(n => n[0] ?? '')
     .join('')
     .toUpperCase()
     .slice(0, 2)
+  return initials || '?'
 }
 
 export const AVATAR_COLORS = [
-  '#8B5CF6', // Purple
-  '#EC4899', // Pink
-  '#F43F5E', // Rose
-  '#F97316', // Orange
-  '#10B981', // Emerald
-  '#06B6D4', // Cyan
-  '#F59E0B', // Amber
-  '#6366F1', // Indigo
+  'hsl(262, 83%, 58%)',
+  'hsl(310, 75%, 55%)',
+  'hsl(340, 70%, 58%)',
+  'hsl(25, 80%, 55%)',
+  'hsl(168, 76%, 38%)',
+  'hsl(195, 65%, 45%)',
+  'hsl(42, 80%, 48%)',
+  'hsl(310, 55%, 52%)',
 ]
 
 export function getAvatarColor(index: number): string {
@@ -89,12 +168,18 @@ export function getAvatarColor(index: number): string {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// INVITE LINKS & SHORT CODE SHARING
+// INVITE LINKS
+// The invite link carries the trip data. The payload is base64url-encoded JSON
+// containing the trip WITHOUT its password, plus a signature hash of
+// (tripCode|password). The joining device verifies the password the user types
+// in against the signature. Byte-compatible with the web app's links.
 // ──────────────────────────────────────────────────────────────────────────────
 
 const INVITE_VERSION = 2
 const INVITE_VALIDITY_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
+/** Deterministic FNV-1a hash → hex string. Not cryptographic, but enough to
+ *  validate a trip password offline without putting it in the URL. */
 export function hashInviteSecret(input: string): string {
   let h1 = 0x811c9dc5
   let h2 = 0x01000193
@@ -110,27 +195,102 @@ export function inviteSignature(tripCode: string, password: string): string {
   return hashInviteSecret(`${tripCode.toUpperCase()}|${password}`)
 }
 
-/** Encode base64 */
-function toBase64Url(str: string): string {
-  try {
-    return btoa(unescape(encodeURIComponent(str)))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=+$/, '')
-  } catch {
-    return ''
+// Pure-JS UTF-8 + base64: Hermes has no Buffer, and atob/escape/unescape
+// support varies across React Native versions.
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+function utf8Encode(str: string): number[] {
+  const out: number[] = []
+  for (let i = 0; i < str.length; i++) {
+    let code = str.charCodeAt(i)
+    if (code >= 0xd800 && code <= 0xdbff && i + 1 < str.length) {
+      const next = str.charCodeAt(i + 1)
+      if (next >= 0xdc00 && next <= 0xdfff) {
+        code = 0x10000 + ((code - 0xd800) << 10) + (next - 0xdc00)
+        i++
+      }
+    }
+    if (code < 0x80) out.push(code)
+    else if (code < 0x800) out.push(0xc0 | (code >> 6), 0x80 | (code & 63))
+    else if (code < 0x10000) out.push(0xe0 | (code >> 12), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63))
+    else out.push(0xf0 | (code >> 18), 0x80 | ((code >> 12) & 63), 0x80 | ((code >> 6) & 63), 0x80 | (code & 63))
   }
+  return out
+}
+
+function utf8Decode(bytes: number[]): string {
+  let out = ''
+  for (let i = 0; i < bytes.length;) {
+    const b = bytes[i]
+    let code: number
+    let extra: number
+    if (b < 0x80) { code = b; extra = 0 }
+    else if (b >= 0xc2 && b < 0xe0) { code = b & 0x1f; extra = 1 }
+    else if (b >= 0xe0 && b < 0xf0) { code = b & 0x0f; extra = 2 }
+    else if (b >= 0xf0 && b < 0xf5) { code = b & 0x07; extra = 3 }
+    else throw new URIError('Malformed UTF-8')
+    for (let k = 1; k <= extra; k++) {
+      const cont = bytes[i + k]
+      if (cont === undefined || (cont & 0xc0) !== 0x80) throw new URIError('Malformed UTF-8')
+      code = (code << 6) | (cont & 0x3f)
+    }
+    i += extra + 1
+    if (code > 0xffff) {
+      code -= 0x10000
+      out += String.fromCharCode(0xd800 + (code >> 10), 0xdc00 + (code & 0x3ff))
+    } else {
+      out += String.fromCharCode(code)
+    }
+  }
+  return out
+}
+
+function bytesToBase64(bytes: number[]): string {
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]
+    const b1 = bytes[i + 1]
+    const b2 = bytes[i + 2]
+    const n = (b0 << 16) | ((b1 ?? 0) << 8) | (b2 ?? 0)
+    out += B64[(n >> 18) & 63] + B64[(n >> 12) & 63]
+    out += b1 === undefined ? '=' : B64[(n >> 6) & 63]
+    out += b2 === undefined ? '=' : B64[n & 63]
+  }
+  return out
+}
+
+function base64ToBytes(b64: string): number[] {
+  const clean = b64.replace(/=+$/, '')
+  if (/[^A-Za-z0-9+/]/.test(clean) || clean.length % 4 === 1) {
+    throw new Error('Invalid base64')
+  }
+  const out: number[] = []
+  let buffer = 0
+  let bits = 0
+  for (let i = 0; i < clean.length; i++) {
+    buffer = ((buffer << 6) | B64.indexOf(clean[i])) & 0xffffff
+    bits += 6
+    if (bits >= 8) {
+      bits -= 8
+      out.push((buffer >> bits) & 0xff)
+    }
+  }
+  return out
+}
+
+/** Encode to base64url — survives URL encoding, spaces, and messaging apps. */
+function toBase64Url(str: string): string {
+  return bytesToBase64(utf8Encode(str)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 function fromBase64Url(token: string): string {
+  // Normalize artifacts from URL encoding / copy-paste:
+  // spaces (decoded '+'), percent-encoding, stray whitespace
   let clean = token.trim().replace(/\s/g, '')
+  try { clean = decodeURIComponent(clean) } catch { /* already decoded */ }
   clean = clean.replace(/-/g, '+').replace(/_/g, '/')
   while (clean.length % 4 !== 0) clean += '='
-  try {
-    return decodeURIComponent(escape(atob(clean)))
-  } catch {
-    return atob(clean)
-  }
+  return utf8Decode(base64ToBytes(clean))
 }
 
 export function createInviteToken(trip: Trip): string {
@@ -144,14 +304,19 @@ export function createInviteToken(trip: Trip): string {
   return toBase64Url(JSON.stringify(payload))
 }
 
-/** Shortened clean join link (Requested by user) */
-export function createShortJoinLink(tripCode: string): string {
-  return `https://tripmate.app/join?c=${tripCode}`
+export function createInviteLink(trip: Trip, origin: string): string {
+  return `${origin}/join-trip?invite=${createInviteToken(trip)}`
 }
 
-/** Rich, beautiful shortened share message */
-export function createTripShareMessage(tripName: string, tripCode: string): string {
-  return `🌴 Join '${tripName}' on TripMate! ✈️\n\n🔑 Trip Code: ${tripCode}\n👉 Short Link: ${createShortJoinLink(tripCode)}\n\nTrack & settle group expenses in seconds! 💳`
+/** Text for the Android share sheet. Never contains the trip password. */
+export function createTripShareMessage(trip: Pick<Trip, 'name' | 'tripCode'>, link?: string): string {
+  return [
+    `Join my trip “${trip.name}” on TripMate ✈️`,
+    '',
+    `Trip code: ${trip.tripCode}`,
+    ...(link ? [`Join link: ${link}`] : []),
+    'Ask me for the trip password to get in.',
+  ].join('\n')
 }
 
 export function parseInviteToken(raw: string | null): InviteParseResult {
@@ -186,18 +351,43 @@ export function parseInviteToken(raw: string | null): InviteParseResult {
   }
 }
 
+/**
+ * Pulls a trip code or invite token out of whatever the user pasted: a bare
+ * code ("trp-ab12"), a web join link, or a tripmate:// deep link.
+ */
+export function extractJoinInput(raw: string): { code?: string; invite?: string } {
+  const text = (raw || '').trim()
+  if (!text) return {}
+  const invite = text.match(/[?&]invite=([^&#\s]+)/)
+  if (invite) return { invite: invite[1] }
+  const codeParam = text.match(/[?&](?:code|c)=([A-Za-z0-9-]+)/)
+  if (codeParam) return { code: codeParam[1].toUpperCase() }
+  const code = text.toUpperCase().match(/TRP-[A-Z0-9]{4}/)
+  if (code) return { code: code[0] }
+  return { code: text.toUpperCase().slice(0, 8) }
+}
+
 /** Round to 2 decimals (paise-accurate). Safe against NaN/Infinity. */
 export function roundMoney(n: number): number {
   if (!Number.isFinite(n)) return 0
   return Math.round((n + Number.EPSILON) * 100) / 100
 }
 
+/** Two paise-tolerant amounts are "the same payment". */
+export const sameAmount = (a: number, b: number) => Math.abs(a - b) < 0.01
+
 // ──────────────────────────────────────────────────────────────────────────────
-// BALANCE & SPLIT CALCULATION (100% PARITY WITH WEB)
+// BALANCE CALCULATION
+// Supports all split types: equal, custom, percentage, quantity, room
 // ──────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Resolves the actual per-member share amounts for a single expense.
+ * Returns a map of memberId → share amount.
+ */
 export function resolveExpenseSplits(expense: Expense): Record<string, number> {
   const shares: Record<string, number> = {}
+
   if (expense.participants.length === 0) return shares
 
   switch (expense.splitType) {
@@ -205,7 +395,9 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
       distributeEqually(expense.amount, expense.participants, shares)
       break
     }
+
     case 'custom': {
+      // splits[i].value is the direct amount for that member
       const splitMap: Record<string, number> = {}
       expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
       expense.participants.forEach(pid => {
@@ -213,7 +405,9 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
       })
       break
     }
+
     case 'percentage': {
+      // splits[i].value is the percentage (0–100)
       const splitMap: Record<string, number> = {}
       expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
       expense.participants.forEach(pid => {
@@ -222,7 +416,9 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
       })
       break
     }
+
     case 'quantity': {
+      // splits[i].value is the quantity (e.g. bottles, items)
       const totalQty = expense.splits.reduce((sum, s) => sum + s.value, 0)
       const splitMap: Record<string, number> = {}
       expense.splits.forEach(s => { splitMap[s.memberId] = s.value })
@@ -234,7 +430,9 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
       }
       break
     }
+
     default: {
+      // fallback to equal
       distributeEqually(expense.amount, expense.participants, shares)
     }
   }
@@ -242,6 +440,11 @@ export function resolveExpenseSplits(expense: Expense): Record<string, number> {
   return shares
 }
 
+/**
+ * Paise-accurate equal split: each share is rounded to 2 decimals and the
+ * leftover paise are assigned to the first participants so the shares always
+ * sum exactly to the expense amount (no floating-point drift).
+ */
 export function distributeEqually(amount: number, participantIds: string[], out: Record<string, number>) {
   const n = participantIds.length
   if (n === 0) return
@@ -259,8 +462,13 @@ export function distributeEqually(amount: number, participantIds: string[], out:
   })
 }
 
+/**
+ * Resolves per-member shares for hotel rooms.
+ * Returns a map of memberId → total room cost owed.
+ */
 export function resolveHotelSplits(hotel: HotelExpense): Record<string, number> {
   const shares: Record<string, number> = {}
+
   hotel.rooms.forEach(room => {
     if (room.occupantIds.length === 0) return
     const roomShares: Record<string, number> = {}
@@ -269,20 +477,27 @@ export function resolveHotelSplits(hotel: HotelExpense): Record<string, number> 
       shares[oid] = roundMoney((shares[oid] ?? 0) + roomShares[oid])
     })
   })
+
   return shares
 }
 
+/**
+ * Main balance calculator.
+ * Processes regular expenses + hotel expenses + applies splits correctly.
+ */
 export function calculateBalances(
   expenses: Expense[],
   hotelExpenses: HotelExpense[],
   members: Member[]
 ): MemberBalance[] {
+  // Initialize
   const paid: Record<string, number> = {}
   const owed: Record<string, number> = {}
   members.forEach(m => { paid[m.id] = 0; owed[m.id] = 0 })
 
   // Regular expenses
   expenses.forEach(expense => {
+    // Credit the payer(s) — supports multiple payers per expense
     if (expense.payers && expense.payers.length > 0) {
       expense.payers.forEach(p => {
         paid[p.memberId] = (paid[p.memberId] ?? 0) + p.amount
@@ -291,6 +506,7 @@ export function calculateBalances(
       paid[expense.paidBy] = (paid[expense.paidBy] ?? 0) + expense.amount
     }
 
+    // Each participant owes their share
     const shares = resolveExpenseSplits(expense)
     Object.entries(shares).forEach(([pid, share]) => {
       owed[pid] = (owed[pid] ?? 0) + share
@@ -299,7 +515,10 @@ export function calculateBalances(
 
   // Hotel expenses
   hotelExpenses.forEach(hotel => {
+    // Payer gets credit for total
     paid[hotel.paidBy] = (paid[hotel.paidBy] ?? 0) + hotel.totalAmount
+
+    // Each room occupant owes their share
     const shares = resolveHotelSplits(hotel)
     Object.entries(shares).forEach(([pid, share]) => {
       owed[pid] = (owed[pid] ?? 0) + share
@@ -316,6 +535,18 @@ export function calculateBalances(
   }))
 }
 
+/**
+ * Applies CONFIRMED settlement payments as real cash transfers on top of the
+ * expense balances. A confirmed payment means money actually moved hands, so
+ * the payer's net balance rises by the amount and the receiver's falls.
+ * Pending/paid (unconfirmed) settlements are ignored — no cash moved yet.
+ *
+ * Settlement groups ("couples") and sponsorships matter here: their combined
+ * payment is routed through ONE representative member, but it settles the
+ * WHOLE entity's debt. The transfer is therefore spread across the entity —
+ * clearing the largest debts first — instead of piling onto the representative
+ * and leaving phantom +/− balances inside the couple.
+ */
 export type ConfirmedTransfer = Pick<
   Settlement,
   'fromMemberId' | 'toMemberId' | 'amount' | 'status' | 'fromGroupIds' | 'toGroupIds'
@@ -323,176 +554,231 @@ export type ConfirmedTransfer = Pick<
 
 export function applyConfirmedTransfers(
   balances: MemberBalance[],
-  confirmedPayments: ConfirmedTransfer[]
+  settlements: ConfirmedTransfer[],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
 ): MemberBalance[] {
-  if (confirmedPayments.length === 0) return balances
+  const result = balances.map(b => ({ ...b }))
+  const balanceMap: Record<string, MemberBalance> = {}
+  result.forEach(b => { balanceMap[b.memberId] = b })
 
-  const balMap: Record<string, MemberBalance> = {}
-  balances.forEach(b => { balMap[b.memberId] = { ...b } })
-
-  confirmedPayments.forEach(p => {
-    if (p.status !== 'confirmed') return
-
-    // Credit from (payer owes less)
-    const fromMember = balMap[p.fromMemberId]
-    if (fromMember) {
-      fromMember.netBalance = roundMoney(fromMember.netBalance + p.amount)
-    }
-
-    // Debit to (receiver is owed less)
-    const toMember = balMap[p.toMemberId]
-    if (toMember) {
-      toMember.netBalance = roundMoney(toMember.netBalance - p.amount)
-    }
+  // Union-find: members of the same settlement group, and sponsor+sponsored
+  // pairs, form one payment entity.
+  const parent: Record<string, string> = {}
+  result.forEach(b => { parent[b.memberId] = b.memberId })
+  const find = (x: string): string => (parent[x] === x ? x : (parent[x] = find(parent[x])))
+  const union = (a: string, b: string) => {
+    if (!(a in parent) || !(b in parent)) return
+    parent[find(a)] = find(b)
+  }
+  groups.forEach(g => {
+    const present = g.memberIds.filter(id => id in parent)
+    for (let i = 1; i < present.length; i++) union(present[0], present[i])
   })
+  sponsorships.forEach(sp => union(sp.sponsorMemberId, sp.sponsoredMemberId))
 
-  return Object.values(balMap)
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// GREEDY MINIMAL DEBT SETTLEMENT ALGORITHM
-// ──────────────────────────────────────────────────────────────────────────────
-
-export function calculateSettlements(
-  balances: MemberBalance[],
-  sponsorships: Sponsorship[] = [],
-  settlementGroups: SettlementGroup[] = []
-): SettlementRoute[] {
-  const workingBalances: Record<string, number> = {}
-  balances.forEach(b => { workingBalances[b.memberId] = b.netBalance })
-
-  // 1. Apply sponsorships: transfer sponsored member's net balance to sponsor
-  sponsorships.forEach(sp => {
-    const sponsoredBalance = workingBalances[sp.sponsoredMemberId] || 0
-    if (sponsoredBalance !== 0) {
-      workingBalances[sp.sponsorMemberId] = roundMoney(
-        (workingBalances[sp.sponsorMemberId] || 0) + sponsoredBalance
-      )
-      workingBalances[sp.sponsoredMemberId] = 0
+  // Prefer the member set snapshotted on the settlement at generation time
+  // (survives later group deletion); otherwise resolve the live entity.
+  const entityMembers = (memberId: string, snapshot?: string[]): MemberBalance[] => {
+    if (snapshot && snapshot.length > 0) {
+      const fromSnapshot = result.filter(b => snapshot.includes(b.memberId))
+      if (fromSnapshot.length > 0) return fromSnapshot
     }
-  })
-
-  // 2. Settlement Groups: Merge group members into single virtual entity
-  const memberToGroup: Record<string, SettlementGroup> = {}
-  settlementGroups.forEach(g => {
-    g.memberIds.forEach(mid => { memberToGroup[mid] = g })
-  })
-
-  const groupBalances: Record<string, { balance: number; memberIds: string[]; name: string }> = {}
-  const individualBalances: Record<string, number> = {}
-
-  Object.entries(workingBalances).forEach(([mid, bal]) => {
-    const group = memberToGroup[mid]
-    if (group) {
-      if (!groupBalances[group.id]) {
-        groupBalances[group.id] = { balance: 0, memberIds: [], name: group.name }
-      }
-      groupBalances[group.id].balance = roundMoney(groupBalances[group.id].balance + bal)
-      groupBalances[group.id].memberIds.push(mid)
-    } else {
-      individualBalances[mid] = bal
-    }
-  })
-
-  // 3. Separate creditors and debtors
-  interface Party {
-    id: string
-    name: string
-    amount: number
-    isGroup: boolean
-    memberIds: string[]
-    representativeId: string
+    if (!(memberId in parent)) return []
+    const root = find(memberId)
+    return result.filter(b => find(b.memberId) === root)
   }
 
-  const memberMap: Record<string, MemberBalance> = {}
-  balances.forEach(b => { memberMap[b.memberId] = b })
+  settlements.forEach(s => {
+    if (s.status !== 'confirmed') return
 
-  const creditors: Party[] = []
-  const debtors: Party[] = []
+    // Payer side: the cash clears the entity's debts (largest first);
+    // anything beyond the entity's debt is credit owned by the payer.
+    let remaining = s.amount
+    entityMembers(s.fromMemberId, s.fromGroupIds)
+      .filter(b => b.netBalance < 0)
+      .sort((a, b) => a.netBalance - b.netBalance)
+      .forEach(b => {
+        if (remaining <= 0) return
+        const pay = Math.min(remaining, -b.netBalance)
+        b.netBalance = roundMoney(b.netBalance + pay)
+        remaining = roundMoney(remaining - pay)
+      })
+    if (remaining > 0 && balanceMap[s.fromMemberId]) {
+      balanceMap[s.fromMemberId].netBalance =
+        roundMoney(balanceMap[s.fromMemberId].netBalance + remaining)
+    }
 
-  // Add individual parties
-  Object.entries(individualBalances).forEach(([mid, bal]) => {
-    const m = memberMap[mid]
-    if (!m) return
-    if (bal > 0.01) {
-      creditors.push({
-        id: mid,
-        name: m.name,
-        amount: bal,
-        isGroup: false,
-        memberIds: [mid],
-        representativeId: mid,
+    // Receiver side: the cash consumes the entity's credits (largest first);
+    // any excess received becomes the receiver's own debt.
+    let incoming = s.amount
+    entityMembers(s.toMemberId, s.toGroupIds)
+      .filter(b => b.netBalance > 0)
+      .sort((a, b) => b.netBalance - a.netBalance)
+      .forEach(b => {
+        if (incoming <= 0) return
+        const take = Math.min(incoming, b.netBalance)
+        b.netBalance = roundMoney(b.netBalance - take)
+        incoming = roundMoney(incoming - take)
       })
-    } else if (bal < -0.01) {
-      debtors.push({
-        id: mid,
-        name: m.name,
-        amount: Math.abs(bal),
-        isGroup: false,
-        memberIds: [mid],
-        representativeId: mid,
-      })
+    if (incoming > 0 && balanceMap[s.toMemberId]) {
+      balanceMap[s.toMemberId].netBalance =
+        roundMoney(balanceMap[s.toMemberId].netBalance - incoming)
     }
   })
 
-  // Add group parties
-  Object.entries(groupBalances).forEach(([gid, gData]) => {
-    const repId = gData.memberIds[0] || gid
-    if (gData.balance > 0.01) {
-      creditors.push({
-        id: gid,
-        name: gData.name,
-        amount: gData.balance,
-        isGroup: true,
-        memberIds: gData.memberIds,
-        representativeId: repId,
-      })
-    } else if (gData.balance < -0.01) {
-      debtors.push({
-        id: gid,
-        name: gData.name,
-        amount: Math.abs(gData.balance),
-        isGroup: true,
-        memberIds: gData.memberIds,
-        representativeId: repId,
-      })
+  return result
+}
+
+/**
+ * Live net balances: expense balances minus money already moved by confirmed
+ * payments. totalPaid/totalOwed stay expense-based; only netBalance reflects
+ * settlements. Every screen derives from this single source so they can never
+ * disagree.
+ */
+export function calculateNetBalances(
+  expenses: Expense[],
+  hotelExpenses: HotelExpense[],
+  members: Member[],
+  settlements: ConfirmedTransfer[],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
+): MemberBalance[] {
+  return applyConfirmedTransfers(
+    calculateBalances(expenses, hotelExpenses, members),
+    settlements,
+    groups,
+    sponsorships
+  )
+}
+
+/**
+ * Applies sponsorships: sponsored member's balance is added to their sponsor.
+ * Returns modified balances (sponsored member zeroed, sponsor's balance updated).
+ */
+export function applySponsorships(
+  balances: MemberBalance[],
+  sponsorships: Sponsorship[] = []
+): MemberBalance[] {
+  const result = balances.map(b => ({ ...b }))
+  const balanceMap: Record<string, MemberBalance> = {}
+  result.forEach(b => { balanceMap[b.memberId] = b })
+
+  sponsorships.forEach(sp => {
+    const sponsored = balanceMap[sp.sponsoredMemberId]
+    const sponsor = balanceMap[sp.sponsorMemberId]
+    if (!sponsored || !sponsor) return
+
+    // Transfer sponsored member's net balance to sponsor
+    sponsor.netBalance += sponsored.netBalance
+    sponsor.totalPaid += sponsored.totalPaid
+    sponsor.totalOwed += sponsored.totalOwed
+
+    // Zero out the sponsored member
+    sponsored.netBalance = 0
+    sponsored.totalPaid = 0
+    sponsored.totalOwed = 0
+  })
+
+  return result
+}
+
+/**
+ * Minimized debt settlement algorithm.
+ * Accounts for settlement groups (group members treated as one entity).
+ * Returns final settlement routes.
+ */
+export function calculateSettlements(
+  rawBalances: MemberBalance[],
+  members: Member[] = [],
+  groups: SettlementGroup[] = [],
+  sponsorships: Sponsorship[] = []
+): SettlementRoute[] {
+  // Step 1: Apply sponsorships
+  const balancesAfterSponsorship = applySponsorships(rawBalances, sponsorships)
+
+  // Build member lookup
+  const memberMap: Record<string, Member> = {}
+  members.forEach(m => { memberMap[m.id] = m })
+
+  // Step 2: Apply settlement groups
+  // Merge group members' balances into a single virtual "group" balance
+  const groupedBalances: Record<string, number> = {} // entityKey → net balance
+  const entityToMembers: Record<string, string[]> = {} // entityKey → member ids
+
+  // Map each member to their group (if any)
+  const memberToGroup: Record<string, string> = {}
+  groups.forEach(g => {
+    g.memberIds.forEach(mid => { memberToGroup[mid] = g.id })
+  })
+
+  balancesAfterSponsorship.forEach(b => {
+    const groupId = memberToGroup[b.memberId]
+    const key = groupId ?? b.memberId
+
+    groupedBalances[key] = (groupedBalances[key] ?? 0) + b.netBalance
+
+    if (!entityToMembers[key]) entityToMembers[key] = []
+    if (!entityToMembers[key].includes(b.memberId)) {
+      entityToMembers[key].push(b.memberId)
     }
   })
 
-  // Sort descending by amount for greedy minimization
+  // Step 3: Run minimized-debt greedy algorithm on grouped entities
+  const creditors: { key: string; amount: number }[] = []
+  const debtors:   { key: string; amount: number }[] = []
+
+  Object.entries(groupedBalances).forEach(([key, bal]) => {
+    if (bal > 0.01)  creditors.push({ key, amount: bal })
+    else if (bal < -0.01) debtors.push({ key, amount: -bal })
+  })
+
   creditors.sort((a, b) => b.amount - a.amount)
   debtors.sort((a, b) => b.amount - a.amount)
 
   const routes: SettlementRoute[] = []
-  let ci = 0
-  let di = 0
+  let ci = 0, di = 0
 
   while (ci < creditors.length && di < debtors.length) {
     const cred = creditors[ci]
     const debt = debtors[di]
-    const amount = roundMoney(Math.min(cred.amount, debt.amount))
+    const amount = Math.min(cred.amount, debt.amount)
 
-    if (amount >= 0.01) {
-      const fromM = memberMap[debt.representativeId]
-      const toM = memberMap[cred.representativeId]
+    if (amount > 0.01) {
+      // Resolve the primary member for each entity
+      const fromMembers = entityToMembers[debt.key] || [debt.key]
+      const toMembers   = entityToMembers[cred.key] || [cred.key]
 
-      routes.push({
-        id: generateId(),
-        fromMemberId: debt.representativeId,
-        toMemberId: cred.representativeId,
-        fromName: debt.name,
-        toName: cred.name,
-        fromColor: fromM?.avatarColor || AVATAR_COLORS[0],
-        toColor: toM?.avatarColor || AVATAR_COLORS[1],
-        amount,
-        fromMemberIds: debt.memberIds,
-        toMemberIds: cred.memberIds,
-      })
+      // Pick the first "real" member as representative
+      const fromId = fromMembers[0]
+      const toId   = toMembers[0]
+      const fromM  = memberMap[fromId]
+      const toM    = memberMap[toId]
+
+      if (fromM && toM) {
+        routes.push({
+          id: generateId(),
+          fromMemberId: fromId,
+          toMemberId:   toId,
+          fromName:     fromMembers.length > 1
+            ? fromMembers.map(id => memberMap[id]?.name || id).join(' & ')
+            : fromM.name,
+          toName:       toMembers.length > 1
+            ? toMembers.map(id => memberMap[id]?.name || id).join(' & ')
+            : toM.name,
+          fromColor:    fromM.avatarColor,
+          toColor:      toM.avatarColor,
+          fromUpiId:    fromM.upiId,
+          toUpiId:      toM.upiId,
+          amount:       Math.round(amount * 100) / 100,
+          fromMemberIds: [...fromMembers],
+          toMemberIds:   [...toMembers],
+        })
+      }
     }
 
-    cred.amount = roundMoney(cred.amount - amount)
-    debt.amount = roundMoney(debt.amount - amount)
-
+    cred.amount -= amount
+    debt.amount -= amount
     if (cred.amount < 0.01) ci++
     if (debt.amount < 0.01) di++
   }
@@ -501,8 +787,12 @@ export function calculateSettlements(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// CATEGORY & SUBCATEGORY TAXONOMY
+// CATEGORY / SUBCATEGORY SYSTEM
 // ──────────────────────────────────────────────────────────────────────────────
+
+export const CATEGORIES = [
+  'food', 'travel', 'stay', 'entertainment', 'shopping', 'alcohol', 'fuel', 'tickets', 'misc',
+] as const
 
 export const SUBCATEGORIES: Record<string, { id: string; label: string; icon: string }[]> = {
   food: [
@@ -543,6 +833,12 @@ export const SUBCATEGORIES: Record<string, { id: string; label: string; icon: st
   ],
 }
 
+export function getSubcategoryLabel(category: string, subId?: string): string | null {
+  if (!subId) return null
+  const sub = SUBCATEGORIES[category]?.find(s => s.id === subId)
+  return sub ? `${sub.icon} ${sub.label}` : null
+}
+
 export function getCategoryIcon(category: string): string {
   const icons: Record<string, string> = {
     food:          '🍽️',
@@ -573,35 +869,41 @@ export function getCategoryLabel(category: string): string {
   return labels[category] || category
 }
 
-/** Vivid two-stop gradient hex colors for React Native LinearGradient */
+/** Vivid two-stop gradient per category (the web's gradients, as hex pairs). */
 export function getCategoryGradientColors(category: string): [string, string] {
   const gradients: Record<string, [string, string]> = {
-    food:          ['#FF6B6B', '#FFA07A'], // Coral -> Peach
-    travel:        ['#3B82F6', '#06B6D4'], // Blue -> Cyan
-    stay:          ['#10B981', '#14B8A6'], // Emerald -> Teal
-    entertainment: ['#8B5CF6', '#D946EF'], // Purple -> Fuchsia
-    shopping:      ['#EC4899', '#F43F5E'], // Pink -> Rose
-    alcohol:       ['#F59E0B', '#EF4444'], // Amber -> Red
-    fuel:          ['#F97316', '#F59E0B'], // Orange -> Amber
-    tickets:       ['#6366F1', '#3B82F6'], // Indigo -> Blue
-    misc:          ['#8B5CF6', '#6366F1'], // Purple -> Indigo
+    food:          ['#F97924', '#F23674'], // orange → pink
+    travel:        ['#257BF4', '#0AC5EB'], // blue → cyan
+    stay:          ['#1EB880', '#19B3B3'], // emerald → teal
+    entertainment: ['#7C39EF', '#CB35E9'], // indigo → purple
+    shopping:      ['#EE2F8F', '#F04251'], // magenta → rose
+    alcohol:       ['#F9A410', '#F46A25'], // amber → orange
+    fuel:          ['#EE522B', '#F39716'],
+    tickets:       ['#6347EB', '#2C7EF2'],
+    misc:          ['#7A47D1', '#5469D4'],
   }
-  return gradients[category] || ['#6366F1', '#8B5CF6']
+  return gradients[category] || gradients.misc
+}
+
+/** CSS form of the category gradient (used by the PDF report). */
+export function getCategoryGradient(category: string): string {
+  const [a, b] = getCategoryGradientColors(category)
+  return `linear-gradient(135deg, ${a}, ${b})`
 }
 
 export function getCategoryColor(category: string): string {
   const colors: Record<string, string> = {
-    food:          '#FF6B6B',
-    travel:        '#3B82F6',
-    stay:          '#10B981',
-    entertainment: '#8B5CF6',
-    shopping:      '#EC4899',
-    alcohol:       '#F59E0B',
-    fuel:          '#F97316',
-    tickets:       '#6366F1',
-    misc:          '#8B5CF6',
+    food:          'hsl(25, 80%, 55%)',
+    travel:        'hsl(195, 70%, 48%)',
+    stay:          'hsl(158, 60%, 45%)',
+    entertainment: 'hsl(280, 78%, 55%)',
+    shopping:      'hsl(340, 75%, 55%)',
+    alcohol:       'hsl(38, 85%, 48%)',
+    fuel:          'hsl(15, 80%, 52%)',
+    tickets:       'hsl(260, 65%, 58%)',
+    misc:          'hsl(262, 83%, 58%)',
   }
-  return colors[category] || '#6366F1'
+  return colors[category] || 'hsl(262, 83%, 58%)'
 }
 
 export function getSplitTypeLabel(type: string): string {
@@ -626,12 +928,19 @@ export function getSplitTypeIcon(type: string): string {
   return icons[type] || '⚖️'
 }
 
-// Build UPI payment link
+// Build UPI payment link. Percent-encoded (not form-encoded) so no UPI app
+// shows a literal "+" for spaces; the payee VPA keeps a raw "@", which some
+// UPI apps fail to decode.
 export function buildUpiLink(upiId: string, name: string, amount: number, note: string): string {
   const safeAmount = Number.isFinite(amount) && amount > 0 ? roundMoney(amount) : 0
-  const cleanUpi = encodeURIComponent((upiId || '').trim().replace(/[\r\n\t]/g, ''))
-  const cleanName = encodeURIComponent((name || '').trim().replace(/[\r\n\t]/g, ''))
-  const cleanAmount = safeAmount.toFixed(2)
-  const cleanNote = encodeURIComponent((note || '').trim().replace(/[\r\n\t]/g, ''))
-  return `upi://pay?pa=${cleanUpi}&pn=${cleanName}&am=${cleanAmount}&tn=${cleanNote}&cu=INR`
+  const clean = (s: string) => (s || '').trim().replace(/[\r\n\t]/g, '')
+  const pa = encodeURIComponent(clean(upiId)).replace(/%40/g, '@')
+  const pn = encodeURIComponent(clean(name))
+  const tn = encodeURIComponent(clean(note))
+  return `upi://pay?pa=${pa}&pn=${pn}&am=${safeAmount.toFixed(2)}&tn=${tn}&cu=INR`
+}
+
+/** Loose UPI VPA check: handle@provider. */
+export function isValidUpiId(upiId: string): boolean {
+  return /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z][a-zA-Z0-9.-]{1,63}$/.test((upiId || '').trim())
 }

@@ -1,95 +1,116 @@
-import React from 'react'
-import { Tabs } from 'expo-router'
-import { View, StyleSheet, Platform } from 'react-native'
-import { LayoutDashboard, ReceiptText, Users, HandCoins } from 'lucide-react-native'
-import { Colors } from '../../theme/colors'
+// Trip area (web AppNav + trip layout): session guard, live cloud sync, the
+// top bar, one shared liquid backdrop behind all tabs, and the five web tabs
+// — Dashboard, Members, Expenses, Payments, Report.
+import { StyleSheet, View } from 'react-native'
+import Animated, { FadeInUp, FadeOutUp, useReducedMotion } from 'react-native-reanimated'
+import { Redirect, Tabs, useIsFocused } from 'expo-router'
+import { WifiOff } from 'lucide-react-native'
+import { useStore } from '../../lib/store'
+import { useSyncStatus } from '../../lib/synclog'
+import { T } from '../../components/ui/Text'
+import { useTripSync } from '../../lib/sync'
+import { confirmAction } from '../../lib/dialogs'
+import { leaveTrip } from '../../lib/nav'
+import { TripTopBar } from '../../components/ui/AnimatedHeader'
+import { LiquidBackground } from '../../components/ui/Screen'
+import { TabBar } from '../../components/animated/AnimatedTabBar'
+import { C, amber } from '../../theme/colors'
 
-export default function TabLayout() {
+export const unstable_settings = { initialRouteName: 'dashboard' }
+
+export default function TripTabsLayout() {
+  const session = useStore(s => s.session)
+  const trip = useStore(s => (s.session ? s.trips.find(t => t.id === s.session!.tripId) : undefined))
+  const me = useStore(s => (s.session ? s.members.find(m => m.id === s.session!.memberId) : undefined))
+  // Badge on Payments: dues I still have to pay.
+  const myDues = useStore(s =>
+    s.session
+      ? s.settlements.filter(x => x.tripId === s.session!.tripId && x.status === 'pending' && x.fromMemberId === s.session!.memberId).length
+      : 0
+  )
+  const logout = useStore(s => s.logout)
+  const focused = useIsFocused()
+
+  useTripSync(session?.tripId)
+
+  if (!session) return <Redirect href="/login" />
+
+  const onLogout = async () => {
+    const ok = await confirmAction({
+      title: 'Log out?',
+      message: 'Your trip is safely saved in the cloud. Log in again anytime with your trip code, mobile number and PIN.',
+      confirmLabel: 'Log out',
+      destructive: true,
+    })
+    if (!ok) return
+    logout()
+    leaveTrip()
+  }
+
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textMuted,
-        tabBarStyle: styles.tabBar,
-        tabBarLabelStyle: styles.tabBarLabel,
-      }}
+    <View style={styles.root}>
+      <LiquidBackground paused={!focused} />
+      <TripTopBar
+        tripId={session.tripId}
+        tripName={trip?.name || 'TripMate'}
+        subtitle={`${me?.name ? `${me.name} · ` : ''}${session.tripCode}`}
+        onLogout={onLogout}
+      />
+      <OfflineBanner />
+      <Tabs
+        tabBar={props => <TabBar {...props} badges={{ settlements: myDues }} />}
+        screenOptions={{
+          headerShown: false,
+          animation: 'shift',
+          lazy: true,
+          sceneStyle: { backgroundColor: 'transparent' },
+        }}
+      >
+        <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
+        <Tabs.Screen name="members" options={{ title: 'Members' }} />
+        <Tabs.Screen name="expenses" options={{ title: 'Expenses' }} />
+        <Tabs.Screen name="settlements" options={{ title: 'Payments' }} />
+        <Tabs.Screen name="analytics" options={{ title: 'Report' }} />
+      </Tabs>
+    </View>
+  )
+}
+
+/** Cloud-only app: when the phone drops offline, say so — changes can't be saved. */
+function OfflineBanner() {
+  const online = useSyncStatus(s => s.online)
+  const reduced = useReducedMotion()
+  if (online) return null
+  return (
+    <Animated.View
+      entering={reduced ? undefined : FadeInUp.duration(260)}
+      exiting={reduced ? undefined : FadeOutUp.duration(200)}
+      style={styles.offline}
+      accessibilityRole="alert"
     >
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconGlow]}>
-              <LayoutDashboard size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="expenses"
-        options={{
-          title: 'Expenses',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconGlow]}>
-              <ReceiptText size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="members"
-        options={{
-          title: 'Members',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconGlow]}>
-              <Users size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-            </View>
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settlements"
-        options={{
-          title: 'Settlements',
-          tabBarIcon: ({ color, focused }) => (
-            <View style={[styles.iconContainer, focused && styles.activeIconGlow]}>
-              <HandCoins size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-            </View>
-          ),
-        }}
-      />
-    </Tabs>
+      <WifiOff size={16} color={C.amber700} strokeWidth={2.3} />
+      <T variant="smallMedium" color={C.amber700} style={styles.flex}>
+        You're offline — showing your last synced trip. Reconnect to save changes.
+      </T>
+    </Animated.View>
   )
 }
 
 const styles = StyleSheet.create({
-  tabBar: {
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    height: Platform.OS === 'ios' ? 86 : 64,
-    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 8,
-    elevation: 8,
-    shadowColor: '#64748B',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-  },
-  tabBarLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
+  root: { flex: 1, backgroundColor: C.surface0 },
+  flex: { flex: 1 },
+  offline: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  activeIconGlow: {
-    backgroundColor: '#EEF2FF',
+    gap: 10,
+    marginHorizontal: 12,
+    marginTop: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: amber(0.35),
+    backgroundColor: 'rgba(255, 247, 230, 0.96)',
+    boxShadow: '0px 6px 18px rgba(217, 119, 6, 0.15)',
   },
 })

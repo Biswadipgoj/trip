@@ -1,606 +1,401 @@
-import React, { useState, useMemo } from 'react'
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  SafeAreaView,
-  TextInput,
-  Alert,
-} from 'react-native'
-import { useRouter } from 'expo-router'
+// Expenses (web /expenses/[tripId]): one feed of expenses and hotel stays,
+// newest first. Tap to expand (payers, split, notes), swipe left to delete.
+// Mobile: bill photos per item — thumbnails with upload state, camera/gallery.
+import { useMemo, useState } from 'react'
+import { RefreshControl, StyleSheet, View } from 'react-native'
+import Animated, { LinearTransition } from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
-import { Plus, Search, Trash2, Hotel, Receipt, Filter } from 'lucide-react-native'
+import { router } from 'expo-router'
+import { BedDouble, ChevronDown, Hotel, Info, Paperclip, Plus, Receipt, Trash2 } from 'lucide-react-native'
+import type { Expense, HotelExpense, Member, Attachment } from '../../types'
 import { useStore } from '../../lib/store'
-import { Colors } from '../../theme/colors'
-import { Typography } from '../../theme/typography'
-import { SpringPressable } from '../../components/animated/SpringPressable'
-import { GlassCard } from '../../components/ui/GlassCard'
-import { Avatar } from '../../components/ui/Avatar'
-import { CategoryChip } from '../../components/ui/CategoryChip'
+import { useTripData } from '../../lib/hooks'
+import { syncTrip } from '../../lib/sync'
+import { cloudDeleteItem, withCloud } from '../../lib/cloud'
+import { attachImage } from '../../lib/uploads'
+import { confirmAction } from '../../lib/dialogs'
 import {
-  formatCurrency,
-  formatDate,
-  getSplitTypeIcon,
-  getSplitTypeLabel,
-  getCategoryIcon,
+  formatCurrency, formatDate, getCategoryGradientColors, getCategoryIcon, getSplitTypeIcon,
+  getSplitTypeLabel, getSubcategoryLabel,
 } from '../../lib/utils'
-import { Expense, HotelExpense } from '../../types'
+import { GlassCard } from '../../components/ui/GlassCard'
+import { T } from '../../components/ui/Text'
+import { Button } from '../../components/ui/Button'
+import { Avatar } from '../../components/ui/Avatar'
+import { Chip } from '../../components/ui/CategoryChip'
+import { PageHeader } from '../../components/ui/PageHeader'
+import { BrandFooter } from '../../components/ui/BrandFooter'
+import { Sheen } from '../../components/ui/StatCard'
+import { AttachmentPicker } from '../../components/attachments/AttachmentPicker'
+import { AttachmentStrip } from '../../components/attachments/AttachmentStrip'
+import { Collapsible, FadeIn, SMOOTH_LAYOUT, stagger } from '../../components/animated/FadeInView'
+import { SwipeToDelete } from '../../components/animated/SwipeCard'
+import { FAB } from '../../components/animated/FloatingActionButton'
+import { EmptyState } from '../../components/animated/AnimatedEmptyState'
+import { PressScale, tick } from '../../components/animated/SpringPressable'
+import { C, brand600, ink } from '../../theme/colors'
+import { SCREEN_PADDING } from '../../theme/spacing'
 
-const CATEGORIES = [
-  { id: 'all', label: 'All', icon: '✨' },
-  { id: 'food', label: 'Food', icon: '🍽️' },
-  { id: 'travel', label: 'Transit', icon: '✈️' },
-  { id: 'stay', label: 'Stay', icon: '🏨' },
-  { id: 'entertainment', label: 'Fun', icon: '🎭' },
-  { id: 'shopping', label: 'Shopping', icon: '🛍️' },
-  { id: 'alcohol', label: 'Drinks', icon: '🍺' },
-  { id: 'fuel', label: 'Fuel', icon: '⛽' },
-  { id: 'misc', label: 'Misc', icon: '📌' },
-]
+type FeedItem =
+  | { kind: 'expense'; id: string; createdAt: string; expense: Expense }
+  | { kind: 'hotel'; id: string; createdAt: string; hotel: HotelExpense }
+
+const ROTATE = { transitionProperty: 'transform', transitionDuration: 220 } as const
+const DELETE_MESSAGE =
+  'This removes it for everyone in the trip, along with its bill photos, and recalculates who owes whom.'
 
 export default function ExpensesScreen() {
-  const router = useRouter()
-  const activeTrip = useStore(state => state.getActiveTrip())
-  const tripId = activeTrip?.id || ''
+  const session = useStore(s => s.session)
+  const tripId = session?.tripId
+  const { expenses, hotelExpenses, members, memberMap, totalSpent, billsByParent } = useTripData(tripId)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
-  const expenses = useStore(state => state.getTripExpenses(tripId))
-  const hotelExpenses = useStore(state => state.getTripHotelExpenses(tripId))
-  const members = useStore(state => state.getTripMembers(tripId))
-  const deleteExpense = useStore(state => state.deleteExpense)
-  const deleteHotelExpense = useStore(state => state.deleteHotelExpense)
+  const feed = useMemo<FeedItem[]>(
+    () =>
+      [
+        ...expenses.map(e => ({ kind: 'expense' as const, id: e.id, createdAt: e.createdAt, expense: e })),
+        ...hotelExpenses.map(h => ({ kind: 'hotel' as const, id: h.id, createdAt: h.createdAt, hotel: h })),
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+    [expenses, hotelExpenses]
+  )
 
-  const [search, setSearch] = useState('')
-  const [selectedCat, setSelectedCat] = useState('all')
-  const [activeTab, setActiveTab] = useState<'expenses' | 'hotels'>('expenses')
+  const refresh = async () => {
+    setRefreshing(true)
+    try {
+      await syncTrip(tripId)
+    } finally {
+      setRefreshing(false)
+    }
+  }
 
-  // Fast memoized filtered expenses
-  const filteredExpenses = useMemo(() => {
-    return expenses.filter(e => {
-      const matchCat = selectedCat === 'all' || e.category === selectedCat
-      const matchQuery =
-        e.title.toLowerCase().includes(search.toLowerCase()) ||
-        members
-          .find(m => m.id === e.paidBy)
-          ?.name.toLowerCase()
-          .includes(search.toLowerCase())
-      return matchCat && matchQuery
+  /** Deletes on the server first; the row only disappears once Supabase agrees. */
+  const deleteNow = async (item: FeedItem) => {
+    const done = await withCloud(async () => {
+      await cloudDeleteItem(item.kind, item.id)
+      return true
     })
-  }, [expenses, selectedCat, search, members])
+    if (done && expandedId === item.id) setExpandedId(null)
+    return !!done
+  }
 
-  const filteredHotels = useMemo(() => {
-    return hotelExpenses.filter(h => {
-      return (
-        h.title.toLowerCase().includes(search.toLowerCase()) ||
-        members
-          .find(m => m.id === h.paidBy)
-          ?.name.toLowerCase()
-          .includes(search.toLowerCase())
-      )
+  /** Delete button in the expanded card (the swipe action confirms on its own). */
+  const remove = async (item: FeedItem) => {
+    const title = item.kind === 'expense' ? item.expense.title : item.hotel.title
+    const ok = await confirmAction({
+      title: item.kind === 'expense' ? `Delete “${title}”?` : `Delete stay “${title}”?`,
+      message: DELETE_MESSAGE,
+      confirmLabel: 'Delete',
+      destructive: true,
     })
-  }, [hotelExpenses, search, members])
-
-  const handleDeleteExpense = (id: string, title: string) => {
-    Alert.alert('Delete Expense', `Are you sure you want to remove "${title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteExpense(id),
-      },
-    ])
+    if (!ok) return
+    if (await deleteNow(item)) tick('warning')
   }
 
-  const handleDeleteHotel = (id: string, title: string) => {
-    Alert.alert('Delete Hotel Stay', `Are you sure you want to remove "${title}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => deleteHotelExpense(id),
-      },
-    ])
-  }
-
-  const renderExpenseItem = ({ item }: { item: Expense }) => {
-    const payer = members.find(m => m.id === item.paidBy)
-    const splitIcon = getSplitTypeIcon(item.splitType)
-    const splitLabel = getSplitTypeLabel(item.splitType)
-
-    return (
-      <GlassCard style={styles.expenseCard}>
-        <View style={styles.cardTopRow}>
-          <CategoryChip category={item.category} subcategory={item.subcategory} size="sm" />
-          <View style={styles.splitPill}>
-            <Text style={styles.splitIcon}>{splitIcon}</Text>
-            <Text style={styles.splitText}>{splitLabel}</Text>
-          </View>
-          <SpringPressable
-            style={styles.deleteButton}
-            onPress={() => handleDeleteExpense(item.id, item.title)}
-          >
-            <Trash2 size={16} color="#94A3B8" />
-          </SpringPressable>
-        </View>
-
-        <View style={styles.cardCenterRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
-          </View>
-          <Text style={styles.itemAmount}>{formatCurrency(item.amount)}</Text>
-        </View>
-
-        <View style={styles.cardBottomRow}>
-          <View style={styles.payerInfo}>
-            <Avatar name={payer?.name || 'Member'} color={payer?.avatarColor} size={24} />
-            <Text style={styles.payerText} numberOfLines={1}>
-              Paid by <Text style={{ fontWeight: '700', color: Colors.text }}>{payer?.name || 'Unknown'}</Text>
-            </Text>
-          </View>
-          <Text style={styles.participantsBadge}>
-            👥 {item.participants.length} sharing
-          </Text>
-        </View>
-      </GlassCard>
-    )
-  }
-
-  const renderHotelItem = ({ item }: { item: HotelExpense }) => {
-    const payer = members.find(m => m.id === item.paidBy)
-    const totalOccupants = item.rooms.reduce((s, r) => s + r.occupantIds.length, 0)
-
-    return (
-      <GlassCard style={styles.expenseCard}>
-        <View style={styles.cardTopRow}>
-          <View style={styles.hotelBadge}>
-            <Hotel size={14} color="#10B981" />
-            <Text style={styles.hotelBadgeText}>Hotel Booking</Text>
-          </View>
-          <View style={styles.splitPill}>
-            <Text style={styles.splitIcon}>🛏️</Text>
-            <Text style={styles.splitText}>{item.rooms.length} Rooms</Text>
-          </View>
-          <SpringPressable
-            style={styles.deleteButton}
-            onPress={() => handleDeleteHotel(item.id, item.title)}
-          >
-            <Trash2 size={16} color="#94A3B8" />
-          </SpringPressable>
-        </View>
-
-        <View style={styles.cardCenterRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
-          </View>
-          <Text style={styles.itemAmount}>{formatCurrency(item.totalAmount)}</Text>
-        </View>
-
-        {/* Room details summary */}
-        <View style={styles.roomsSummaryContainer}>
-          {item.rooms.map(room => (
-            <View key={room.id} style={styles.roomRow}>
-              <Text style={styles.roomName}>{room.name} ({room.occupantIds.length} guests)</Text>
-              <Text style={styles.roomCost}>{formatCurrency(room.cost)}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.cardBottomRow}>
-          <View style={styles.payerInfo}>
-            <Avatar name={payer?.name || 'Member'} color={payer?.avatarColor} size={24} />
-            <Text style={styles.payerText} numberOfLines={1}>
-              Paid by <Text style={{ fontWeight: '700', color: Colors.text }}>{payer?.name || 'Unknown'}</Text>
-            </Text>
-          </View>
-          <Text style={styles.participantsBadge}>
-            👥 {totalOccupants} total guests
-          </Text>
-        </View>
-      </GlassCard>
-    )
-  }
+  const itemCount = expenses.length + hotelExpenses.length
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Expenses</Text>
-        <Text style={styles.expenseCount}>
-          {activeTab === 'expenses' ? expenses.length : hotelExpenses.length} entries
-        </Text>
-      </View>
-
-      {/* Segment Tabs: Regular vs Hotel */}
-      <View style={styles.tabsRow}>
-        <SpringPressable
-          style={[styles.tabButton, activeTab === 'expenses' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('expenses')}
-        >
-          <Receipt size={16} color={activeTab === 'expenses' ? '#6366F1' : Colors.textMuted} />
-          <Text style={[styles.tabButtonText, activeTab === 'expenses' && styles.tabButtonTextActive]}>
-            General ({expenses.length})
-          </Text>
-        </SpringPressable>
-
-        <SpringPressable
-          style={[styles.tabButton, activeTab === 'hotels' && styles.tabButtonActive]}
-          onPress={() => setActiveTab('hotels')}
-        >
-          <Hotel size={16} color={activeTab === 'hotels' ? '#10B981' : Colors.textMuted} />
-          <Text style={[styles.tabButtonText, activeTab === 'hotels' && styles.tabButtonTextActive]}>
-            Hotel Rooms ({hotelExpenses.length})
-          </Text>
-        </SpringPressable>
-      </View>
-
-      {/* Search Input */}
-      <View style={styles.searchContainer}>
-        <Search size={18} color={Colors.textMuted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search by title or payer..."
-          placeholderTextColor={Colors.textMuted}
-          value={search}
-          onChangeText={setSearch}
-        />
-      </View>
-
-      {/* Category Pills (for general expenses) */}
-      {activeTab === 'expenses' && (
-        <View style={styles.categoryFiltersContainer}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={CATEGORIES}
-            keyExtractor={item => item.id}
-            contentContainerStyle={styles.categoryFilterList}
-            renderItem={({ item }) => {
-              const isSelected = selectedCat === item.id
-              return (
-                <SpringPressable
-                  style={[
-                    styles.catFilterPill,
-                    isSelected && styles.catFilterPillSelected,
-                  ]}
-                  onPress={() => setSelectedCat(item.id)}
-                >
-                  <Text style={styles.catFilterIcon}>{item.icon}</Text>
-                  <Text
-                    style={[
-                      styles.catFilterText,
-                      isSelected && styles.catFilterTextSelected,
-                    ]}
-                  >
-                    {item.label}
-                  </Text>
-                </SpringPressable>
-              )
-            }}
+    <View style={styles.fill}>
+      <Animated.FlatList
+        data={feed}
+        keyExtractor={item => item.id}
+        itemLayoutAnimation={LinearTransition.duration(240)}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} colors={[C.brand500, C.fuchsia]} tintColor={C.brand500} progressBackgroundColor={C.white} />
+        }
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <PageHeader
+              icon={Receipt}
+              title="Expenses"
+              subtitle={`${itemCount} item${itemCount !== 1 ? 's' : ''} · ${formatCurrency(totalSpent)}`}
+              right={<Button title="Add" icon={Plus} size="sm" onPress={() => router.push('/add-expense')} testID="open-add-expense-btn" />}
+            />
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyState
+            icon={Receipt}
+            title="No expenses yet"
+            subtitle="Add your first expense to get started"
+            action={<Button title="Add expense" icon={Plus} onPress={() => router.push('/add-expense')} />}
           />
-        </View>
-      )}
+        }
+        ListFooterComponent={<BrandFooter bottomPadding={0} />}
+        ItemSeparatorComponent={Separator}
+        renderItem={({ item, index }) => (
+          <FadeIn delay={stagger(index, 0, 40)}>
+            <SwipeToDelete
+              onDelete={() => deleteNow(item)}
+              confirmTitle={item.kind === 'expense' ? `Delete “${item.expense.title}”?` : `Delete stay “${item.hotel.title}”?`}
+              confirmMessage={DELETE_MESSAGE}
+            >
+              {item.kind === 'expense' ? (
+                <ExpenseCard
+                  expense={item.expense}
+                  members={members}
+                  memberMap={memberMap}
+                  bills={billsByParent[item.id] ?? []}
+                  expanded={expandedId === item.id}
+                  onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                  onDelete={() => void remove(item)}
+                />
+              ) : (
+                <HotelCard
+                  hotel={item.hotel}
+                  members={members}
+                  memberMap={memberMap}
+                  bills={billsByParent[item.id] ?? []}
+                  expanded={expandedId === item.id}
+                  onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                  onDelete={() => void remove(item)}
+                />
+              )}
+            </SwipeToDelete>
+          </FadeIn>
+        )}
+      />
+      <FAB onPress={() => router.push('/add-expense')} />
+    </View>
+  )
+}
 
-      {/* Expense Stream List */}
-      {activeTab === 'expenses' ? (
-        <FlatList
-          data={filteredExpenses}
-          keyExtractor={item => item.id}
-          renderItem={renderExpenseItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyList}>
-              <Text style={styles.emptyIcon}>🧾</Text>
-              <Text style={styles.emptyTitle}>No Expenses Found</Text>
-              <Text style={styles.emptySubtitle}>
-                {search ? 'Try clearing your search filters' : 'Tap the + button below to log an expense!'}
-              </Text>
-            </View>
-          }
-        />
-      ) : (
-        <FlatList
-          data={filteredHotels}
-          keyExtractor={item => item.id}
-          renderItem={renderHotelItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyList}>
-              <Text style={styles.emptyIcon}>🏨</Text>
-              <Text style={styles.emptyTitle}>No Hotel Stays Logged</Text>
-              <Text style={styles.emptySubtitle}>
-                Tap the + button to allocate room costs among guests!
-              </Text>
-            </View>
-          }
-        />
-      )}
+const Separator = () => <View style={styles.separator} />
 
-      {/* Floating Action Button */}
-      <SpringPressable
-        style={styles.fab}
-        onPress={() => {
-          if (activeTab === 'hotels') {
-            router.push('/add-hotel')
-          } else {
-            router.push('/add-expense')
-          }
-        }}
-      >
-        <LinearGradient
-          colors={activeTab === 'hotels' ? Colors.gradients.mint : Colors.gradients.sunset}
-          style={styles.fabGradient}
-        >
-          <Plus size={26} color="#FFFFFF" strokeWidth={2.5} />
-        </LinearGradient>
-      </SpringPressable>
-    </SafeAreaView>
+interface CardProps {
+  members: Member[]
+  memberMap: Record<string, Member>
+  bills: Attachment[]
+  expanded: boolean
+  onToggle: () => void
+  onDelete: () => void
+}
+
+function ExpenseCard({ expense, members, memberMap, bills, expanded, onToggle, onDelete }: CardProps & { expense: Expense }) {
+  const payer = memberMap[expense.paidBy]
+  const participants = members.filter(m => expense.participants.includes(m.id))
+  const multiPayer = (expense.payers?.length ?? 0) > 1
+  const sub = getSubcategoryLabel(expense.category, expense.subcategory)
+  return (
+    <Animated.View layout={SMOOTH_LAYOUT}>
+      <GlassCard padding={0}>
+        <PressScale onPress={onToggle} scaleTo={0.985} haptic="selection" style={styles.cardRow} accessibilityRole="button" accessibilityState={{ expanded }}>
+          <LinearGradient colors={getCategoryGradientColors(expense.category)} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.catTile}>
+            <Sheen period={6} />
+            <T style={styles.emoji}>{getCategoryIcon(expense.category)}</T>
+          </LinearGradient>
+          <View style={styles.flex}>
+            <T variant="title" numberOfLines={1}>{expense.title}</T>
+            <View style={styles.meta}>
+              {multiPayer ? (
+                <T variant="small" color={ink(0.6)}>{expense.payers!.length} payers</T>
+              ) : payer ? (
+                <View style={styles.inline}>
+                  <Avatar name={payer.name} color={payer.avatarColor} size="xs" glow={false} />
+                  <T variant="small" color={ink(0.6)} numberOfLines={1}>{payer.name}</T>
+                </View>
+              ) : null}
+              {sub ? <Chip label={sub} /> : null}
+              <T variant="tiny" color={ink(0.55)}>{getSplitTypeIcon(expense.splitType)} {getSplitTypeLabel(expense.splitType)}</T>
+              {bills.length > 0 && (
+                <View style={styles.inline}>
+                  <Paperclip size={11} color={C.brand500} />
+                  <T variant="tinySemibold" color={C.brand500}>{bills.length}</T>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.amount}>
+            <T variant="title">{formatCurrency(expense.amount)}</T>
+            <T variant="tiny" color={ink(0.5)}>{formatDate(expense.createdAt)}</T>
+          </View>
+          <Animated.View style={[ROTATE, { transform: [{ rotate: expanded ? '180deg' : '0deg' }] }]}>
+            <ChevronDown size={16} color={ink(0.5)} />
+          </Animated.View>
+        </PressScale>
+
+        <Collapsible open={expanded}>
+          <View style={styles.details}>
+            {multiPayer && (
+              <View style={styles.gap6}>
+                <T variant="small" color={ink(0.6)}>Paid by {expense.payers!.length} people</T>
+                {expense.payers!.map(p => {
+                  const m = memberMap[p.memberId]
+                  if (!m) return null
+                  return (
+                    <View key={p.memberId} style={styles.personRow}>
+                      <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                      <T variant="small" style={styles.flex}>{m.name}</T>
+                      <T variant="smallSemibold" color={C.emerald400}>{formatCurrency(p.amount)}</T>
+                    </View>
+                  )
+                })}
+              </View>
+            )}
+            <View style={styles.gap6}>
+              <T variant="small" color={ink(0.6)}>Split between {participants.length} people</T>
+              {participants.map(m => {
+                const split = expense.splits.find(s => s.memberId === m.id)
+                const share = split?.resolvedAmount ?? expense.amount / Math.max(1, expense.participants.length)
+                return (
+                  <View key={m.id} style={styles.personRow}>
+                    <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                    <T variant="small" style={styles.flex}>{m.name}</T>
+                    {split && expense.splitType === 'quantity' ? <T variant="tiny" color={ink(0.6)}>{split.value} units</T> : null}
+                    {split && expense.splitType === 'percentage' ? <T variant="tiny" color={ink(0.6)}>{split.value}%</T> : null}
+                    <T variant="smallSemibold">{formatCurrency(share)}</T>
+                  </View>
+                )
+              })}
+            </View>
+            {expense.notes ? (
+              <View style={styles.inline}>
+                <Info size={12} color={ink(0.6)} />
+                <T variant="small" color={ink(0.6)} style={styles.flex}>{expense.notes}</T>
+              </View>
+            ) : null}
+            <Bills tripId={expense.tripId} bills={bills} target={{ expenseId: expense.id }} />
+            <DeleteLink onPress={onDelete} />
+          </View>
+        </Collapsible>
+      </GlassCard>
+    </Animated.View>
+  )
+}
+
+function HotelCard({ hotel, members, memberMap, bills, expanded, onToggle, onDelete }: CardProps & { hotel: HotelExpense }) {
+  const payer = memberMap[hotel.paidBy]
+  return (
+    <Animated.View layout={SMOOTH_LAYOUT}>
+      <GlassCard padding={0}>
+        <PressScale onPress={onToggle} scaleTo={0.985} haptic="selection" style={styles.cardRow} accessibilityRole="button" accessibilityState={{ expanded }}>
+          <View style={[styles.catTile, { backgroundColor: brand600(0.16) }]}>
+            <Hotel size={20} color={C.brand500} />
+          </View>
+          <View style={styles.flex}>
+            <T variant="title" numberOfLines={1}>{hotel.title}</T>
+            <View style={styles.meta}>
+              {payer && (
+                <View style={styles.inline}>
+                  <Avatar name={payer.name} color={payer.avatarColor} size="xs" glow={false} />
+                  <T variant="small" color={ink(0.6)} numberOfLines={1}>{payer.name}</T>
+                </View>
+              )}
+              <View style={styles.inline}>
+                <BedDouble size={11} color={ink(0.55)} />
+                <T variant="tiny" color={ink(0.55)}>
+                  {hotel.rooms.length} room{hotel.rooms.length !== 1 ? 's' : ''} · stay split
+                </T>
+              </View>
+              {bills.length > 0 && (
+                <View style={styles.inline}>
+                  <Paperclip size={11} color={C.brand500} />
+                  <T variant="tinySemibold" color={C.brand500}>{bills.length}</T>
+                </View>
+              )}
+            </View>
+          </View>
+          <View style={styles.amount}>
+            <T variant="title">{formatCurrency(hotel.totalAmount)}</T>
+            <T variant="tiny" color={ink(0.5)}>{formatDate(hotel.createdAt)}</T>
+          </View>
+          <Animated.View style={[ROTATE, { transform: [{ rotate: expanded ? '180deg' : '0deg' }] }]}>
+            <ChevronDown size={16} color={ink(0.5)} />
+          </Animated.View>
+        </PressScale>
+
+        <Collapsible open={expanded}>
+          <View style={styles.details}>
+            {hotel.rooms.map(room => {
+              const occupants = members.filter(m => room.occupantIds.includes(m.id))
+              const perPerson = occupants.length > 0 ? room.cost / occupants.length : 0
+              return (
+                <View key={room.id} style={styles.room}>
+                  <View style={styles.between}>
+                    <T variant="bodyMedium">{room.name}</T>
+                    <T variant="title">{formatCurrency(room.cost)}</T>
+                  </View>
+                  <View style={styles.occupants}>
+                    {occupants.map(m => (
+                      <View key={m.id} style={styles.inline}>
+                        <Avatar name={m.name} color={m.avatarColor} size="xs" glow={false} />
+                        <T variant="small" color={ink(0.65)}>{m.name}</T>
+                        <T variant="small" color={ink(0.5)}>({formatCurrency(perPerson)})</T>
+                      </View>
+                    ))}
+                    {occupants.length === 0 && <T variant="small" color={ink(0.5)} style={styles.italic}>No occupants assigned</T>}
+                  </View>
+                </View>
+              )
+            })}
+            <Bills tripId={hotel.tripId} bills={bills} target={{ hotelExpenseId: hotel.id }} />
+            <DeleteLink onPress={onDelete} />
+          </View>
+        </Collapsible>
+      </GlassCard>
+    </Animated.View>
+  )
+}
+
+/** Bill photos for an expense/stay: thumbnails + add from camera/gallery. */
+function Bills({ tripId, bills, target }: { tripId: string; bills: Attachment[]; target: { expenseId?: string; hotelExpenseId?: string } }) {
+  const me = useStore(s => s.session?.memberId)
+  return (
+    <View style={styles.bills}>
+      <View style={styles.inline}>
+        <Paperclip size={13} color={ink(0.6)} />
+        <T variant="smallMedium" color={ink(0.6)}>
+          {bills.length > 0 ? `Bill photos (${bills.length})` : 'Bill photos'}
+        </T>
+      </View>
+      <AttachmentStrip attachments={bills} size={68} />
+      <AttachmentPicker
+        context={{ kind: 'bill', tripId, ...target }}
+        cameraLabel="Snap bill"
+        galleryLabel="From gallery"
+        onPicked={image => attachImage(image, { kind: 'bill', tripId, ...target }, me)}
+      />
+    </View>
+  )
+}
+
+function DeleteLink({ onPress }: { onPress: () => void }) {
+  return (
+    <PressScale onPress={onPress} style={styles.deleteLink} haptic={false} accessibilityRole="button" accessibilityLabel="Delete">
+      <Trash2 size={14} color={C.red500} />
+      <T variant="smallMedium" color={C.red500}>Delete</T>
+    </PressScale>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerTitle: {
-    ...Typography.h2,
-    color: Colors.text,
-  },
-  expenseCount: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    fontWeight: '600',
-  },
-  tabsRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 10,
-    marginBottom: 12,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-  },
-  tabButtonActive: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#C7D2FE',
-  },
-  tabButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  tabButtonTextActive: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    height: 44,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginBottom: 12,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.text,
-    height: '100%',
-  },
-  categoryFiltersContainer: {
-    marginBottom: 12,
-  },
-  categoryFilterList: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  catFilterPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    gap: 6,
-  },
-  catFilterPillSelected: {
-    backgroundColor: '#EEF2FF',
-    borderColor: '#6366F1',
-  },
-  catFilterIcon: {
-    fontSize: 13,
-  },
-  catFilterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  catFilterTextSelected: {
-    color: '#6366F1',
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 80,
-  },
-  expenseCard: {
-    marginBottom: 12,
-    padding: 16,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  splitPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    gap: 4,
-  },
-  splitIcon: {
-    fontSize: 11,
-  },
-  splitText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  cardCenterRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  itemTitle: {
-    ...Typography.h4,
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  itemDate: {
-    fontSize: 12,
-    color: Colors.textMuted,
-  },
-  itemAmount: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: Colors.text,
-    letterSpacing: -0.3,
-  },
-  roomsSummaryContainer: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 12,
-    gap: 4,
-  },
-  roomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  roomName: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  roomCost: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  cardBottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 10,
+  fill: { flex: 1 },
+  flex: { flex: 1, minWidth: 0 },
+  list: { padding: SCREEN_PADDING, paddingTop: 20, paddingBottom: 110 },
+  header: { marginBottom: 18 },
+  separator: { height: 12 },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
+  catTile: { width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  emoji: { fontSize: 19, lineHeight: 24 },
+  meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 4, marginTop: 3 },
+  inline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  amount: { alignItems: 'flex-end' },
+  details: {
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: ink(0.08),
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
+    gap: 14,
   },
-  payerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  payerText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  participantsBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textMuted,
-  },
-  hotelBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  hotelBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  emptyList: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyIcon: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyTitle: {
-    ...Typography.h3,
-    color: Colors.text,
-    marginBottom: 6,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: Colors.textMuted,
-    textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    borderRadius: 30,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  fabGradient: {
-    width: 60,
-    height: 60,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 30,
-  },
+  gap6: { gap: 7 },
+  personRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  room: { borderRadius: 12, backgroundColor: ink(0.04), padding: 12, gap: 8 },
+  between: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  occupants: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  italic: { fontStyle: 'italic' },
+  bills: { gap: 10 },
+  deleteLink: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-end', paddingVertical: 4 },
 })

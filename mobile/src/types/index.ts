@@ -1,4 +1,7 @@
-// Core types for Trip Expense Manager (TripMate Mobile)
+// Core domain types — a mirror of the web app (src/types/index.ts), so both
+// clients read and write the same Supabase rows. Mobile-only additions live at
+// the bottom: attachments (bill photos, UPI payment screenshots) and the
+// offline outbox.
 
 export type TripStatus = 'active' | 'closed'
 export type PaymentStatus = 'pending' | 'paid' | 'confirmed'
@@ -42,7 +45,7 @@ export interface Expense {
   paidBy: string // primary payer member id (kept for backward compat)
   payers?: ExpensePayer[] // when present, overrides paidBy (multi-payer support)
   category: ExpenseCategory
-  subcategory?: string // e.g. food -> 'lunch', travel -> 'train'
+  subcategory?: string // e.g. food → 'lunch', travel → 'train'
   participants: string[] // member ids who share this expense
   splitType: SplitType
   splits: ParticipantSplit[] // populated for custom/percentage/quantity splits
@@ -70,6 +73,7 @@ export interface HotelExpense {
 }
 
 // Settlement Group: multiple members treated as ONE financial entity at settlement time
+// Does NOT affect individual expense participation
 export interface SettlementGroup {
   id: string
   tripId: string
@@ -78,6 +82,7 @@ export interface SettlementGroup {
 }
 
 // Sponsorship: sponsor absorbs sponsored member's debt/credit at settlement
+// Sponsored member still participates individually in expenses
 export interface Sponsorship {
   id: string
   tripId: string
@@ -94,6 +99,7 @@ export interface Settlement {
   status: PaymentStatus
   paidAt?: string
   confirmedAt?: string
+  // For group settlements, track which member IDs are involved
   fromGroupIds?: string[]
   toGroupIds?: string[]
 }
@@ -107,7 +113,7 @@ export interface Trip {
   status: TripStatus
   createdAt: string
   closedAt?: string
-  budget?: number // planned trip budget in ₹
+  budget?: number // planned trip budget in ₹ (optional, device-local)
 }
 
 export interface TripSession {
@@ -116,11 +122,14 @@ export interface TripSession {
   tripCode: string
 }
 
+// Invite link payload — carried in the join URL so links work across devices.
+// Never contains the trip password: `sig` is a hash of (tripCode + password)
+// that the joining device verifies against the password the user types in.
 export interface InvitePayload {
-  v: number
+  v: number              // payload version
   trip: Omit<Trip, 'password'>
-  exp: number
-  sig: string
+  exp: number            // expiry (unix ms)
+  sig: string            // hash(tripCode|password) — proves a correct password without exposing it
 }
 
 export type InviteParseResult =
@@ -148,6 +157,70 @@ export interface SettlementRoute {
   fromUpiId?: string
   toUpiId?: string
   amount: number
+  // All members behind each side (>1 when a settlement group pays/receives
+  // as one entity). Snapshotted onto the Settlement so a confirmed couple
+  // payment keeps settling both members even if the group is later deleted.
   fromMemberIds?: string[]
   toMemberIds?: string[]
+}
+
+// ─── Mobile: attachments ──────────────────────────────────────────────────────
+// Bill/receipt photos (kind 'bill', linked to an expense or hotel stay) and UPI
+// payment screenshots (kind 'payment_proof', linked to a payment). Images live
+// in the Supabase Storage bucket `trip-media`; rows in the `attachments` table.
+
+export type AttachmentKind = 'bill' | 'payment_proof'
+
+/** 'pending' = waiting to upload, 'uploaded' = stored in the cloud. */
+export type UploadState = 'pending' | 'uploading' | 'uploaded' | 'failed'
+
+export interface Attachment {
+  id: string
+  tripId: string
+  kind: AttachmentKind
+  expenseId?: string
+  hotelExpenseId?: string
+  // Payment proofs: the payment they belong to. The settlement id can change
+  // while a due is still open, so direction + amount are stored for matching.
+  settlementId?: string
+  fromMemberId?: string
+  toMemberId?: string
+  amount?: number
+  /** Object path in the `trip-media` bucket, set once uploaded. */
+  storagePath?: string
+  /** On-device copy (file://…), only on the device that added the image. */
+  localUri?: string
+  mimeType: string
+  width?: number
+  height?: number
+  sizeBytes?: number
+  uploadedBy?: string
+  createdAt: string
+  upload: UploadState
+  uploadError?: string
+  attempts?: number
+  /** Earliest time (ms epoch) for the next upload retry — exponential backoff. */
+  nextAttemptAt?: number
+}
+
+// ─── Mobile: offline outbox ───────────────────────────────────────────────────
+// Deletes and updates made offline are queued here and retried on every sync,
+// so they are never lost or resurrected by the next pull. (Creates don't need
+// the outbox: every sync re-uploads local rows the server doesn't have yet.)
+
+export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments'
+
+export type OutboxOp =
+  | { kind: 'delete'; table: DeletableTable; rowId: string }
+  | { kind: 'memberUpi'; memberId: string; upiId: string; upiName?: string }
+  | { kind: 'closeTrip' }
+  | { kind: 'removeMedia'; paths: string[] }
+
+export interface OutboxEntry {
+  id: string
+  tripId: string
+  op: OutboxOp
+  attempts: number
+  lastError?: string
+  createdAt: string
 }
