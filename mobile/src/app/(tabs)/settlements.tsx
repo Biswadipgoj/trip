@@ -4,7 +4,15 @@
 // (UPI app + QR + screenshot upload); UPI screenshots show on each payment.
 import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated'
 import { router } from 'expo-router'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles,
@@ -32,17 +40,43 @@ import { PressScale, tick } from '../../components/animated/SpringPressable'
 import { C, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 
-// Web .money-flow: the arrow drifts left↔right between the two people.
-const MONEY_FLOW = {
-  animationName: {
-    '0%': { transform: [{ translateX: -5 }], opacity: 0.5 },
-    '50%': { transform: [{ translateX: 5 }], opacity: 1 },
-    '100%': { transform: [{ translateX: -5 }], opacity: 0.5 },
-  },
-  animationDuration: '1.5s',
-  animationIterationCount: 'infinite',
-  animationTimingFunction: 'ease-in-out',
-} as const
+function MoneyFlowArrow() {
+  const reduced = useReducedMotion()
+  const tx = useSharedValue(-5)
+  const op = useSharedValue(0.5)
+
+  useEffect(() => {
+    if (!reduced) {
+      tx.value = withRepeat(
+        withSequence(
+          withTiming(5, { duration: 750, easing: Easing.inOut(Easing.ease) }),
+          withTiming(-5, { duration: 750, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      )
+      op.value = withRepeat(
+        withSequence(
+          withTiming(1, { duration: 750, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0.5, { duration: 750, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      )
+    }
+  }, [reduced, tx, op])
+
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+    opacity: op.value,
+  }))
+
+  return (
+    <Animated.View style={animStyle}>
+      <ArrowRight size={16} color={C.brand500} />
+    </Animated.View>
+  )
+}
 
 export default function PaymentsScreen() {
   const session = useStore(s => s.session)
@@ -238,9 +272,7 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
           </View>
           <View style={styles.amountCol}>
             <T variant="moneySm">{formatCurrency(route.amount)}</T>
-            <Animated.View style={!reduced && MONEY_FLOW}>
-              <ArrowRight size={16} color={C.brand500} />
-            </Animated.View>
+            <MoneyFlowArrow />
           </View>
           <View style={[styles.flex, styles.rightText]}>
             <T variant="title" numberOfLines={2} style={styles.rightAlign}>{route.toName}</T>

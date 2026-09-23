@@ -3,7 +3,12 @@
 // Mobile: bill photos per item — thumbnails with upload state, camera/gallery.
 import { useMemo, useState } from 'react'
 import { RefreshControl, StyleSheet, View } from 'react-native'
-import Animated, { LinearTransition } from 'react-native-reanimated'
+import Animated, {
+  LinearTransition,
+  useAnimatedStyle,
+  useDerivedValue,
+  withTiming,
+} from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { router } from 'expo-router'
 import { BedDouble, ChevronDown, Hotel, Info, Paperclip, Plus, Receipt, Trash2 } from 'lucide-react-native'
@@ -40,7 +45,18 @@ type FeedItem =
   | { kind: 'expense'; id: string; createdAt: string; expense: Expense }
   | { kind: 'hotel'; id: string; createdAt: string; hotel: HotelExpense }
 
-const ROTATE = { transitionProperty: 'transform', transitionDuration: 220 } as const
+function RotatingChevron({ expanded }: { expanded: boolean }) {
+  const rotation = useDerivedValue(() => withTiming(expanded ? 180 : 0, { duration: 220 }))
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }))
+  return (
+    <Animated.View style={style}>
+      <ChevronDown size={16} color={ink(0.5)} />
+    </Animated.View>
+  )
+}
+
 const DELETE_MESSAGE =
   'This removes it for everyone in the trip, along with its bill photos, and recalculates who owes whom.'
 
@@ -211,9 +227,7 @@ function ExpenseCard({ expense, members, memberMap, bills, expanded, onToggle, o
             <T variant="title">{formatCurrency(expense.amount)}</T>
             <T variant="tiny" color={ink(0.5)}>{formatDate(expense.createdAt)}</T>
           </View>
-          <Animated.View style={[ROTATE, { transform: [{ rotate: expanded ? '180deg' : '0deg' }] }]}>
-            <ChevronDown size={16} color={ink(0.5)} />
-          </Animated.View>
+          <RotatingChevron expanded={expanded} />
         </PressScale>
 
         <Collapsible open={expanded}>
@@ -301,9 +315,7 @@ function HotelCard({ hotel, members, memberMap, bills, expanded, onToggle, onDel
             <T variant="title">{formatCurrency(hotel.totalAmount)}</T>
             <T variant="tiny" color={ink(0.5)}>{formatDate(hotel.createdAt)}</T>
           </View>
-          <Animated.View style={[ROTATE, { transform: [{ rotate: expanded ? '180deg' : '0deg' }] }]}>
-            <ChevronDown size={16} color={ink(0.5)} />
-          </Animated.View>
+          <RotatingChevron expanded={expanded} />
         </PressScale>
 
         <Collapsible open={expanded}>

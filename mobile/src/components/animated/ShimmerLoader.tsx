@@ -1,7 +1,13 @@
-// Skeleton placeholders with the web's violet shimmer (.animate-shimmer).
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet, View, type DimensionValue, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { ink, violet } from '../../theme/colors'
 
@@ -15,6 +21,23 @@ interface SkeletonProps {
 export function Skeleton({ width = '100%', height = 14, radius = 8, style }: SkeletonProps) {
   const reduced = useReducedMotion()
   const [w, setW] = useState(0)
+  const shimmerTx = useSharedValue(0)
+
+  useEffect(() => {
+    if (w > 0 && !reduced) {
+      shimmerTx.value = -w
+      shimmerTx.value = withRepeat(
+        withTiming(w, { duration: 1600, easing: Easing.linear }),
+        -1,
+        false
+      )
+    }
+  }, [w, reduced, shimmerTx])
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmerTx.value }],
+  }))
+
   return (
     <View
       style={[styles.base, { width, height, borderRadius: radius }, style]}
@@ -23,21 +46,7 @@ export function Skeleton({ width = '100%', height = 14, radius = 8, style }: Ske
       importantForAccessibility="no-hide-descendants"
     >
       {w > 0 && !reduced && (
-        <Animated.View
-          style={[
-            styles.stripe,
-            { width: w },
-            {
-              animationName: {
-                from: { transform: [{ translateX: -w }] },
-                to: { transform: [{ translateX: w }] },
-              },
-              animationDuration: '1.6s',
-              animationIterationCount: 'infinite',
-              animationTimingFunction: 'linear',
-            },
-          ]}
-        >
+        <Animated.View style={[styles.stripe, { width: w }, shimmerStyle]}>
           <LinearGradient
             colors={[violet(0), violet(0.12), violet(0)]}
             start={{ x: 0, y: 0.5 }}

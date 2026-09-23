@@ -26,12 +26,6 @@ interface SelectPillProps {
   accessibilityLabel?: string
 }
 
-const FADE = {
-  transitionProperty: ['backgroundColor', 'borderColor'] as ('backgroundColor' | 'borderColor')[],
-  transitionDuration: 180,
-  transitionTimingFunction: 'ease-out' as const,
-}
-
 export function SelectPill({ selected, onPress, children, disabled, shape = 'box', dense, style, accessibilityLabel }: SelectPillProps) {
   return (
     <PressScale
@@ -44,26 +38,25 @@ export function SelectPill({ selected, onPress, children, disabled, shape = 'box
       accessibilityState={{ selected, disabled }}
       accessibilityLabel={accessibilityLabel}
     >
-      <Animated.View
+      <View
         style={[
           styles.pill,
           shape === 'pill' ? styles.round : styles.box,
           dense && styles.dense,
           selected ? styles.on : styles.off,
-          FADE,
         ]}
       >
         {children}
-      </Animated.View>
+      </View>
     </PressScale>
   )
 }
 
 export function Checkbox({ checked }: { checked: boolean }) {
   return (
-    <Animated.View style={[styles.check, checked ? styles.checkOn : styles.checkOff, FADE]}>
+    <View style={[styles.check, checked ? styles.checkOn : styles.checkOff]}>
       {checked && <Check size={11} color={C.white} strokeWidth={3} />}
-    </Animated.View>
+    </View>
   )
 }
 

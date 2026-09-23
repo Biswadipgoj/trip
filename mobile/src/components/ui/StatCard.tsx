@@ -1,9 +1,11 @@
 // Gradient stat tile (web StatCard / KPI tiles — "Cred/PhonePe-style"): vivid
 // gradient, glassy icon badge, uppercase label, counting value, a trend line
 // and a light sheen sweeping across every few seconds.
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming,
+} from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { TrendingDown, TrendingUp } from 'lucide-react-native'
 import { C, G, shadow, whiteA } from '../../theme/colors'
@@ -81,6 +83,29 @@ export function StatCard({
 export function Sheen({ period = 5 }: { period?: number }) {
   const reduced = useReducedMotion()
   const [w, setW] = useState(0)
+  const sweepProgress = useSharedValue(0)
+
+  useEffect(() => {
+    if (reduced || w <= 0) return
+    sweepProgress.value = 0
+    sweepProgress.value = withRepeat(
+      withSequence(
+        withTiming(0, { duration: period * 600 }),
+        withTiming(1, { duration: period * 400, easing: Easing.inOut(Easing.ease) })
+      ),
+      -1,
+      false
+    )
+  }, [w, reduced, period, sweepProgress])
+
+  const sweepStyle = useAnimatedStyle(() => {
+    if (reduced || w <= 0) return { opacity: 0 }
+    const tx = interpolate(sweepProgress.value, [0, 1], [-w * 0.9, w * 1.6])
+    return {
+      transform: [{ translateX: tx }, { rotate: '20deg' }],
+    }
+  })
+
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none" onLayout={e => setW(e.nativeEvent.layout.width)}>
       <LinearGradient
@@ -90,22 +115,7 @@ export function Sheen({ period = 5 }: { period?: number }) {
         style={StyleSheet.absoluteFill}
       />
       {w > 0 && !reduced && (
-        <Animated.View
-          style={[
-            styles.sweep,
-            { width: w * 0.6 },
-            {
-              animationName: {
-                '0%': { transform: [{ translateX: -w * 0.9 }, { rotate: '20deg' }] },
-                '60%': { transform: [{ translateX: -w * 0.9 }, { rotate: '20deg' }] },
-                '100%': { transform: [{ translateX: w * 1.6 }, { rotate: '20deg' }] },
-              },
-              animationDuration: `${period}s`,
-              animationIterationCount: 'infinite',
-              animationTimingFunction: 'ease-in-out',
-            },
-          ]}
-        >
+        <Animated.View style={[styles.sweep, { width: w * 0.6 }, sweepStyle]}>
           <LinearGradient
             colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
             start={{ x: 0, y: 0.5 }}

@@ -131,10 +131,10 @@ const styles = StyleSheet.create({
   dock: { paddingHorizontal: 12, paddingTop: 6 },
   bar: {
     borderRadius: 26,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
     borderWidth: 1,
-    borderColor: ink(0.06),
-    boxShadow: '0px 12px 34px rgba(108, 62, 200, 0.20)',
+    borderColor: 'rgba(255, 255, 255, 0.75)',
+    boxShadow: '0px 12px 34px rgba(108, 62, 200, 0.18)',
     padding: 6,
   },
   row: { flexDirection: 'row', alignItems: 'stretch' },

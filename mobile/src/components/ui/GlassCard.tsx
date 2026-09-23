@@ -40,7 +40,15 @@ export function GlassCard({
         colors={strong ? G.glassStrong : G.glass}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.inner, { borderRadius: radius, padding }, contentStyle]}
+        style={[
+          styles.inner,
+          {
+            borderRadius: radius,
+            padding,
+            borderColor: strong ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255, 255, 255, 0.65)',
+          },
+          contentStyle,
+        ]}
       >
         <View pointerEvents="none" style={styles.highlight} />
         {children}
@@ -67,14 +75,14 @@ const styles = StyleSheet.create({
   inner: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: ink(0.1),
+    borderColor: 'rgba(255, 255, 255, 0.65)',
   },
   highlight: {
     position: 'absolute',
     top: 0,
-    left: '12%',
-    right: '12%',
-    height: 1,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    left: '10%',
+    right: '10%',
+    height: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.95)',
   },
 })

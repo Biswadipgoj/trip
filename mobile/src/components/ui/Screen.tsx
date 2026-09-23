@@ -1,13 +1,14 @@
 // Page chrome: the web's slow "liquid gradient" backdrop (body::before and
 // body::after in globals.css) and a safe-area aware screen container.
 //
-// Each backdrop layer is a static SVG of radial-gradient blobs, 150 % of the
-// screen, drifting via a native CSS keyframe animation (transform only, cached
-// as a GPU texture on Android) — no JS runs per frame. It pauses while the
-// screen is hidden and holds still when the system asks for reduced motion.
-import { memo, useMemo, type ReactNode } from 'react'
+// Each backdrop layer is an SVG of radial-gradient blobs (150% screen size),
+// drifting via Reanimated UI-thread animations (transform only, cached
+// as a GPU texture on Android) — 60/120fps fluid with zero JS overhead.
+import { memo, useEffect, type ReactNode } from 'react'
 import { StyleSheet, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
+} from 'react-native-reanimated'
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useIsFocused } from 'expo-router'
@@ -33,43 +34,73 @@ const BlobLayer = memo(function BlobLayer({ blobs, id }: { blobs: readonly Blob[
   )
 })
 
-// liquidDrift / liquidDrift2 from globals.css. CSS translate percentages are
-// relative to the layer itself (150 % of the screen), so convert to px.
-function drift(W: number, H: number, layer: 'a' | 'b') {
-  const at = (x: number, y: number, deg: number, scale: number) => ({
-    transform: [{ translateX: x * W }, { translateY: y * H }, { rotate: `${deg}deg` }, { scale }],
-  })
-  return layer === 'a'
-    ? { '0%': at(-0.04, -0.03, 0, 1.12), '50%': at(0.04, 0.02, 7, 1.28), '100%': at(-0.02, 0.05, -6, 1.16) }
-    : { '0%': at(0.03, 0.04, 0, 1.18), '50%': at(-0.04, -0.02, -9, 1.3), '100%': at(0.02, -0.04, 6, 1.2) }
-}
-
 export const LiquidBackground = memo(function LiquidBackground({ paused = false }: { paused?: boolean }) {
   const { width, height } = useWindowDimensions()
   const reduced = useReducedMotion()
   const W = width * 1.5
   const H = height * 1.5
-  const keyframesA = useMemo(() => drift(W, H, 'a'), [W, H])
-  const keyframesB = useMemo(() => drift(W, H, 'b'), [W, H])
 
-  const motion = (keyframes: ReturnType<typeof drift>, seconds: number) =>
-    reduced
-      ? { transform: [{ scale: 1.15 }] }
-      : ({
-          animationName: keyframes,
-          animationDuration: `${seconds}s`,
-          animationIterationCount: 'infinite',
-          animationDirection: 'alternate',
-          animationTimingFunction: 'ease-in-out',
-          animationPlayState: paused ? 'paused' : 'running',
-        } as const)
+  const progressA = useSharedValue(0)
+  const progressB = useSharedValue(0)
+
+  useEffect(() => {
+    if (reduced || paused) {
+      progressA.value = 0
+      progressB.value = 0
+      return
+    }
+    progressA.value = withRepeat(
+      withTiming(1, { duration: 24000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    )
+    progressB.value = withRepeat(
+      withTiming(1, { duration: 30000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    )
+  }, [reduced, paused, progressA, progressB])
+
+  const styleA = useAnimatedStyle(() => {
+    if (reduced) return { transform: [{ scale: 1.15 }] }
+    const p = progressA.value
+    const tx = interpolate(p, [0, 0.5, 1], [-0.04 * W, 0.04 * W, -0.02 * W])
+    const ty = interpolate(p, [0, 0.5, 1], [-0.03 * H, 0.02 * H, 0.05 * H])
+    const rot = interpolate(p, [0, 0.5, 1], [0, 7, -6])
+    const scale = interpolate(p, [0, 0.5, 1], [1.12, 1.28, 1.16])
+    return {
+      transform: [
+        { translateX: tx },
+        { translateY: ty },
+        { rotate: `${rot}deg` },
+        { scale },
+      ],
+    }
+  })
+
+  const styleB = useAnimatedStyle(() => {
+    if (reduced) return { transform: [{ scale: 1.15 }] }
+    const p = progressB.value
+    const tx = interpolate(p, [0, 0.5, 1], [0.03 * W, -0.04 * W, 0.02 * W])
+    const ty = interpolate(p, [0, 0.5, 1], [0.04 * H, -0.02 * H, -0.04 * H])
+    const rot = interpolate(p, [0, 0.5, 1], [0, -9, 6])
+    const scale = interpolate(p, [0, 0.5, 1], [1.18, 1.30, 1.20])
+    return {
+      transform: [
+        { translateX: tx },
+        { translateY: ty },
+        { rotate: `${rot}deg` },
+        { scale },
+      ],
+    }
+  })
 
   return (
     <View pointerEvents="none" style={styles.backdrop}>
-      <Animated.View renderToHardwareTextureAndroid style={[styles.layer, motion(keyframesA, 24)]}>
+      <Animated.View renderToHardwareTextureAndroid style={[styles.layer, styleA]}>
         <BlobLayer blobs={BLOBS_A} id="lqa" />
       </Animated.View>
-      <Animated.View renderToHardwareTextureAndroid style={[styles.layer, motion(keyframesB, 30)]}>
+      <Animated.View renderToHardwareTextureAndroid style={[styles.layer, styleB]}>
         <BlobLayer blobs={BLOBS_B} id="lqb" />
       </Animated.View>
     </View>

@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Animated, {
-  useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring,
+  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
 } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { Redirect, router } from 'expo-router'
@@ -31,32 +31,39 @@ function PoppingLogo() {
   const reduced = useReducedMotion()
   const scale = useSharedValue(reduced ? 1 : 0)
   const rotate = useSharedValue(reduced ? 0 : -20)
+  const floatY = useSharedValue(0)
+
   useEffect(() => {
     if (reduced) return
     scale.value = withDelay(100, withSpring(1, POP_SPRING))
     rotate.value = withDelay(100, withSpring(0, POP_SPRING))
-  }, [reduced, scale, rotate])
-  const pop = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }, { rotate: `${rotate.value}deg` }] }))
+    floatY.value = withDelay(
+      800,
+      withRepeat(
+        withSequence(
+          withTiming(-10, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
+          withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.ease) })
+        ),
+        -1,
+        true
+      )
+    )
+  }, [reduced, scale, rotate, floatY])
+
+  const pop = useAnimatedStyle(() => ({
+    transform: [
+      { scale: scale.value },
+      { rotate: `${rotate.value}deg` },
+      { translateY: floatY.value },
+    ],
+  }))
+
   return (
     <Animated.View style={[styles.logoWrap, pop]}>
-      <Animated.View style={!reduced && FLOAT}>
-        <Logo size={104} />
-      </Animated.View>
+      <Logo size={104} />
     </Animated.View>
   )
 }
-
-const FLOAT = {
-  animationName: {
-    '0%': { transform: [{ translateY: 0 }] },
-    '50%': { transform: [{ translateY: -10 }] },
-    '100%': { transform: [{ translateY: 0 }] },
-  },
-  animationDuration: '6s',
-  animationDelay: '900ms',
-  animationIterationCount: 'infinite',
-  animationTimingFunction: 'ease-in-out',
-} as const
 
 export default function Home() {
   const insets = useSafeAreaInsets()

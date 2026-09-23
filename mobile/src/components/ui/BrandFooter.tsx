@@ -1,10 +1,12 @@
 // Brand signature (web BrandFooter): "Mastermind Behind The Code: Biswodip
 // Goj", every word in its own vivid gradient. Tapping it floats a nameplate
 // over a frosted veil, with a sheen gliding across the name.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Platform, StyleSheet, View } from 'react-native'
 import MaskedView from '@react-native-masked-view/masked-view'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
+} from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { C, FOOTER_WORDS, G, brand500, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
@@ -45,22 +47,23 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
 
 function Nameplate() {
   const reduced = useReducedMotion()
+  const translateY = useSharedValue(0)
+
+  useEffect(() => {
+    if (reduced) return
+    translateY.value = withRepeat(
+      withTiming(-7, { duration: 2250, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    )
+  }, [reduced, translateY])
+
+  const floatStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }))
+
   return (
-    <Animated.View
-      style={[
-        styles.plate,
-        !reduced && {
-          animationName: {
-            '0%': { transform: [{ translateY: 0 }] },
-            '50%': { transform: [{ translateY: -7 }] },
-            '100%': { transform: [{ translateY: 0 }] },
-          },
-          animationDuration: '4.5s',
-          animationIterationCount: 'infinite',
-          animationTimingFunction: 'ease-in-out',
-        },
-      ]}
-    >
+    <Animated.View style={[styles.plate, floatStyle]}>
       <LinearGradient
         colors={['rgba(255,255,255,0.94)', 'rgba(244,238,255,0.9)']}
         start={{ x: 0, y: 0 }}
@@ -83,6 +86,21 @@ function Nameplate() {
 function ShimmerName() {
   const reduced = useReducedMotion()
   const [w, setW] = useState(0)
+  const shimmerTx = useSharedValue(0)
+
+  useEffect(() => {
+    if (reduced || w <= 0) return
+    shimmerTx.value = withRepeat(
+      withTiming(-w * 1.2, { duration: 3500, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    )
+  }, [w, reduced, shimmerTx])
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shimmerTx.value }],
+  }))
+
   const text = (
     <T style={styles.name} center>
       Biswodip Goj
@@ -97,16 +115,7 @@ function ShimmerName() {
             <Animated.View
               style={[
                 { position: 'absolute', top: 0, bottom: 0, left: 0, width: w * 2.2 },
-                !reduced && {
-                  animationName: {
-                    from: { transform: [{ translateX: 0 }] },
-                    to: { transform: [{ translateX: -w * 1.2 }] },
-                  },
-                  animationDuration: '3.5s',
-                  animationIterationCount: 'infinite',
-                  animationDirection: 'alternate',
-                  animationTimingFunction: 'ease-in-out',
-                },
+                shimmerStyle,
               ]}
             >
               <LinearGradient

@@ -1,10 +1,17 @@
 // Trip top bar (web AppNav mobile header): logo, trip name, "me · CODE", a
 // live cloud-sync indicator and a red Logout pill. Tapping the cloud opens
 // the sync sheet — status, pending changes/uploads, recent activity, and
-// "Sync now" / "Retry uploads".
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import Animated, { useReducedMotion } from 'react-native-reanimated'
+import Animated, {
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   Cloud, CloudAlert, CloudCheck, CloudOff, CloudUpload, ImageUp, LogOut, RefreshCw, WifiOff,
@@ -69,23 +76,52 @@ function useSyncLook(): SyncLook {
   return { Icon: Cloud, color: ink(0.5), label: 'Connecting' }
 }
 
-const LIVE_PULSE = {
-  animationName: {
-    '0%': { opacity: 0.9, transform: [{ scale: 1 }] },
-    '70%': { opacity: 0, transform: [{ scale: 2.6 }] },
-    '100%': { opacity: 0, transform: [{ scale: 2.6 }] },
-  },
-  animationDuration: '1.8s',
-  animationIterationCount: 'infinite',
-  animationTimingFunction: 'ease-out',
-} as const
+function LivePulseDot() {
+  const reduced = useReducedMotion()
+  const progress = useSharedValue(0)
 
-const SPIN = {
-  animationName: { from: { transform: [{ rotate: '0deg' }] }, to: { transform: [{ rotate: '360deg' }] } },
-  animationDuration: '1s',
-  animationIterationCount: 'infinite',
-  animationTimingFunction: 'linear',
-} as const
+  useEffect(() => {
+    if (!reduced) {
+      progress.value = withRepeat(
+        withTiming(1, { duration: 1800, easing: Easing.out(Easing.ease) }),
+        -1,
+        false
+      )
+    }
+  }, [reduced, progress])
+
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(progress.value, [0, 0.7, 1], [0.9, 0, 0]),
+    transform: [{ scale: interpolate(progress.value, [0, 0.7, 1], [1, 2.6, 2.6]) }],
+  }))
+
+  return <Animated.View style={[styles.liveDot, styles.liveHalo, haloStyle]} />
+}
+
+function SpinningIcon({ Icon, color }: { Icon: IconType; color: string }) {
+  const reduced = useReducedMotion()
+  const rotation = useSharedValue(0)
+
+  useEffect(() => {
+    if (!reduced) {
+      rotation.value = withRepeat(
+        withTiming(360, { duration: 1000, easing: Easing.linear }),
+        -1,
+        false
+      )
+    }
+  }, [reduced, rotation])
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }))
+
+  return (
+    <Animated.View style={spinStyle}>
+      <Icon size={17} color={color} strokeWidth={2.2} />
+    </Animated.View>
+  )
+}
 
 function SyncButton({ tripId, onPress }: { tripId: string; onPress: () => void }) {
   const look = useSyncLook()
@@ -108,15 +144,15 @@ function SyncButton({ tripId, onPress }: { tripId: string; onPress: () => void }
       {live ? (
         <>
           <View style={styles.liveDotBox}>
-            {!reduced && <Animated.View style={[styles.liveDot, styles.liveHalo, LIVE_PULSE]} />}
+            <LivePulseDot />
             <View style={styles.liveDot} />
           </View>
           <T variant="tinySemibold" color={C.emerald500}>Live</T>
         </>
+      ) : look.spin && !reduced ? (
+        <SpinningIcon Icon={look.Icon} color={look.color} />
       ) : (
-        <Animated.View style={look.spin && !reduced ? SPIN : undefined}>
-          <look.Icon size={17} color={look.color} strokeWidth={2.2} />
-        </Animated.View>
+        <look.Icon size={17} color={look.color} strokeWidth={2.2} />
       )}
       {remote && pending > 0 && (
         <View style={styles.syncBadge}>
