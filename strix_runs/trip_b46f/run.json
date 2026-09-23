@@ -1,0 +1,130 @@
+{
+  "run_id": "trip_b46f",
+  "run_name": "trip_b46f",
+  "start_time": "2026-09-23T19:44:41.990445+00:00",
+  "end_time": "2026-09-23T19:45:06.796969+00:00",
+  "status": "failed",
+  "auth_mode": "api_key",
+  "targets_info": [
+    {
+      "type": "local_code",
+      "details": {
+        "target_path": "D:\\tripmate\\trip",
+        "workspace_subdir": "trip"
+      },
+      "original": "D:\\tripmate\\trip"
+    }
+  ],
+  "llm_usage": {
+    "requests": 2,
+    "input_tokens": 126662,
+    "input_tokens_details": [
+      {
+        "cache_write_tokens": 0,
+        "cached_tokens": 56160
+      }
+    ],
+    "output_tokens": 170,
+    "output_tokens_details": [
+      {
+        "reasoning_tokens": 0
+      }
+    ],
+    "total_tokens": 126832,
+    "request_usage_entries": [
+      {
+        "input_tokens": 63247,
+        "output_tokens": 127,
+        "total_tokens": 63374,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      },
+      {
+        "input_tokens": 63415,
+        "output_tokens": 43,
+        "total_tokens": 63458,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 56160
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 0
+        }
+      }
+    ],
+    "cost": 0.0494484,
+    "agents": [
+      {
+        "requests": 2,
+        "input_tokens": 126662,
+        "input_tokens_details": [
+          {
+            "cache_write_tokens": 0,
+            "cached_tokens": 56160
+          }
+        ],
+        "output_tokens": 170,
+        "output_tokens_details": [
+          {
+            "reasoning_tokens": 0
+          }
+        ],
+        "total_tokens": 126832,
+        "request_usage_entries": [
+          {
+            "input_tokens": 63247,
+            "output_tokens": 127,
+            "total_tokens": 63374,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0
+            },
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          },
+          {
+            "input_tokens": 63415,
+            "output_tokens": 43,
+            "total_tokens": 63458,
+            "input_tokens_details": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 56160
+            },
+            "output_tokens_details": {
+              "reasoning_tokens": 0
+            }
+          }
+        ],
+        "agent_id": "800ce682",
+        "agent_name": "Root Agent",
+        "model": "openai/nvidia/nemotron-3-ultra-550b-a55b",
+        "cost": 0.0494484
+      }
+    ]
+  },
+  "scan_mode": "quick",
+  "instruction": "",
+  "user_instruction": null,
+  "non_interactive": true,
+  "local_sources": [
+    {
+      "source_path": "D:\\tripmate\\trip",
+      "workspace_subdir": "trip",
+      "protect_metadata": true
+    }
+  ],
+  "workspace_files": [],
+  "workspace_mount": null,
+  "diff_scope": {
+    "active": false,
+    "mode": "auto"
+  },
+  "scope_mode": "auto",
+  "diff_base": null
+}

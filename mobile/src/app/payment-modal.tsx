@@ -51,18 +51,37 @@ export default function PaymentModal() {
   const [showQr, setShowQr] = useState(false)
   const [awaitingProof, setAwaitingProof] = useState(false)
   const [confetti, setConfetti] = useState(0)
+  // Which action is in flight: blocks double taps and shows a spinner.
+  const [busy, setBusy] = useState<null | 'upi' | 'paid' | 'confirm' | 'proof'>(null)
   const leftForUpi = useRef(false)
+  const scrollRef = useRef<ScrollView>(null)
+  const proofY = useRef(0)
 
-  // Back from the UPI app → ask for the screenshot.
+  // Back from the UPI app → ask for the screenshot and bring that step into view.
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active' && leftForUpi.current) {
         leftForUpi.current = false
+        setBusy(null)
         setAwaitingProof(true)
+        setTimeout(() => scrollRef.current?.scrollTo({ y: Math.max(0, proofY.current - 12), animated: true }), 250)
       }
     })
     return () => sub.remove()
   }, [])
+
+  const run = async (kind: NonNullable<typeof busy>, fn: () => Promise<unknown>) => {
+    if (busy) return
+    setBusy(kind)
+    try {
+      await fn()
+    } catch (err) {
+      console.warn('[payment]', err)
+      toast.error('Something went wrong — please try again.')
+    } finally {
+      setBusy(b => (b === kind ? null : b))
+    }
+  }
 
   const close = () => (router.canGoBack() ? router.back() : router.replace('/settlements'))
 
@@ -97,27 +116,33 @@ export default function PaymentModal() {
   const upiLink = to?.upiId ? buildUpiLink(to.upiId, to.upiName || to.name, settlement.amount, `TripMate - ${fromName}`) : null
   const status = settlement.status
 
-  const payViaUpi = async () => {
+  const payViaUpi = () => run('upi', async () => {
     if (!upiLink) return
     try {
       leftForUpi.current = true
       tick('medium')
       await Linking.openURL(upiLink)
+      // Some phones return instantly without leaving the app; don't spin forever.
+      setTimeout(() => setBusy(b => (b === 'upi' ? null : b)), 4000)
     } catch {
       leftForUpi.current = false
       toast.error('No UPI app found on this phone — scan the QR code from another phone, or pay by cash.')
       setShowQr(true)
     }
-  }
+  })
 
   const copyUpi = async () => {
     if (!to?.upiId) return
-    await Clipboard.setStringAsync(to.upiId)
-    tick('success')
-    toast.success('UPI ID copied')
+    try {
+      await Clipboard.setStringAsync(to.upiId)
+      tick('success')
+      toast.success('UPI ID copied')
+    } catch {
+      toast.error('Could not copy — long-press the UPI ID to select it.')
+    }
   }
 
-  const addProof = (image: PreparedImage) => {
+  const addProof = (image: PreparedImage) => run('proof', async () => {
     attachImage(
       image,
       {
@@ -132,17 +157,22 @@ export default function PaymentModal() {
     )
     setAwaitingProof(false)
     if (status === 'pending') {
-      void withCloud(async () => {
+      const ok = await withCloud(async () => {
         await cloudSetPaymentStatus(settlement.id, 'paid')
         return true
       })
+      if (!ok) {
+        toast.success('Screenshot added — tap "Mark as paid" once you are back online')
+        return
+      }
+      tick('success')
       toast.success(`Screenshot added and marked as paid — ${toName.split(' ')[0]} can now confirm it`)
     } else {
       toast.success('Screenshot added')
     }
-  }
+  })
 
-  const markPaid = async () => {
+  const markPaid = () => run('paid', async () => {
     if (proofs.length === 0) {
       const ok = await confirmAction({
         title: 'Mark as paid without a screenshot?',
@@ -158,9 +188,9 @@ export default function PaymentModal() {
     if (!okDone) return
     tick('success')
     toast.success('Marked as paid — waiting for confirmation')
-  }
+  })
 
-  const confirmReceived = async () => {
+  const confirmReceived = () => run('confirm', async () => {
     const ok = await confirmAction({
       title: 'Confirm payment received?',
       message: `${toName} received ${formatCurrency(settlement.amount)} from ${fromName}. Confirmed payments are final and update everyone's balances.`,
@@ -175,7 +205,7 @@ export default function PaymentModal() {
     tick('success')
     setConfetti(n => n + 1)
     toast.success('Payment confirmed 🎉')
-  }
+  })
 
   return (
     <Screen edges={['top']}>
@@ -189,7 +219,7 @@ export default function PaymentModal() {
         <CloseButton onPress={close} />
       </View>
 
-      <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]} showsVerticalScrollIndicator={false}>
         {/* Amount + who pays whom */}
         <FadeIn>
           <GlassCard strong radius={24} contentStyle={styles.hero}>
@@ -229,7 +259,7 @@ export default function PaymentModal() {
                     </View>
                     <Copy size={16} color={C.brand500} />
                   </PressScale>
-                  <Button title={`Pay ${formatCurrency(settlement.amount)} via UPI app`} icon={ExternalLink} size="lg" onPress={() => void payViaUpi()} full />
+                  <Button title={`Pay ${formatCurrency(settlement.amount)} via UPI app`} icon={ExternalLink} size="lg" onPress={() => void payViaUpi()} loading={busy === 'upi'} disabled={!!busy && busy !== 'upi'} full />
                   <PressScale onPress={() => setShowQr(v => !v)} style={styles.qrToggle} haptic="selection">
                     <QrCode size={15} color={C.brand500} />
                     <T variant="smallMedium" color={C.brand500}>{showQr ? 'Hide QR code' : 'Show QR code to scan'}</T>
@@ -258,6 +288,7 @@ export default function PaymentModal() {
         )}
 
         {/* Step 2 — proof */}
+        <View onLayout={e => { proofY.current = e.nativeEvent.layout.y }}>
         <FadeIn delay={140}>
           <GlassCard contentStyle={styles.gap12} glow={awaitingProof}>
             <StepTitle n={status === 'pending' ? 2 : 1} title="Payment screenshot" />
@@ -283,16 +314,17 @@ export default function PaymentModal() {
                 context={{ kind: 'payment_proof', tripId: settlement.tripId, settlementId: settlement.id }}
                 cameraLabel="Camera"
                 galleryLabel="Screenshot"
-                onPicked={addProof}
+                onPicked={image => void addProof(image)}
               />
             )}
           </GlassCard>
         </FadeIn>
+        </View>
 
         {/* Step 3 — status */}
         <FadeIn delay={200}>
           {status === 'pending' && (
-            <Button title="Mark as paid" icon={CircleCheck} variant={proofs.length ? 'brand' : 'ghost'} size="lg" onPress={() => void markPaid()} full />
+            <Button title="Mark as paid" icon={CircleCheck} variant={proofs.length ? 'brand' : 'ghost'} size="lg" onPress={() => void markPaid()} loading={busy === 'paid' || busy === 'proof'} disabled={!!busy} full />
           )}
           {status === 'paid' && (
             <GlassCard contentStyle={styles.gap12}>
@@ -307,7 +339,7 @@ export default function PaymentModal() {
                   ? 'Check your UPI app or bank, then confirm. This settles it for everyone.'
                   : 'Anyone in the trip can confirm once the money has arrived.'}
               </T>
-              <Button title="Confirm received" icon={CircleCheck} variant="success" size="lg" onPress={() => void confirmReceived()} full />
+              <Button title="Confirm received" icon={CircleCheck} variant="success" size="lg" onPress={() => void confirmReceived()} loading={busy === 'confirm'} disabled={!!busy} full />
             </GlassCard>
           )}
           {status === 'confirmed' && (

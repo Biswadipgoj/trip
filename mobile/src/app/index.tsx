@@ -6,13 +6,11 @@ import { ScrollView, StyleSheet, View } from 'react-native'
 import Animated, {
   Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
 } from 'react-native-reanimated'
-import { Image } from 'expo-image'
 import { Redirect, router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ArrowRight, ChevronRight, CircleCheck, LogIn, Receipt, Sparkles, UserPlus, Users } from 'lucide-react-native'
 import { useStore } from '../lib/store'
 import { useTranslation } from '../lib/i18n'
-import { LANDING_HERO_IMAGE } from '../constants/travelImages'
 import { Screen } from '../components/ui/Screen'
 import { Logo } from '../components/ui/Logo'
 import { GradientText, T } from '../components/ui/Text'
@@ -22,7 +20,7 @@ import { BrandFooter } from '../components/ui/BrandFooter'
 import { StatusBadge } from '../components/animated/PulseBadge'
 import { FadeIn, stagger } from '../components/animated/FadeInView'
 import { LanguagePicker, LanguageTriggerButton } from '../components/ui/LanguagePicker'
-import { C, brand500, brand600, ink, whiteA } from '../theme/colors'
+import { C, brand500, brand600, ink } from '../theme/colors'
 import { F } from '../theme/typography'
 
 const POP_SPRING = { stiffness: 300, damping: 20 }
@@ -120,23 +118,6 @@ export default function Home() {
           <T variant="lead" color={ink(0.65)} center style={styles.lead}>
             {t('heroLead')}
           </T>
-        </FadeIn>
-
-        {/* Natural Travel Photography Vignette */}
-        <FadeIn delay={450}>
-          <View style={styles.heroImageCard}>
-            <Image
-              source={{ uri: LANDING_HERO_IMAGE }}
-              style={styles.heroImage}
-              contentFit="cover"
-              transition={300}
-              cachePolicy="memory-disk"
-            />
-            <View style={styles.heroImageOverlay}>
-              <T variant="smallSemibold" color={C.white}>Adventures with friends 🏕️</T>
-              <T variant="tiny" color={whiteA(0.85)}>Share the road, split the tab, keep the memories</T>
-            </View>
-          </View>
         </FadeIn>
 
         <FadeIn delay={500} style={styles.ctas}>
@@ -279,25 +260,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   lead: { marginTop: 12, marginBottom: 20, paddingHorizontal: 6 },
-  heroImageCard: {
-    height: 140,
-    borderRadius: 20,
-    overflow: 'hidden',
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.7)',
-    backgroundColor: C.surface2,
-  },
-  heroImage: { width: '100%', height: '100%' },
-  heroImageOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 12,
-    backgroundColor: 'rgba(20, 10, 35, 0.65)',
-    gap: 2,
-  },
   ctas: { gap: 12 },
   section: { marginTop: 32 },
   sectionTitle: { marginBottom: 10, marginLeft: 4 },

@@ -936,7 +936,8 @@ export function buildUpiLink(upiId: string, name: string, amount: number, note: 
   const clean = (s: string) => (s || '').trim().replace(/[\r\n\t]/g, '')
   const pa = encodeURIComponent(clean(upiId)).replace(/%40/g, '@')
   const pn = encodeURIComponent(clean(name))
-  const tn = encodeURIComponent(clean(note))
+  // GPay/PhonePe reject intents whose note has symbols or runs long.
+  const tn = encodeURIComponent(clean(note).replace(/[^\p{L}\p{N} .,]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 40))
   return `upi://pay?pa=${pa}&pn=${pn}&am=${safeAmount.toFixed(2)}&tn=${tn}&cu=INR`
 }
 

@@ -1,5 +1,6 @@
 // Root layout: fonts, store hydration, splash screen, app-wide providers,
 // toasts, connectivity + background upload engine, and the screen stack.
+import { markAppMounted } from '../lib/crashGuard' // first: guards everything below
 import '../lib/uploads' // registers the on-device image cleaner with the store
 import { useEffect, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
@@ -60,6 +61,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!ready) return
+    markAppMounted()
     SplashScreen.hideAsync().catch(() => {})
     void recoverPendingPick()
     void processUploads()

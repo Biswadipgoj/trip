@@ -1,4 +1,4 @@
-// Brand signature (web BrandFooter): "Mastermind Behind The Code: Biswodip
+p// Brand signature (web BrandFooter): "Mastermind Behind The Code: Biswodip
 // Goj", every word in its own vivid gradient. Tapping it floats a nameplate
 // over a frosted veil, with a sheen gliding across the name.
 import { useEffect, useState } from 'react'

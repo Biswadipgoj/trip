@@ -125,10 +125,12 @@ await render(path.join(IMAGES, 'splash-icon.png'), svg(1024, 1024, `
 
 // In-app logo: the web logo tile (with its wordmark) with transparent corners.
 // Tile geometry measured from public/logo.png.
+// Opt-in (--logo): the geometry is stale for the current public/logo.png, and
+// the committed assets/images/logo.png is correct.
 const TILE = { x: 50, y: 36, w: 412, h: 436, r: 83 }
 const side = TILE.h
 const logoB64 = logoPng.toString('base64')
-await render(path.join(IMAGES, 'logo.png'), svg(side, side, `
+if (process.argv.includes('--logo')) await render(path.join(IMAGES, 'logo.png'), svg(side, side, `
   <defs><clipPath id="t"><rect x="${(side - TILE.w) / 2}" y="0" width="${TILE.w}" height="${TILE.h}" rx="${TILE.r}"/></clipPath></defs>
   <g clip-path="url(#t)">
     <image href="data:image/png;base64,${logoB64}" x="${(side - TILE.w) / 2 - TILE.x}" y="${-TILE.y}" width="512" height="512"/>

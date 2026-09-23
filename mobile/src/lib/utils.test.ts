@@ -134,6 +134,12 @@ describe('UPI', () => {
     )
   })
 
+  it('keeps the note short and free of symbols UPI apps reject', () => {
+    const link = buildUpiLink('a@upi', 'A', 10, 'TripMate - Riya & Arjun #goa trip with a very long name')
+    const tn = decodeURIComponent(link.match(/tn=([^&]*)/)![1])
+    expect(tn).toBe('TripMate Riya Arjun goa trip with a very')
+  })
+
   it('validates UPI IDs', () => {
     expect(isValidUpiId('rahul.k@okicici')).toBe(true)
     expect(isValidUpiId('9876543210@paytm')).toBe(true)
