@@ -1,0 +1,11 @@
+# Mobile EAS ignore
+node_modules/
+.expo/
+dist/
+web-build/
+.kotlin/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision

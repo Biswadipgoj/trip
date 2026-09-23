@@ -1,0 +1,12 @@
+# EAS Build Ignore (keep mobile archive token-lean and fast)
+.biswodip/
+.agents/
+docs/
+node_modules/
+.next/
+src/
+public/
+supabase/
+dist/
+.expo/
+*.md

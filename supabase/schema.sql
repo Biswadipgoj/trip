@@ -739,6 +739,13 @@ GRANT EXECUTE ON FUNCTION create_hotel_expense_with_rooms(UUID, TEXT, NUMERIC, U
 GRANT EXECUTE ON FUNCTION create_trip_with_member(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 
 -- ============================================================================
+-- ANDROID APP (bill photos, UPI screenshots, atomic writes)
+-- After this file, also run supabase/migrations/20260923_mobile_media.sql —
+-- it adds the `attachments` table, the `trip-media` storage bucket + policies
+-- and the idempotent tm_push_* functions. It is safe to run more than once.
+-- ============================================================================
+
+-- ============================================================================
 -- DONE
 -- All tables, indexes, views, RLS policies, RPC functions, and realtime subscriptions created.
 -- ============================================================================
