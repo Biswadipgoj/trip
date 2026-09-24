@@ -153,8 +153,7 @@ export default function MembersScreen() {
               <View style={styles.warning}>
                 <TriangleAlert size={15} color={C.amber600} />
                 <T variant="small" color={C.amber700} style={styles.flex}>
-                  Cloud sync is OFF in this build — invites will not work on other devices until it is rebuilt with the
-                  Supabase settings.
+                  Connect to the internet to share live trip updates with your friends.
                 </T>
               </View>
             )}

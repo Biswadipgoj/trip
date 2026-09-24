@@ -634,7 +634,7 @@ export async function remoteUploadMedia(path: string, body: ArrayBuffer, content
   if (!supabase) throw new MediaError('Cloud sync is not configured in this build.', 'setup')
   const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, body, {
     contentType,
-    upsert: false,
+    upsert: true,
     cacheControl: '31536000', // paths are unique per image, so cache "forever"
   })
   if (!error) return
@@ -642,7 +642,7 @@ export async function remoteUploadMedia(path: string, body: ArrayBuffer, content
     ?? (error as { status?: number }).status ?? '')
   // An earlier attempt already stored this exact object.
   if (status === '409' || /already exists|duplicate/i.test(error.message)) return
-  const setup = status === '404' || status === '403' || status === '400'
+  const setup = status === '404'
     || /bucket not found|row-level security|not allowed|mime type/i.test(error.message)
   throw new MediaError(error.message, setup ? 'setup' : 'transient')
 }

@@ -44,6 +44,11 @@ export function setLocalFileCleaner(fn: (uris: string[]) => void) {
   cleanLocalFiles = fn
 }
 
+let triggerUploads: () => void = () => {}
+export function setUploadProcessor(fn: () => void) {
+  triggerUploads = fn
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // LEGACY ID MIGRATION (web parity)
 // Rewrites every non-UUID id to a real UUID (keeping names and amounts
@@ -331,7 +336,12 @@ export const useStore = create<AppState>()(
           status: 'active', createdAt: new Date().toISOString(),
         }
         set(s => ({ trips: [...s.trips, trip], members: [...s.members, member] }))
-        fireAndForget(remoteCreateTrip(trip, member))
+        fireAndForget(remoteCreateTrip(trip, member).then(ok => {
+          if (ok) {
+            set(s => ({ synced: { ...s.synced, [trip.id]: true, [member.id]: true } }))
+            triggerUploads()
+          }
+        }))
         return { trip, member }
       },
 
@@ -354,12 +364,17 @@ export const useStore = create<AppState>()(
       },
 
       closeTrip: (tripId) => {
+        const tripAttachments = get().attachments.filter(a => a.tripId === tripId)
+        const localUris = tripAttachments.map(a => a.localUri).filter((u): u is string => !!u)
+        if (localUris.length > 0) cleanLocalFiles(localUris)
+
         set(s => ({
           trips: s.trips.map(t =>
             t.id === tripId
               ? { ...t, status: 'closed' as const, closedAt: new Date().toISOString() }
               : t
           ),
+          attachments: s.attachments.filter(a => a.tripId !== tripId),
         }))
         get().enqueue(tripId, { kind: 'closeTrip' })
       },
@@ -609,6 +624,7 @@ export const useStore = create<AppState>()(
             }),
           }))
         }
+        triggerUploads()
       },
 
       // Up-sync: uploads the trip row itself when absent, then every local
@@ -688,6 +704,7 @@ export const useStore = create<AppState>()(
           .forEach(x => jobs.push(remotePushSettlementStatus(x)))
 
         await Promise.allSettled(jobs)
+        triggerUploads()
       },
 
       // ─── Members ────────────────────────────────────────────────────────────
@@ -727,7 +744,12 @@ export const useStore = create<AppState>()(
         const expense: Expense = { ...data, id: generateId(), createdAt: new Date().toISOString() }
         set(s => ({ expenses: [...s.expenses, expense] }))
         get().generateSettlements(data.tripId)
-        fireAndForget(remotePushExpense(expense))
+        fireAndForget(remotePushExpense(expense).then(ok => {
+          if (ok) {
+            set(s => ({ synced: { ...s.synced, [expense.id]: true } }))
+            triggerUploads()
+          }
+        }))
         return expense
       },
 
@@ -764,7 +786,12 @@ export const useStore = create<AppState>()(
         }
         set(s => ({ hotelExpenses: [...s.hotelExpenses, hotel] }))
         get().generateSettlements(data.tripId)
-        fireAndForget(remotePushHotelExpense(hotel))
+        fireAndForget(remotePushHotelExpense(hotel).then(ok => {
+          if (ok) {
+            set(s => ({ synced: { ...s.synced, [hotel.id]: true } }))
+            triggerUploads()
+          }
+        }))
         return hotel
       },
 
@@ -967,6 +994,7 @@ export const useStore = create<AppState>()(
           members: [...s.members.filter(m => m.id !== member.id), member],
           synced: { ...s.synced, [member.id]: true },
         }))
+        triggerUploads()
       },
 
       applyExpense: (expense) => {
@@ -975,6 +1003,7 @@ export const useStore = create<AppState>()(
           synced: { ...s.synced, [expense.id]: true },
         }))
         get().generateSettlements(expense.tripId)
+        triggerUploads()
       },
 
       applyHotelExpense: (hotel) => {
@@ -983,6 +1012,7 @@ export const useStore = create<AppState>()(
           synced: { ...s.synced, [hotel.id]: true },
         }))
         get().generateSettlements(hotel.tripId)
+        triggerUploads()
       },
 
       applySettlementGroup: (group) => {
@@ -1033,8 +1063,13 @@ export const useStore = create<AppState>()(
       },
 
       applyTripClosed: (tripId, closedAt) => {
+        const tripAttachments = get().attachments.filter(a => a.tripId === tripId)
+        const localUris = tripAttachments.map(a => a.localUri).filter((u): u is string => !!u)
+        if (localUris.length > 0) cleanLocalFiles(localUris)
+
         set(s => ({
           trips: s.trips.map(t => (t.id === tripId ? { ...t, status: 'closed' as const, closedAt } : t)),
+          attachments: s.attachments.filter(a => a.tripId !== tripId),
         }))
       },
 

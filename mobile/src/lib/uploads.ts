@@ -8,7 +8,9 @@
 // keys to them.
 import { router } from 'expo-router'
 import { File } from 'expo-file-system'
-import { useStore, setLocalFileCleaner } from './store'
+import * as FileSystem from 'expo-file-system/legacy'
+import { decode } from 'base64-arraybuffer'
+import { useStore, setLocalFileCleaner, setUploadProcessor } from './store'
 import { deleteLocalFiles, localFileExists, takePendingPick, type PreparedImage } from './media'
 import {
   isRemoteEnabled, remoteUploadMedia, remoteInsertAttachment, mediaPublicUrl,
@@ -43,6 +45,27 @@ setLocalFileCleaner(uris => {
   uris.forEach(u => existsCache.delete(u))
   deleteLocalFiles(uris)
 })
+
+setUploadProcessor(() => {
+  void processUploads()
+})
+
+async function readFileBuffer(uri: string): Promise<ArrayBuffer> {
+  try {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    })
+    return decode(base64)
+  } catch (readErr) {
+    try {
+      const file = new File(uri)
+      const bytes = await file.bytes()
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+    } catch {
+      throw readErr
+    }
+  }
+}
 
 export type AttachTarget =
   | { kind: 'bill'; tripId: string; expenseId?: string; hotelExpenseId?: string }
@@ -91,7 +114,7 @@ async function uploadOne(id: string) {
   const a = store.attachments.find(x => x.id === id)
   if (!a || (a.upload !== 'pending' && a.upload !== 'failed')) return
 
-  // Wait until everything the attachments row references is on the server.
+  // Validate that the parent record has not been deleted locally.
   if (a.kind === 'bill') {
     const parentId = a.expenseId ?? a.hotelExpenseId
     const parentAlive = a.expenseId
@@ -101,13 +124,11 @@ async function uploadOne(id: string) {
       store.removeAttachment(a.id) // its expense was deleted
       return
     }
-    if (!store.synced[parentId]) return
   } else {
     if (!a.fromMemberId || !a.toMemberId) {
       store.updateAttachment(a.id, { upload: 'failed', uploadError: 'Payment details are missing', nextAttemptAt: NEVER })
       return
     }
-    if (!store.synced[a.fromMemberId] || !store.synced[a.toMemberId]) return
   }
 
   if (!a.storagePath && !(a.localUri && fileExists(a.localUri))) {
@@ -124,7 +145,7 @@ async function uploadOne(id: string) {
   try {
     if (!path) {
       path = `${a.tripId}/${a.kind === 'bill' ? 'bills' : 'payments'}/${a.id}.jpg`
-      const body = await new File(a.localUri!).arrayBuffer()
+      const body = await readFileBuffer(a.localUri!)
       await remoteUploadMedia(path, body, a.mimeType || 'image/jpeg')
       if (!stillExists(a.id)) {
         // Deleted mid-upload: the object has no row, so it can be removed.
@@ -134,8 +155,30 @@ async function uploadOne(id: string) {
       useStore.getState().updateAttachment(a.id, { storagePath: path })
     }
 
-    const current = useStore.getState().attachments.find(x => x.id === a.id) ?? a
     const synced = useStore.getState().synced
+
+    // Check if the parent record is confirmed on the server.
+    // If not yet confirmed on server, schedule a short retry (3s) while the parent row pushes.
+    if (a.kind === 'bill') {
+      const parentId = a.expenseId ?? a.hotelExpenseId
+      if (parentId && !synced[parentId]) {
+        useStore.getState().updateAttachment(a.id, {
+          upload: 'pending',
+          nextAttemptAt: Date.now() + 3_000,
+        })
+        return
+      }
+    } else {
+      if ((a.fromMemberId && !synced[a.fromMemberId]) || (a.toMemberId && !synced[a.toMemberId])) {
+        useStore.getState().updateAttachment(a.id, {
+          upload: 'pending',
+          nextAttemptAt: Date.now() + 3_000,
+        })
+        return
+      }
+    }
+
+    const current = useStore.getState().attachments.find(x => x.id === a.id) ?? a
     await remoteInsertAttachment({
       ...current,
       storagePath: path,

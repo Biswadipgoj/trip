@@ -98,7 +98,10 @@ const glyph = ({ mono = false } = {}) => `
   <path d="${brand.glyph}" fill="#FFFFFF" fill-rule="evenodd"/>`
 
 async function render(file, markup, size) {
-  await sharp(Buffer.from(markup)).resize(size, size).png({ compressionLevel: 9 }).toFile(file)
+  await sharp(Buffer.from(markup))
+    .resize(size, size)
+    .png({ compressionLevel: 9, quality: 90, palette: true, effort: 10 })
+    .toFile(file)
   console.log('  ✓', path.relative(ROOT, file))
 }
 

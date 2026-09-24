@@ -113,19 +113,19 @@ export const BLOBS_B: readonly (readonly [string, number, number, number, number
   ['#FF8370', 0.38, 24, 36, 26, 24],
 ]
 
-/** CSS box-shadows (React Native `boxShadow`, New Architecture). */
+/** CSS box-shadows optimized for high performance 60fps rendering. */
 export const shadow = {
-  glass: '0px 8px 32px rgba(108, 62, 200, 0.12)',
-  card: '0px 4px 22px rgba(108, 62, 200, 0.09)',
-  cardHover: '0px 14px 40px rgba(108, 62, 200, 0.16)',
-  strong: '0px 18px 52px rgba(108, 62, 200, 0.20)',
-  elevated: '0px 20px 60px rgba(108, 62, 200, 0.2)',
-  glowBrand: '0px 10px 36px rgba(139, 78, 245, 0.38)',
-  glowSm: '0px 4px 18px rgba(139, 78, 245, 0.24)',
-  btnBrand: '0px 6px 22px rgba(139, 78, 245, 0.4)',
-  indigoPurple: '0px 14px 36px rgba(119, 53, 233, 0.4)',
-  orangePink: '0px 14px 36px rgba(242, 44, 84, 0.38)',
-  blueCyan: '0px 14px 36px rgba(13, 147, 242, 0.38)',
-  emeraldTeal: '0px 14px 36px rgba(27, 167, 134, 0.38)',
-  violetFuchsia: '0px 14px 36px rgba(191, 53, 233, 0.4)',
+  glass: '0px 4px 16px rgba(108, 62, 200, 0.10)',
+  card: '0px 3px 12px rgba(108, 62, 200, 0.08)',
+  cardHover: '0px 6px 18px rgba(108, 62, 200, 0.14)',
+  strong: '0px 8px 24px rgba(108, 62, 200, 0.18)',
+  elevated: '0px 10px 28px rgba(108, 62, 200, 0.18)',
+  glowBrand: '0px 6px 20px rgba(139, 78, 245, 0.32)',
+  glowSm: '0px 3px 12px rgba(139, 78, 245, 0.22)',
+  btnBrand: '0px 4px 14px rgba(139, 78, 245, 0.35)',
+  indigoPurple: '0px 6px 18px rgba(119, 53, 233, 0.32)',
+  orangePink: '0px 6px 18px rgba(242, 44, 84, 0.32)',
+  blueCyan: '0px 6px 18px rgba(13, 147, 242, 0.32)',
+  emeraldTeal: '0px 6px 18px rgba(27, 167, 134, 0.32)',
+  violetFuchsia: '0px 6px 18px rgba(191, 53, 233, 0.32)',
 } as const

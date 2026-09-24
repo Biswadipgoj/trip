@@ -1,16 +1,47 @@
+# TripMate — Supabase Media & Cloud Sync Setup Guide
+
+TripMate mobile features **local-first image persistence**. Bill photos and UPI payment screenshots are saved instantly to the device's permanent storage (`tripmate-media`) and remain 100% visible, zoomable, and usable even when offline or before backend storage is configured.
+
+To enable multi-device cloud synchronization of photos and receipts across all trip members, run the pure ASCII migration script below in your Supabase project.
+
+---
+
+## Why Did the Syntax Error Occur?
+
+In PostgreSQL, the error:
+```
+ERROR: 42601: syntax error at or near " "
+LINE 18:   SET public = EXCLUDED.public,
+```
+occurs when copying from a browser or rich-text viewer converts leading spaces into Unicode non-breaking spaces (`\u00A0` / `&nbsp;`). Postgres does not consider `\u00A0` to be whitespace and throws a syntax error.
+
+We have:
+1. Replaced `ON CONFLICT (id) DO UPDATE SET ...` with `ON CONFLICT (id) DO NOTHING;` (clean single line).
+2. Removed all Unicode punctuation and non-ASCII characters.
+3. Created a clean file [`supabase/setup_media.sql`](./setup_media.sql) that you can directly upload or copy.
+
+---
+
+## Option A: Upload the File (Safest — No Copy/Paste Glitches)
+
+1. Open your Supabase Dashboard: [https://supabase.com/dashboard](https://supabase.com/dashboard)
+2. Go to **SQL Editor**.
+3. Click the folder icon or **Upload script** button at the top.
+4. Select [`supabase/setup_media.sql`](./setup_media.sql) from your project folder.
+5. Click **Run**.
+
+---
+
+## Option B: Copy & Paste This Clean SQL
+
+```sql
 -- ============================================================================
 -- TripMate mobile -- bill photos, UPI payment screenshots, atomic writes
---
--- Run once in the Supabase SQL editor (Dashboard -> SQL -> New query -> Run).
--- Safe to re-run: every step is idempotent. The web app keeps working with
--- or without it; the Android app needs it for image uploads and uses the
--- atomic functions when present.
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- --- 1. Storage bucket -------------------------------------------------------
--- Public read (object paths are random UUIDs), 5 MB limit, images only.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('trip-media', 'trip-media', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
 ON CONFLICT (id) DO NOTHING;
@@ -20,11 +51,8 @@ CREATE TABLE IF NOT EXISTS public.attachments (
   id               UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
   trip_id          UUID          NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   kind             TEXT          NOT NULL CHECK (kind IN ('bill', 'payment_proof')),
-  -- bills belong to exactly one expense or hotel stay
   expense_id       UUID          REFERENCES public.expenses(id) ON DELETE CASCADE,
   hotel_expense_id UUID          REFERENCES public.hotel_expenses(id) ON DELETE CASCADE,
-  -- payment screenshots: settlement ids are recalculated on each device, so
-  -- the payment is identified by direction + amount (no FK on settlement_id)
   settlement_id    UUID,
   from_member_id   UUID          REFERENCES public.members(id) ON DELETE CASCADE,
   to_member_id     UUID          REFERENCES public.members(id) ON DELETE CASCADE,
@@ -71,11 +99,6 @@ EXCEPTION
 END $$;
 
 -- --- 3. Storage policies -----------------------------------------------------
--- Upload / Upsert: well-formed paths inside an existing trip:
---   <trip-uuid>/bills/<uuid>.jpg   or   <trip-uuid>/payments/<uuid>.jpg
--- Read: public bucket read access.
--- Delete: only images no attachments row points to any more (the app deletes
--- the row first), so nobody can wipe another member's live bill.
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -126,8 +149,6 @@ BEGIN
 END $$;
 
 -- --- 4. Atomic, idempotent writes used by the Android app --------------------
--- One call = one transaction, and retrying after a dropped connection never
--- duplicates anything or leaves an expense without its participants.
 
 CREATE OR REPLACE FUNCTION public.tm_push_expense(p_expense JSONB, p_participants JSONB)
 RETURNS VOID
@@ -267,3 +288,13 @@ CREATE TRIGGER tr_trip_closed_or_deleted
 
 -- Make the new table and functions visible to the API immediately.
 NOTIFY pgrst, 'reload schema';
+```
+
+---
+
+## Verification
+
+After running the script:
+1. Go to **Storage** in Supabase Dashboard: verify `trip-media` bucket is present.
+2. Go to **Table Editor**: verify `attachments` table exists under schema `public`.
+3. Done! The mobile app will automatically detect the bucket and sync photos.

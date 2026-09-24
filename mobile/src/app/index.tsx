@@ -92,10 +92,6 @@ export default function Home() {
       >
         {/* Top bar with Language Selector */}
         <View style={styles.topRow}>
-          <View style={styles.cloudChip}>
-            <View style={styles.liveDot} />
-            <T variant="tiny" color={C.emerald500}>Cloud Synced</T>
-          </View>
           <LanguageTriggerButton onPress={() => setShowLanguagePicker(true)} />
         </View>
 
@@ -225,23 +221,8 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginBottom: 16,
-  },
-  cloudChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(29, 165, 120, 0.1)',
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: C.emerald500,
   },
   logoWrap: { alignSelf: 'center', marginBottom: 20 },
   wordmark: { fontFamily: F.display, fontSize: 34, lineHeight: 42, letterSpacing: -0.6 },

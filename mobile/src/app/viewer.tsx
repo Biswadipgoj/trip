@@ -172,7 +172,7 @@ export default function Viewer() {
       {/* Info */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
         <View style={styles.infoCard}>
-          <UploadState upload={attachment.upload} cloud={cloud} error={attachment.uploadError} />
+          <UploadState upload={attachment.upload} error={attachment.uploadError} cloud={cloud} />
           <T variant="small" color={whiteA(0.75)}>
             {uploader ? `Added by ${uploader.name} · ` : ''}{formatDate(attachment.createdAt)} ({formatRelativeTime(attachment.createdAt)})
           </T>
@@ -188,37 +188,35 @@ export default function Viewer() {
   )
 }
 
-function UploadState({ upload, cloud, error }: { upload: string; cloud: boolean; error?: string }) {
-  if (!cloud) {
-    return (
-      <View style={styles.state}>
-        <Smartphone size={14} color={whiteA(0.85)} />
-        <T variant="smallSemibold" color={whiteA(0.85)}>Preview build — not uploaded</T>
-      </View>
-    )
-  }
+function UploadState({ upload, error, cloud }: { upload: string; error?: string; cloud: boolean }) {
+  if (!cloud) return null
   if (upload === 'uploaded') {
     return (
       <View style={styles.state}>
         <CircleCheck size={14} color="#6EE7B7" />
-        <T variant="smallSemibold" color="#6EE7B7">Synced to the cloud</T>
+        <T variant="smallSemibold" color="#6EE7B7">Synced to cloud</T>
+      </View>
+    )
+  }
+  if (upload === 'uploading') {
+    return (
+      <View style={styles.state}>
+        <CloudUpload size={14} color="#FCD34D" />
+        <T variant="smallSemibold" color="#FCD34D">Syncing…</T>
       </View>
     )
   }
   if (upload === 'failed') {
     return (
       <View style={styles.state}>
-        <RotateCw size={14} color="#FCA5A5" />
-        <T variant="smallSemibold" color="#FCA5A5" numberOfLines={2} style={styles.flexShrink}>Upload failed{error ? ` — ${error}` : ''}</T>
+        <RotateCw size={14} color="#F87171" />
+        <T variant="smallSemibold" color="#F87171" numberOfLines={1}>
+          {error || 'Upload failed'}
+        </T>
       </View>
     )
   }
-  return (
-    <View style={styles.state}>
-      <CloudUpload size={14} color="#FCD34D" />
-      <T variant="smallSemibold" color="#FCD34D">{upload === 'uploading' ? 'Uploading…' : 'Waiting to upload'}</T>
-    </View>
-  )
+  return null
 }
 
 const styles = StyleSheet.create({

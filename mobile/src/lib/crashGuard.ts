@@ -18,11 +18,12 @@ export function markAppMounted() {
   mounted = true
 }
 
+declare const __DEV__: boolean | undefined
+
 const errorUtils = (globalThis as { ErrorUtils?: ErrorUtilsLike }).ErrorUtils
 if (errorUtils) {
   const fallback = errorUtils.getGlobalHandler()
   errorUtils.setGlobalHandler((error, isFatal) => {
-    if (!mounted) return fallback(error, isFatal)
     console.warn('[crashGuard]', isFatal ? 'fatal' : 'non-fatal', error)
     const now = Date.now()
     if (now - lastToastAt > 3000) {
@@ -32,6 +33,10 @@ if (errorUtils) {
       } catch {
         // the toast host itself failed; staying alive matters more
       }
+    }
+    // In dev mode, allow redbox. In production release, prevent OS process crash.
+    if (typeof __DEV__ !== 'undefined' && __DEV__ && typeof fallback === 'function') {
+      fallback(error, isFatal)
     }
   })
 }

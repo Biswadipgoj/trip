@@ -35,19 +35,11 @@ function Thumb({ attachment: a, size }: { attachment: Attachment; size: number }
   const uri = attachmentUri(a)
   const cloud = isRemoteEnabled()
   const open = () => router.push({ pathname: '/viewer', params: { id: a.id } })
-  const onPress = () => {
-    if (a.upload === 'failed' && cloud) {
-      tick('light')
-      retryUpload(a.id)
-      return
-    }
-    open()
-  }
+
   return (
     <Animated.View entering={reduced ? undefined : ZoomIn.springify().damping(15)} exiting={reduced ? undefined : ZoomOut.duration(150)}>
       <Pressable
-        onPress={onPress}
-        onLongPress={open}
+        onPress={open}
         style={[styles.thumb, { width: size, height: size }]}
         accessibilityRole="imagebutton"
         accessibilityLabel={a.kind === 'bill' ? 'Bill photo' : 'Payment screenshot'}
@@ -66,40 +58,29 @@ function Thumb({ attachment: a, size }: { attachment: Attachment; size: number }
 }
 
 function StateBadge({ attachment: a, cloud }: { attachment: Attachment; cloud: boolean }) {
-  if (!cloud) {
+  if (!cloud) return null
+  if (a.upload === 'uploading') {
     return (
-      <View style={[styles.badge, { backgroundColor: 'rgba(42,31,61,0.72)' }]}>
-        <Smartphone size={10} color={C.white} strokeWidth={2.4} />
+      <View style={styles.overlay}>
+        <ActivityIndicator size="small" color={C.white} />
       </View>
     )
   }
-  switch (a.upload) {
-    case 'uploaded':
-      return (
-        <View style={[styles.badge, { backgroundColor: C.emerald400 }]}>
-          <CircleCheck size={11} color={C.white} strokeWidth={2.6} />
-        </View>
-      )
-    case 'uploading':
-      return (
-        <View style={styles.overlay}>
-          <ActivityIndicator size="small" color={C.white} />
-        </View>
-      )
-    case 'failed':
-      return (
-        <View style={[styles.overlay, styles.failed]}>
-          <RotateCw size={16} color={C.white} strokeWidth={2.6} />
-          <T variant="tinySemibold" color={C.white}>Retry</T>
-        </View>
-      )
-    default:
-      return (
-        <View style={[styles.badge, { backgroundColor: C.amber500 }]}>
-          <CloudUpload size={10} color={C.white} strokeWidth={2.6} />
-        </View>
-      )
+  if (a.upload === 'uploaded') {
+    return (
+      <View style={[styles.badge, { backgroundColor: C.emerald400 }]}>
+        <CircleCheck size={11} color={C.white} strokeWidth={2.6} />
+      </View>
+    )
   }
+  if (a.upload === 'failed') {
+    return (
+      <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
+        <RotateCw size={10} color={C.white} strokeWidth={2.5} />
+      </View>
+    )
+  }
+  return null
 }
 
 /** Images picked in a form before the expense exists (not yet attachments). */

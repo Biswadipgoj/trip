@@ -338,7 +338,7 @@ export default function JoinTripScreen() {
               )}
               {!isRemoteEnabled() && (
                 <Notice tone="amber" icon>
-                  Cloud sync is off in this build, so joining only works on the phone where the trip was created.
+                  Make sure you're connected to the internet to join trips created on other devices.
                 </Notice>
               )}
               {invite && (
