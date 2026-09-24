@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
   Trip, Member, Expense, Settlement, TripSession, PaymentStatus,
-  SettlementGroup, Sponsorship, HotelExpense, Room, SplitType, ParticipantSplit
+  SettlementGroup, Sponsorship, HotelExpense, Room, SplitType, ParticipantSplit,
+  Attachment, AttachmentKind,
 } from '@/types'
 import {
   generateId, generateTripCode, getAvatarColor, isUuid,
@@ -14,6 +15,7 @@ import {
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
   remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
   remotePushSponsorship, remoteDeleteSponsorship, remoteSetTripCreator, TripBundle,
+  remoteUploadMedia, remoteInsertAttachment, remoteDeleteAttachment, remoteRemoveMedia,
 } from '@/lib/remote'
 import { logSync } from '@/lib/synclog'
 
@@ -54,6 +56,7 @@ export function migrateLegacyIds<T extends Record<string, any>>(s: T): T {
   ;(s.settlements ?? []).forEach((x: any) => fresh(x.id))
   ;(s.settlementGroups ?? []).forEach((x: any) => fresh(x.id))
   ;(s.sponsorships ?? []).forEach((x: any) => fresh(x.id))
+  ;(s.attachments ?? []).forEach((a: any) => fresh(a.id))
 
   if (Object.keys(idMap).length === 0) return s
 
@@ -88,6 +91,17 @@ export function migrateLegacyIds<T extends Record<string, any>>(s: T): T {
       ...sp, id: m(sp.id), tripId: m(sp.tripId),
       sponsorMemberId: m(sp.sponsorMemberId), sponsoredMemberId: m(sp.sponsoredMemberId),
     })),
+    attachments: (s.attachments ?? []).map((a: Attachment) => ({
+      ...a,
+      id: m(a.id),
+      tripId: m(a.tripId),
+      expenseId: a.expenseId ? m(a.expenseId) : undefined,
+      hotelExpenseId: a.hotelExpenseId ? m(a.hotelExpenseId) : undefined,
+      settlementId: a.settlementId ? m(a.settlementId) : undefined,
+      fromMemberId: a.fromMemberId ? m(a.fromMemberId) : undefined,
+      toMemberId: a.toMemberId ? m(a.toMemberId) : undefined,
+      uploadedBy: a.uploadedBy ? m(a.uploadedBy) : undefined,
+    })),
     session: s.session
       ? { ...s.session, tripId: m(s.session.tripId), memberId: m(s.session.memberId) }
       : s.session,
@@ -99,7 +113,7 @@ export function migrateLegacyIds<T extends Record<string, any>>(s: T): T {
 // copy, so the copies MERGE instead of living as a same-named duplicate. The
 // old trip row itself is dropped; the caller inserts/updates the new one.
 function relinkTripRecords(
-  s: Pick<AppState, 'trips' | 'members' | 'expenses' | 'hotelExpenses' | 'settlements' | 'settlementGroups' | 'sponsorships' | 'session'>,
+  s: Pick<AppState, 'trips' | 'members' | 'expenses' | 'hotelExpenses' | 'settlements' | 'settlementGroups' | 'sponsorships' | 'attachments' | 'session'>,
   fromId: string,
   toId: string
 ) {
@@ -111,6 +125,7 @@ function relinkTripRecords(
     settlements: s.settlements.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
     settlementGroups: s.settlementGroups.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
     sponsorships: s.sponsorships.map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
+    attachments: (s.attachments ?? []).map(x => (x.tripId === fromId ? { ...x, tripId: toId } : x)),
     session: s.session && s.session.tripId === fromId ? { ...s.session, tripId: toId } : s.session,
   }
 }
@@ -124,6 +139,7 @@ interface AppState {
   settlements:      Settlement[]
   settlementGroups: SettlementGroup[]
   sponsorships:     Sponsorship[]
+  attachments:      Attachment[]
   /** Ids ever seen in a server pull. Lets the sync layer tell "created locally,
    *  not yet uploaded" apart from "deleted on another device". */
   synced:           Record<string, true>
@@ -181,6 +197,14 @@ interface AppState {
   getSettlementsByTrip:      (tripId: string) => Settlement[]
   updateSettlementStatus:    (id: string, status: PaymentStatus) => void
 
+  // ─── Attachment / Media Actions ──────────────────────────────────────────────
+  addAttachment: (data: Omit<Attachment, 'id' | 'createdAt' | 'upload'> & { file?: File | Blob }) => Promise<Attachment>
+  deleteAttachment: (id: string) => Promise<void>
+  getAttachmentsByTrip: (tripId: string) => Attachment[]
+  getAttachmentsByExpense: (expenseId: string) => Attachment[]
+  getAttachmentsByHotelExpense: (hotelExpenseId: string) => Attachment[]
+  getAttachmentsBySettlement: (opts: { settlementId?: string; fromMemberId?: string; toMemberId?: string }) => Attachment[]
+
   // ─── Session Actions ─────────────────────────────────────────────────────────
   setSession: (session: TripSession | null) => void
   login:      (tripCode: string, mobile: string, pin: string) => Member | null
@@ -199,8 +223,10 @@ export const useStore = create<AppState>()(
       settlements:      [],
       settlementGroups: [],
       sponsorships:     [],
+      attachments:      [],
       synced:           {},
       session:          null,
+
 
       // ─── Trips ──────────────────────────────────────────────────────────────
       createTrip: (name, creatorName, mobile, password, pin) => {
@@ -247,6 +273,7 @@ export const useStore = create<AppState>()(
               ? { ...t, status: 'closed' as const, closedAt: new Date().toISOString() }
               : t
           ),
+          attachments: s.attachments.filter(a => a.tripId !== tripId),
         }))
         fireAndForget(remoteCloseTrip(tripId))
       },
@@ -335,6 +362,14 @@ export const useStore = create<AppState>()(
           ;[...members, ...expenses, ...hotelExpenses, ...settlementGroups, ...sponsorships]
             .forEach(x => { synced[x.id] = true })
 
+          const rawBundle = bundle as any
+          const remoteAttachments = rawBundle.attachments as Attachment[] | null | undefined
+          let attachments = s.attachments
+          if (remoteAttachments && Array.isArray(remoteAttachments)) {
+            attachments = mergeById(s.attachments, remoteAttachments, a => a.tripId === trip.id)
+            remoteAttachments.forEach(a => { synced[a.id] = true })
+          }
+
           return {
             synced,
             trips: s.trips.some(t => t.id === trip.id)
@@ -345,6 +380,7 @@ export const useStore = create<AppState>()(
             hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
             settlementGroups: mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id),
             sponsorships: mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id),
+            attachments,
             // relinkTripRecords may have re-pointed these onto the server id
             settlements: s.settlements,
             session: s.session,
@@ -485,7 +521,16 @@ export const useStore = create<AppState>()(
               (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId && sameAmount(r.amount, x.amount))
           ))
           .forEach(x => fireAndForget(remotePushSettlementStatus(x)))
+
+        // Attachments
+        const rawRemote = remote as any
+        const remoteAtts = (rawRemote?.attachments ?? []) as Attachment[]
+        const attachmentIds = new Set(remoteAtts.map(x => x.id))
+        s.attachments
+          .filter(a => a.tripId === tripId && !onServer(attachmentIds, a.id))
+          .forEach(a => fireAndForget(remoteInsertAttachment(a)))
       },
+
 
       // ─── Members ────────────────────────────────────────────────────────────
       getMembersByTrip: (tripId) => get().members.filter(m => m.tripId === tripId),
@@ -528,9 +573,17 @@ export const useStore = create<AppState>()(
 
       deleteExpense: (expenseId) => {
         const expense = get().expenses.find(e => e.id === expenseId)
-        set(s => ({ expenses: s.expenses.filter(e => e.id !== expenseId) }))
+        const relatedAtts = get().attachments.filter(a => a.expenseId === expenseId)
+        set(s => ({
+          expenses: s.expenses.filter(e => e.id !== expenseId),
+          attachments: s.attachments.filter(a => a.expenseId !== expenseId),
+        }))
         if (expense) get().generateSettlements(expense.tripId)
         fireAndForget(remoteDeleteExpense(expenseId))
+        relatedAtts.forEach(a => {
+          fireAndForget(remoteDeleteAttachment(a.id))
+          if (a.storagePath) fireAndForget(remoteRemoveMedia([a.storagePath]))
+        })
       },
 
       getExpensesByTrip: (tripId) =>
@@ -556,9 +609,17 @@ export const useStore = create<AppState>()(
 
       deleteHotelExpense: (id) => {
         const hotel = get().hotelExpenses.find(h => h.id === id)
-        set(s => ({ hotelExpenses: s.hotelExpenses.filter(h => h.id !== id) }))
+        const relatedAtts = get().attachments.filter(a => a.hotelExpenseId === id)
+        set(s => ({
+          hotelExpenses: s.hotelExpenses.filter(h => h.id !== id),
+          attachments: s.attachments.filter(a => a.hotelExpenseId !== id),
+        }))
         if (hotel) get().generateSettlements(hotel.tripId)
         fireAndForget(remoteDeleteHotelExpense(id))
+        relatedAtts.forEach(a => {
+          fireAndForget(remoteDeleteAttachment(a.id))
+          if (a.storagePath) fireAndForget(remoteRemoveMedia([a.storagePath]))
+        })
       },
 
       getHotelExpensesByTrip: (tripId) =>
@@ -710,6 +771,100 @@ export const useStore = create<AppState>()(
           if (status === 'confirmed') get().generateSettlements(updated.tripId)
         }
       },
+
+      // ─── Attachments ──────────────────────────────────────────────────────────
+      addAttachment: async (data) => {
+        const id = generateId()
+        const tripId = data.tripId
+        const now = new Date().toISOString()
+        const file = data.file
+        const ext = data.mimeType.includes('/') ? data.mimeType.split('/')[1].replace('jpeg', 'jpg') : 'jpg'
+        const storagePath = `${tripId}/${data.kind}s/${id}.${ext}`
+
+        let localUri = data.localUri
+        if (!localUri && file && typeof window !== 'undefined' && window.URL) {
+          try {
+            localUri = URL.createObjectURL(file)
+          } catch { /* ignore */ }
+        }
+
+        const attachment: Attachment = {
+          id,
+          tripId,
+          kind: data.kind,
+          expenseId: data.expenseId,
+          hotelExpenseId: data.hotelExpenseId,
+          settlementId: data.settlementId,
+          fromMemberId: data.fromMemberId,
+          toMemberId: data.toMemberId,
+          amount: data.amount,
+          storagePath,
+          localUri,
+          mimeType: data.mimeType,
+          width: data.width,
+          height: data.height,
+          sizeBytes: data.sizeBytes ?? (file ? file.size : undefined),
+          uploadedBy: data.uploadedBy,
+          createdAt: now,
+          upload: file ? 'uploading' : 'uploaded',
+        }
+
+        set(s => ({ attachments: [...s.attachments, attachment] }))
+
+        if (file) {
+          try {
+            const buf = await file.arrayBuffer()
+            await remoteUploadMedia(storagePath, buf, data.mimeType)
+            await remoteInsertAttachment({ ...attachment, upload: 'uploaded' })
+            set(s => ({
+              attachments: s.attachments.map(a =>
+                a.id === id ? { ...a, upload: 'uploaded', uploadError: undefined } : a
+              ),
+              synced: { ...s.synced, [id]: true },
+            }))
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            set(s => ({
+              attachments: s.attachments.map(a =>
+                a.id === id ? { ...a, upload: 'failed', uploadError: msg } : a
+              ),
+            }))
+          }
+        } else if (isRemoteEnabled()) {
+          fireAndForget(remoteInsertAttachment(attachment))
+        }
+
+        return attachment
+      },
+
+      deleteAttachment: async (id) => {
+        const a = get().attachments.find(x => x.id === id)
+        set(s => ({ attachments: s.attachments.filter(x => x.id !== id) }))
+        if (a) {
+          fireAndForget(remoteDeleteAttachment(id))
+          if (a.storagePath) {
+            fireAndForget(remoteRemoveMedia([a.storagePath]))
+          }
+        }
+      },
+
+      getAttachmentsByTrip: (tripId) =>
+        get().attachments.filter(a => a.tripId === tripId),
+
+      getAttachmentsByExpense: (expenseId) =>
+        get().attachments.filter(a => a.expenseId === expenseId),
+
+      getAttachmentsByHotelExpense: (hotelExpenseId) =>
+        get().attachments.filter(a => a.hotelExpenseId === hotelExpenseId),
+
+      getAttachmentsBySettlement: ({ settlementId, fromMemberId, toMemberId }) =>
+        get().attachments.filter(a =>
+          a.kind === 'payment_proof' &&
+          (
+            (settlementId && a.settlementId === settlementId) ||
+            (fromMemberId && toMemberId && a.fromMemberId === fromMemberId && a.toMemberId === toMemberId)
+          )
+        ),
 
       // ─── Session ─────────────────────────────────────────────────────────────
       setSession: (session) => set({ session }),

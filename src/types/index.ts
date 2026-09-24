@@ -160,3 +160,60 @@ export interface SettlementRoute {
   fromMemberIds?: string[]
   toMemberIds?: string[]
 }
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+// Bill/receipt photos (kind 'bill', linked to an expense or hotel stay) and UPI
+// payment screenshots (kind 'payment_proof', linked to a payment). Images live
+// in the Supabase Storage bucket `trip-media`; rows in the `attachments` table.
+
+export type AttachmentKind = 'bill' | 'payment_proof'
+
+/** 'pending' = waiting to upload, 'uploaded' = stored in the cloud. */
+export type UploadState = 'pending' | 'uploading' | 'uploaded' | 'failed'
+
+export interface Attachment {
+  id: string
+  tripId: string
+  kind: AttachmentKind
+  expenseId?: string
+  hotelExpenseId?: string
+  // Payment proofs: the payment they belong to. The settlement id can change
+  // while a due is still open, so direction + amount are stored for matching.
+  settlementId?: string
+  fromMemberId?: string
+  toMemberId?: string
+  amount?: number
+  /** Object path in the `trip-media` bucket, set once uploaded. */
+  storagePath?: string
+  /** On-device/browser copy (blob: or object URL), for instant local preview. */
+  localUri?: string
+  mimeType: string
+  width?: number
+  height?: number
+  sizeBytes?: number
+  uploadedBy?: string
+  createdAt: string
+  upload: UploadState
+  uploadError?: string
+  attempts?: number
+  /** Earliest time (ms epoch) for the next upload retry. */
+  nextAttemptAt?: number
+}
+
+export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments'
+
+export type OutboxOp =
+  | { kind: 'delete'; table: DeletableTable; rowId: string }
+  | { kind: 'memberUpi'; memberId: string; upiId: string; upiName?: string }
+  | { kind: 'closeTrip' }
+  | { kind: 'removeMedia'; paths: string[] }
+
+export interface OutboxEntry {
+  id: string
+  tripId: string
+  op: OutboxOp
+  attempts: number
+  lastError?: string
+  createdAt: string
+}
+

@@ -15,8 +15,9 @@ import { FadeIn } from '@/components/animations/FadeIn'
 import { ExpenseCategory, SplitType, ParticipantSplit, ExpensePayer, Room } from '@/types'
 import {
   Plus, Receipt, Trash2, ChevronDown, X, Check,
-  Users, IndianRupee, Tag, Info, Hotel, BedDouble
+  Users, IndianRupee, Tag, Info, Hotel, BedDouble, Paperclip, Camera,
 } from 'lucide-react'
+import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
 
 interface ExpensesPageProps {
   params: Promise<{ tripId: string }>
@@ -36,10 +37,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const allExpenses      = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
   const allMembers       = useStore(s => s.members)
+  const allAttachments   = useStore(s => s.attachments)
   const addExpense       = useStore(s => s.addExpense)
   const deleteExpense    = useStore(s => s.deleteExpense)
   const addHotelExpense    = useStore(s => s.addHotelExpense)
   const deleteHotelExpense = useStore(s => s.deleteHotelExpense)
+  const addAttachment    = useStore(s => s.addAttachment)
   const session          = useStore(s => s.session)
 
   const expenses = useMemo(() =>
@@ -73,6 +76,8 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const [splitValues, setSplitValues]   = useState<Record<string, string>>({})
   const [notes, setNotes]           = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [billFile, setBillFile]     = useState<File | null>(null)
+  const [billPreview, setBillPreview] = useState<string | null>(null)
 
   // ── Room state — used when category is "stay" (hotel booking mode) ──────────
   const [rooms, setRooms] = useState<Room[]>([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
@@ -124,6 +129,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
     setParticipants(members.map(m => m.id))
     setSplitValues({}); setNotes(''); setFormErrors({})
     setRooms([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
+    setBillFile(null)
+    if (billPreview) {
+      try { URL.revokeObjectURL(billPreview) } catch {}
+      setBillPreview(null)
+    }
   }
 
   const toggleParticipant = (id: string) => {
@@ -142,7 +152,18 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
       setFormErrors(errs)
       if (Object.keys(errs).length > 0) return
 
-      addHotelExpense({ tripId, title: title.trim(), totalAmount: totalRoomCost, paidBy, rooms })
+      const createdHotel = addHotelExpense({ tripId, title: title.trim(), totalAmount: totalRoomCost, paidBy, rooms })
+      if (billFile) {
+        addAttachment({
+          tripId,
+          kind: 'bill',
+          hotelExpenseId: createdHotel.id,
+          mimeType: billFile.type || 'image/jpeg',
+          sizeBytes: billFile.size,
+          uploadedBy: session?.memberId,
+          file: billFile,
+        })
+      }
       setShowModal(false)
       resetForm()
       return
@@ -184,16 +205,30 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
       ? [...activePayers].sort((a, b) => b.amount - a.amount)[0].memberId
       : paidBy
 
-    addExpense({
+    const createdExpense = addExpense({
       tripId, title: title.trim(), amount: totalAmt,
       paidBy: primaryPayer,
       payers: multiPayer ? activePayers : undefined,
       category, subcategory: subcategory || undefined,
       participants, splitType, splits, notes: notes.trim(),
     })
+
+    if (billFile) {
+      addAttachment({
+        tripId,
+        kind: 'bill',
+        expenseId: createdExpense.id,
+        mimeType: billFile.type || 'image/jpeg',
+        sizeBytes: billFile.size,
+        uploadedBy: session?.memberId,
+        file: billFile,
+      })
+    }
+
     setShowModal(false)
     resetForm()
   }
+
 
   // ── Hotel helpers ────────────────────────────────────────────────────────────
   const addRoom = () =>
@@ -341,6 +376,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                 </div>
                               )
                             })}
+                            {/* Bill photos */}
+                            <div className="pt-2 border-t border-white/10">
+                              <p className="text-xs text-white/60 mb-2">Bills & Receipts</p>
+                              <AttachmentViewer tripId={tripId} kind="bill" hotelExpenseId={hotel.id} />
+                            </div>
+
                             <div className="flex justify-end pt-1">
                               <button
                                 onClick={e => { e.stopPropagation(); deleteHotelExpense(hotel.id) }}
@@ -430,6 +471,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                               {getSubcategoryLabel(expense.category, expense.subcategory)}
                             </span>
                           )}
+                          {allAttachments.some(a => a.expenseId === expense.id) && (
+                            <span className="text-[10px] text-brand-300 bg-brand-600/20 border border-brand-500/30 rounded-full px-1.5 py-0.5 flex items-center gap-0.5">
+                              <Paperclip className="w-2.5 h-2.5" />
+                              Bill
+                            </span>
+                          )}
                           <span className="text-[10px] text-white/55">
                             {getSplitTypeIcon(expense.splitType)} {getSplitTypeLabel(expense.splitType)}
                           </span>
@@ -514,6 +561,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                 {expense.notes}
                               </p>
                             )}
+
+                            {/* Bill photos */}
+                            <div className="pt-2 border-t border-white/10">
+                              <p className="text-xs text-white/60 mb-2">Bills & Receipts</p>
+                              <AttachmentViewer tripId={tripId} kind="bill" expenseId={expense.id} />
+                            </div>
 
                             <div className="flex justify-end pt-1">
                               <button
@@ -969,6 +1022,54 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   />
                 </div>
                 )}
+
+                {/* Bill / Receipt Attachment */}
+                <div>
+                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    <Paperclip className="w-3.5 h-3.5 inline mr-1" />
+                    Attach Bill / Receipt (optional)
+                  </label>
+                  {billFile && billPreview ? (
+                    <div className="relative rounded-xl border border-white/20 bg-white/5 p-2 flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={billPreview} alt="Bill preview" className="w-12 h-12 object-cover rounded-lg" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-white truncate font-medium">{billFile.name}</p>
+                        <p className="text-[10px] text-white/50">{(billFile.size / 1024).toFixed(0)} KB</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBillFile(null)
+                          if (billPreview) {
+                            try { URL.revokeObjectURL(billPreview) } catch {}
+                            setBillPreview(null)
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 px-3 py-2.5 text-xs text-white/60 hover:text-white cursor-pointer transition-all">
+                      <Camera className="w-4 h-4 text-brand-400" />
+                      <span>Click to upload receipt photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0]
+                          if (f) {
+                            setBillFile(f)
+                            setBillPreview(URL.createObjectURL(f))
+                          }
+                        }}
+                      />
+                    </label>
+                  )}
+                </div>
 
                 {/* Submit */}
                 <button

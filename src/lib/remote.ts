@@ -15,11 +15,17 @@ import { logSync } from '@/lib/synclog'
 import type {
   Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus,
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
+  Attachment, AttachmentKind,
 } from '@/types'
 
 export function isRemoteEnabled(): boolean {
   return supabase !== null
 }
+
+type PgError = { code?: string; message?: string }
+const isDuplicateKey = (e: PgError | null | undefined) => e?.code === '23505'
+const isMissingTable = (e: PgError | null | undefined) =>
+  e?.code === 'PGRST205' || e?.code === '42P01' || /could not find the table|does not exist/i.test(e?.message ?? '')
 
 /** Structured logging for join/sync events — makes failures diagnosable. */
 export function joinLog(event: string, data?: Record<string, unknown>) {
@@ -38,6 +44,7 @@ function pushLog(tag: string, error: { message?: string } | null | undefined) {
   console.warn(`[sync] ${tag} failed:`, error.message)
   logSync('error', tag, error.message)
 }
+
 
 // ─── Notes envelope ────────────────────────────────────────────────────────────
 // The DB schema has no columns for multi-payer or subcategory, so that metadata
@@ -96,6 +103,28 @@ function memberFromRow(row: any): Member {
     upiName: row.upi_name || undefined,
     avatarColor: row.avatar_color,
     joinedAt: row.joined_at,
+  }
+}
+
+function attachmentFromRow(row: any): Attachment {
+  return {
+    id: row.id,
+    tripId: row.trip_id,
+    kind: row.kind === 'payment_proof' ? 'payment_proof' : 'bill',
+    expenseId: row.expense_id || undefined,
+    hotelExpenseId: row.hotel_expense_id || undefined,
+    settlementId: row.settlement_id || undefined,
+    fromMemberId: row.from_member_id || undefined,
+    toMemberId: row.to_member_id || undefined,
+    amount: row.amount != null ? Number(row.amount) : undefined,
+    storagePath: row.storage_path,
+    mimeType: row.mime_type || 'image/jpeg',
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    sizeBytes: row.size_bytes ?? undefined,
+    uploadedBy: row.uploaded_by || undefined,
+    createdAt: row.created_at,
+    upload: 'uploaded',
   }
 }
 
@@ -456,6 +485,88 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
   pushLog('push.settlementStatus', error)
 }
 
+// ─── Attachments (bill photos, UPI screenshots) ───────────────────────────────
+
+export const MEDIA_BUCKET = 'trip-media'
+
+export type MediaErrorKind = 'setup' | 'transient'
+
+/** Upload failure. 'setup' = the server isn't configured for media (bucket
+ *  or policies missing) — retrying won't help until the migration is run. */
+export class MediaError extends Error {
+  kind: MediaErrorKind
+  constructor(message: string, kind: MediaErrorKind) {
+    super(message)
+    this.kind = kind
+  }
+}
+
+export function mediaPublicUrl(path: string | undefined): string | null {
+  if (!supabase || !path) return null
+  return supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+export async function remoteUploadMedia(path: string, body: ArrayBuffer | Blob, contentType: string): Promise<void> {
+  if (!supabase) throw new MediaError('Cloud sync is not configured.', 'setup')
+  const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, body, {
+    contentType,
+    upsert: true,
+    cacheControl: '31536000', // paths are unique per image, so cache "forever"
+  })
+  if (!error) return
+  const status = String((error as { statusCode?: string; status?: number }).statusCode
+    ?? (error as { status?: number }).status ?? '')
+  // An earlier attempt already stored this exact object.
+  if (status === '409' || /already exists|duplicate/i.test(error.message)) return
+  const setup = status === '404'
+    || /bucket not found|row-level security|not allowed|mime type/i.test(error.message)
+  throw new MediaError(error.message, setup ? 'setup' : 'transient')
+}
+
+export async function remoteInsertAttachment(a: Attachment): Promise<void> {
+  if (!supabase) throw new MediaError('Cloud sync is not configured.', 'setup')
+  const { error } = await supabase.from('attachments').insert({
+    id: a.id,
+    trip_id: a.tripId,
+    kind: a.kind,
+    expense_id: a.expenseId ?? null,
+    hotel_expense_id: a.hotelExpenseId ?? null,
+    settlement_id: a.settlementId && isUuid(a.settlementId) ? a.settlementId : null,
+    from_member_id: a.fromMemberId ?? null,
+    to_member_id: a.toMemberId ?? null,
+    amount: a.amount ?? null,
+    storage_path: a.storagePath,
+    mime_type: a.mimeType,
+    width: a.width ?? null,
+    height: a.height ?? null,
+    size_bytes: a.sizeBytes ?? null,
+    uploaded_by: a.uploadedBy && isUuid(a.uploadedBy) ? a.uploadedBy : null,
+    created_at: a.createdAt,
+  })
+  if (!error || isDuplicateKey(error)) return
+  if (isMissingTable(error)) throw new MediaError('Bill storage is not set up on the server yet.', 'setup')
+  // Foreign key: the expense/payment isn't on the server yet — retry later.
+  throw new MediaError(error.message, 'transient')
+}
+
+export async function remoteDeleteAttachment(id: string): Promise<boolean> {
+  if (!supabase || !isUuid(id)) return true
+  const { error } = await supabase.from('attachments').delete().eq('id', id)
+  if (error && isMissingTable(error)) return true
+  pushLog('push.deleteAttachment', error)
+  return !error
+}
+
+/** Removes stored images. Only orphaned objects (no attachments row) may be
+ *  removed, so callers delete the row first. */
+export async function remoteRemoveMedia(paths: string[]): Promise<boolean> {
+  if (!supabase || paths.length === 0) return true
+  const { error } = await supabase.storage.from(MEDIA_BUCKET).remove(paths)
+  if (error && /bucket not found/i.test(error.message)) return true
+  pushLog('push.removeMedia', error ? { message: error.message } : null)
+  return !error
+}
+
 // ─── Full trip pull ───────────────────────────────────────────────────────────
 
 export interface TripBundle {
@@ -474,13 +585,18 @@ export interface TripBundle {
     paidAt?: string
     confirmedAt?: string
   }>
+  /** null when the attachments table isn't available (migration not run, or
+   *  a transient error) — local attachments are then left untouched. */
+  attachments?: Attachment[] | null
+  /** True when the server has no attachments table (mobile migration not run). */
+  mediaTableMissing?: boolean
 }
 
 /** Pulls the full trip dataset from Supabase, mapped to local model types. */
 export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle | null> {
   if (!supabase || !isUuid(tripId)) return null
 
-  const [tripRes, membersRes, expensesRes, participantsRes, hotelsRes, roomsRes, occupantsRes, settlementsRes, groupsRes, groupMembersRes, sponsorshipsRes] =
+  const [tripRes, membersRes, expensesRes, participantsRes, hotelsRes, roomsRes, occupantsRes, settlementsRes, groupsRes, groupMembersRes, sponsorshipsRes, attachmentsRes] =
     await Promise.all([
       supabase.from('trips').select('*').eq('id', tripId).maybeSingle(),
       supabase.from('members').select('*').eq('trip_id', tripId).order('joined_at', { ascending: true }),
@@ -493,10 +609,11 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
       supabase.from('settlement_groups').select('*').eq('trip_id', tripId),
       supabase.from('settlement_group_members').select('*, settlement_groups!inner(trip_id)').eq('settlement_groups.trip_id', tripId),
       supabase.from('sponsorships').select('*').eq('trip_id', tripId),
+      supabase.from('attachments').select('*').eq('trip_id', tripId),
     ])
 
-  // All-or-nothing: a partially-failed pull must never be merged — missing
-  // rows would be mistaken for remote deletions and wipe local data.
+  // All-or-nothing for the core tables: a partially-failed pull must never be
+  // merged — missing rows would be mistaken for remote deletions and wipe local data.
   const resByTable: Record<string, { error: { message: string } | null }> = {
     trips: tripRes, members: membersRes, expenses: expensesRes,
     expense_participants: participantsRes, hotel_expenses: hotelsRes, rooms: roomsRes,
@@ -595,5 +712,19 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
     confirmedAt: row.confirmed_at || undefined,
   }))
 
-  return { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses }
+  // Attachments are optional: a server without the mobile media migration still syncs.
+  let attachments: Attachment[] | null = null
+  let mediaTableMissing = false
+  if (attachmentsRes.error) {
+    if (isMissingTable(attachmentsRes.error)) mediaTableMissing = true
+    else pushLog('pull.attachments', attachmentsRes.error)
+  } else {
+    attachments = (attachmentsRes.data || []).map(attachmentFromRow)
+  }
+
+  return {
+    trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses,
+    attachments, mediaTableMissing,
+  }
 }
+

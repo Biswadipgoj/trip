@@ -11,6 +11,7 @@ import {
   ArrowUpRight, ArrowDownRight, Sparkles
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
 
 interface PaymentsPageProps {
   params: Promise<{ tripId: string }>
@@ -261,6 +262,22 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     </motion.div>
                   )}
                 </AnimatePresence>
+
+                {/* Payment screenshot / proof */}
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-medium text-white/60">Payment Proof / Screenshot</span>
+                  </div>
+                  <AttachmentViewer
+                    tripId={tripId}
+                    kind="payment_proof"
+                    settlementId={settlement?.id}
+                    fromMemberId={route.fromMemberId}
+                    toMemberId={route.toMemberId}
+                    amount={route.amount}
+                    compact
+                  />
+                </div>
               </GlassCard>
             </FadeIn>
           )
@@ -297,6 +314,18 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                       {formatCurrency(payment.amount)}
                     </span>
                     <Avatar name={toM.name} color={toM.avatarColor} size="sm" />
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-white/5">
+                    <AttachmentViewer
+                      tripId={tripId}
+                      kind="payment_proof"
+                      settlementId={payment.id}
+                      fromMemberId={payment.fromMemberId}
+                      toMemberId={payment.toMemberId}
+                      amount={payment.amount}
+                      readOnly
+                      compact
+                    />
                   </div>
                 </GlassCard>
               )

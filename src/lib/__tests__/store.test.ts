@@ -552,3 +552,101 @@ describe('clone adoption — same trip code, different id', () => {
     expect(state.expenses.every(e => e.tripId === serverTripId)).toBe(true)
   })
 })
+
+describe('media & attachments compatibility', () => {
+  it('adds and queries attachments by trip and expense', async () => {
+    const { trip, dip } = seedTrip()
+    const exp = addEqualExpense(trip.id, 500, dip.id, [dip.id])
+
+    const att = await useStore.getState().addAttachment({
+      tripId: trip.id,
+      kind: 'bill',
+      expenseId: exp.id,
+      mimeType: 'image/jpeg',
+      uploadedBy: dip.id,
+    })
+
+    expect(att.id).toBeTruthy()
+    expect(att.tripId).toBe(trip.id)
+    expect(att.expenseId).toBe(exp.id)
+    expect(att.storagePath).toContain(`${trip.id}/bills/${att.id}`)
+
+    const tripAtts = useStore.getState().getAttachmentsByTrip(trip.id)
+    expect(tripAtts).toHaveLength(1)
+    expect(tripAtts[0].id).toBe(att.id)
+
+    const expAtts = useStore.getState().getAttachmentsByExpense(exp.id)
+    expect(expAtts).toHaveLength(1)
+    expect(expAtts[0].id).toBe(att.id)
+  })
+
+  it('deleting an expense cleans up its attachments', async () => {
+    const { trip, dip } = seedTrip()
+    const exp = addEqualExpense(trip.id, 1200, dip.id, [dip.id])
+
+    await useStore.getState().addAttachment({
+      tripId: trip.id,
+      kind: 'bill',
+      expenseId: exp.id,
+      mimeType: 'image/png',
+      uploadedBy: dip.id,
+    })
+
+    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(1)
+
+    useStore.getState().deleteExpense(exp.id)
+
+    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(0)
+    expect(useStore.getState().getAttachmentsByExpense(exp.id)).toHaveLength(0)
+  })
+
+  it('closing a trip removes its attachments from active store', async () => {
+    const { trip, dip } = seedTrip()
+    const exp = addEqualExpense(trip.id, 800, dip.id, [dip.id])
+
+    await useStore.getState().addAttachment({
+      tripId: trip.id,
+      kind: 'bill',
+      expenseId: exp.id,
+      mimeType: 'image/jpeg',
+      uploadedBy: dip.id,
+    })
+
+    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(1)
+
+    useStore.getState().closeTrip(trip.id)
+
+    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(0)
+  })
+
+  it('merges remote attachments and tracks sync state', () => {
+    const { trip, dip } = seedTrip()
+    const exp = addEqualExpense(trip.id, 600, dip.id, [dip.id])
+    const remoteAttId = crypto.randomUUID()
+
+    useStore.getState().mergeRemoteTrip({
+      trip,
+      members: [],
+      expenses: [exp],
+      hotelExpenses: [],
+      settlementGroups: [],
+      sponsorships: [],
+      settlementStatuses: [],
+      attachments: [{
+        id: remoteAttId,
+        tripId: trip.id,
+        kind: 'bill',
+        expenseId: exp.id,
+        storagePath: `${trip.id}/bills/${remoteAttId}.jpg`,
+        mimeType: 'image/jpeg',
+        createdAt: new Date().toISOString(),
+        upload: 'uploaded',
+      }],
+    })
+
+    const atts = useStore.getState().getAttachmentsByTrip(trip.id)
+    expect(atts.some(a => a.id === remoteAttId)).toBe(true)
+    expect(useStore.getState().synced[remoteAttId]).toBe(true)
+  })
+})
+
