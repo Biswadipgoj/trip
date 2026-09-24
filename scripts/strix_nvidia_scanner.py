@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from openai import OpenAI
 
-API_KEY = os.getenv("NVIDIA_API_KEY", "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")
+API_KEY = os.environ["NVIDIA_API_KEY"]
 BASE_URL = "https://integrate.api.nvidia.com/v1"
 MODEL = "nvidia/nemotron-3-ultra-550b-a55b"
 

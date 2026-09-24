@@ -1,9 +1,10 @@
+import os
 import sys
 from openai import OpenAI
 
 client = OpenAI(
     base_url="https://integrate.api.nvidia.com/v1",
-    api_key="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"
+    api_key=os.environ["NVIDIA_API_KEY"]
 )
 
 print("Starting streaming query with z-ai/glm-5.3...", flush=True)

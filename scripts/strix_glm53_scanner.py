@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from openai import OpenAI
 
-API_KEY = os.getenv("NVIDIA_API_KEY", "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")
+API_KEY = os.environ["NVIDIA_API_KEY"]
 BASE_URL = "https://integrate.api.nvidia.com/v1"
 MODEL = "z-ai/glm-5.3"
 

@@ -1,5 +1,6 @@
 'use client'
 import React, { useMemo } from 'react'
+import { pdfSafe } from '@/lib/pdfText'
 import { motion } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import {
@@ -278,47 +279,52 @@ export default function ReportPage({ params }: ReportPageProps) {
     const { default: jsPDF } = await import('jspdf')
     const doc = new jsPDF()
     let y = 20
+    // Start a new page before running off the bottom of one.
+    const write = (s: string, x: number, at: number) => {
+      if (at > 280) { doc.addPage(); y = 20; at = y }
+      doc.text(pdfSafe(s), x, at)
+    }
 
     doc.setFontSize(20)
-    doc.text(`Trip Report: ${trip?.name || tripId}`, 14, y); y += 10
+    write(`Trip Report: ${trip?.name || tripId}`, 14, y); y += 10
 
     doc.setFontSize(11)
-    doc.text(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, y); y += 10
-    doc.text(`Status: ${trip?.status || 'active'}`, 14, y); y += 14
+    write(`Generated: ${new Date().toLocaleDateString('en-IN')}`, 14, y); y += 10
+    write(`Status: ${trip?.status || 'active'}`, 14, y); y += 14
 
     doc.setFontSize(13)
-    doc.text('Summary', 14, y); y += 8
+    write('Summary', 14, y); y += 8
     doc.setFontSize(10)
-    doc.text(`Total Expenses: ${formatCurrency(totalSpend)}`, 14, y); y += 6
-    doc.text(`Members: ${members.length}`, 14, y); y += 6
-    doc.text(`Avg per person: ${formatCurrency(perPersonAvg)}`, 14, y); y += 6
-    if (budget > 0) { doc.text(`Budget: ${formatCurrency(budget)} (${budgetUsedPct.toFixed(0)}% used)`, 14, y); y += 6 }
+    write(`Total Expenses: ${formatCurrency(totalSpend)}`, 14, y); y += 6
+    write(`Members: ${members.length}`, 14, y); y += 6
+    write(`Avg per person: ${formatCurrency(perPersonAvg)}`, 14, y); y += 6
+    if (budget > 0) { write(`Budget: ${formatCurrency(budget)} (${budgetUsedPct.toFixed(0)}% used)`, 14, y); y += 6 }
     y += 6
 
     doc.setFontSize(13)
-    doc.text('Category Breakdown', 14, y); y += 8
+    write('Category Breakdown', 14, y); y += 8
     doc.setFontSize(10)
     categoryData.forEach(c => {
-      doc.text(`${getCategoryLabel(c.name)}: ${formatCurrency(c.value)} (${((c.value / totalSpend) * 100).toFixed(0)}%)`, 14, y)
+      write(`${getCategoryLabel(c.name)}: ${formatCurrency(c.value)} (${((c.value / totalSpend) * 100).toFixed(0)}%)`, 14, y)
       y += 6
     })
     y += 6
 
     doc.setFontSize(13)
-    doc.text('Member Balances', 14, y); y += 8
+    write('Member Balances', 14, y); y += 8
     doc.setFontSize(10)
     balances.forEach(b => {
       const sign = b.netBalance > 0 ? '+' : ''
-      doc.text(`${b.name}: paid ${formatCurrency(b.totalPaid)}, owes ${formatCurrency(b.totalOwed)}, net ${sign}${formatCurrency(b.netBalance)}`, 14, y)
+      write(`${b.name}: paid ${formatCurrency(b.totalPaid)}, owes ${formatCurrency(b.totalOwed)}, net ${sign}${formatCurrency(b.netBalance)}`, 14, y)
       y += 6
     })
     y += 6
 
     doc.setFontSize(13)
-    doc.text('Settlements', 14, y); y += 8
+    write('Settlements', 14, y); y += 8
     doc.setFontSize(10)
     routes.forEach(r => {
-      doc.text(`${r.fromName} → ${r.toName}: ${formatCurrency(r.amount)}`, 14, y); y += 6
+      write(`${r.fromName} → ${r.toName}: ${formatCurrency(r.amount)}`, 14, y); y += 6
     })
 
     doc.save(`trip-report-${trip?.name || tripId}.pdf`)

@@ -33,7 +33,7 @@ export const APP_RELEASE: AppReleaseMetadata = {
   approxBytes: 116028587,
   bucketName: 'android-app',
   storagePath: 'android-app/tripmate-latest.apk',
-  packageName: 'com.biswodip.tripmate',
+  packageName: 'com.tripmate.app',
   appName: 'TripMate',
   features: [
     'Trip, balances and bill photos stay viewable without signal',
