@@ -67,17 +67,18 @@ export default function Home() {
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
   const session = useStore(s => s.session)
-  const trips = useStore(s => s.trips)
-  const members = useStore(s => s.members)
+  const trips = useStore(s => s.trips) || []
+  const members = useStore(s => s.members) || []
   const [showLanguagePicker, setShowLanguagePicker] = useState(false)
 
   // Trips someone can log in to (members with mobile + PIN).
   const localTrips = useMemo(
     () =>
-      trips
-        .map(t => ({ trip: t, people: members.filter(m => m.tripId === t.id) }))
+      (trips || [])
+        .filter(t => t && t.id)
+        .map(t => ({ trip: t, people: (members || []).filter(m => m && m.tripId === t.id) }))
         .filter(x => x.people.some(m => !!m.mobile && !!m.pin))
-        .sort((a, b) => b.trip.createdAt.localeCompare(a.trip.createdAt))
+        .sort((a, b) => (b.trip?.createdAt || '').localeCompare(a.trip?.createdAt || ''))
         .slice(0, 5),
     [trips, members]
   )

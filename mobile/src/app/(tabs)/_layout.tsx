@@ -76,7 +76,7 @@ export default function TripTabsLayout() {
   )
 }
 
-/** Cloud-only app: when the phone drops offline, say so — changes can't be saved. */
+/** Offline banner: confirms all data stays safe on device and will auto-sync when back online. */
 function OfflineBanner() {
   const online = useSyncStatus(s => s.online)
   const reduced = useReducedMotion()
@@ -90,7 +90,7 @@ function OfflineBanner() {
     >
       <WifiOff size={16} color={C.amber700} strokeWidth={2.3} />
       <T variant="smallMedium" color={C.amber700} style={styles.flex}>
-        You're offline — showing your last synced trip. Reconnect to save changes.
+        Offline mode · All changes stay safe on this phone and will auto-sync when reconnected.
       </T>
     </Animated.View>
   )

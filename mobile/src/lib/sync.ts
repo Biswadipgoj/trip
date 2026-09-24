@@ -13,7 +13,7 @@ import { isRemoteEnabled, remoteFetchTripBundle, describeError } from './remote'
 import { useSyncStatus, logSync } from './synclog'
 import { processUploads } from './uploads'
 
-const SYNC_INTERVAL_MS = 15_000
+const SYNC_INTERVAL_MS = 5 * 60_000 // Check cloud every 5 minutes
 const RECONNECT_DELAY_MS = 700
 const REALTIME_DELAY_MS = 450
 
@@ -34,6 +34,11 @@ function applyNetworkState(state: Network.NetworkState) {
   logSync('info', online ? 'network.online' : 'network.offline')
   if (online) {
     reconnectListeners.forEach(fn => fn())
+    // Auto-sync active trip immediately when internet returns
+    const activeTripId = useStore.getState().session?.tripId
+    if (activeTripId) {
+      void syncTrip(activeTripId)
+    }
     void processUploads()
   }
 }

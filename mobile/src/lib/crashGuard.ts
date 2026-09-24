@@ -22,21 +22,37 @@ declare const __DEV__: boolean | undefined
 
 const errorUtils = (globalThis as { ErrorUtils?: ErrorUtilsLike }).ErrorUtils
 if (errorUtils) {
-  const fallback = errorUtils.getGlobalHandler()
+  const fallback = typeof errorUtils.getGlobalHandler === 'function' ? errorUtils.getGlobalHandler() : undefined
   errorUtils.setGlobalHandler((error, isFatal) => {
-    console.warn('[crashGuard]', isFatal ? 'fatal' : 'non-fatal', error)
-    const now = Date.now()
-    if (now - lastToastAt > 3000) {
-      lastToastAt = now
-      try {
-        toast.error('Something went wrong — please try that again.')
-      } catch {
-        // the toast host itself failed; staying alive matters more
+    try {
+      console.warn('[crashGuard]', isFatal ? 'fatal' : 'non-fatal', error)
+      const now = Date.now()
+      if (mounted && now - lastToastAt > 3000) {
+        lastToastAt = now
+        try {
+          toast.error('Something went wrong — please try that again.')
+        } catch {
+          // the toast host itself failed; staying alive matters more
+        }
       }
+    } catch {
+      // guard must never throw
     }
     // In dev mode, allow redbox. In production release, prevent OS process crash.
     if (typeof __DEV__ !== 'undefined' && __DEV__ && typeof fallback === 'function') {
-      fallback(error, isFatal)
+      try {
+        fallback(error, isFatal)
+      } catch {}
     }
   })
+}
+
+// Global unhandled promise rejection tracking to prevent process crashes on Android release
+const gt = globalThis as any
+if (typeof gt.onunhandledrejection === 'undefined' || !gt.onunhandledrejection) {
+  gt.onunhandledrejection = (event: any) => {
+    try {
+      console.warn('[crashGuard] unhandled promise rejection:', event?.reason || event)
+    } catch {}
+  }
 }

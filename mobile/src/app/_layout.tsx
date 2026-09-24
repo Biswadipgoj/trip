@@ -63,15 +63,11 @@ export default function RootLayout() {
     if (!ready) return
     markAppMounted()
     SplashScreen.hideAsync().catch(() => {})
-    void recoverPendingPick()
-    void processUploads()
+    try { void recoverPendingPick() } catch {}
+    try { void processUploads() } catch {}
   }, [ready])
 
   if (!ready) return null // the native splash stays up
-
-  if (!isSupabaseConfigured && !ALLOW_LOCAL_PREVIEW) {
-    return <CloudSetupRequired />
-  }
 
   return (
     <GestureHandlerRootView style={styles.root}>
@@ -101,35 +97,6 @@ export default function RootLayout() {
           </Stack>
           <ToastHost />
         </KeyboardRoot>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
-  )
-}
-
-function CloudSetupRequired() {
-  return (
-    <GestureHandlerRootView style={styles.root}>
-      <SafeAreaProvider>
-        <Screen edges={['top', 'bottom']}>
-          <ScrollView contentContainerStyle={styles.errorWrap}>
-            <GlassCard strong>
-              <View style={styles.cloudIcon}>
-                <CloudOff size={30} color={C.brand500} strokeWidth={2.2} />
-              </View>
-              <T variant="h2" center>Cloud Setup Required</T>
-              <T variant="body" color={ink(0.7)} center style={styles.errorText}>
-                TripMate is 100% cloud-powered by Supabase so your friends always see live expenses and instant settlements.
-              </T>
-              <View style={styles.stepBox}>
-                <T variant="smallSemibold" color={C.ink}>To connect your Supabase database:</T>
-                <T variant="tiny" color={ink(0.65)}>1. Set EXPO_PUBLIC_SUPABASE_URL</T>
-                <T variant="tiny" color={ink(0.65)}>2. Set EXPO_PUBLIC_SUPABASE_ANON_KEY</T>
-                <T variant="tiny" color={ink(0.55)}>in mobile/.env or EAS environment variables.</T>
-              </View>
-              <Button title="Check Again" icon={RotateCw} onPress={() => { router.replace('/') }} full />
-            </GlassCard>
-          </ScrollView>
-        </Screen>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   )

@@ -172,14 +172,14 @@ export default function Viewer() {
       {/* Info */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
         <View style={styles.infoCard}>
-          <UploadState upload={attachment.upload} error={attachment.uploadError} cloud={cloud} />
+          <UploadState upload={attachment.upload} cloud={cloud} />
           <T variant="small" color={whiteA(0.75)}>
             {uploader ? `Added by ${uploader.name} · ` : ''}{formatDate(attachment.createdAt)} ({formatRelativeTime(attachment.createdAt)})
           </T>
           {attachment.upload === 'failed' && cloud && (
             <PressScale onPress={() => { tick('light'); retryUpload(attachment.id) }} style={styles.pill} accessibilityRole="button">
               <RotateCw size={14} color={C.white} />
-              <T variant="smallSemibold" color={C.white}>Retry upload</T>
+              <T variant="smallSemibold" color={C.white}>Sync now</T>
             </PressScale>
           )}
         </View>
@@ -188,7 +188,7 @@ export default function Viewer() {
   )
 }
 
-function UploadState({ upload, error, cloud }: { upload: string; error?: string; cloud: boolean }) {
+function UploadState({ upload, cloud }: { upload: string; cloud: boolean }) {
   if (!cloud) return null
   if (upload === 'uploaded') {
     return (
@@ -209,9 +209,9 @@ function UploadState({ upload, error, cloud }: { upload: string; error?: string;
   if (upload === 'failed') {
     return (
       <View style={styles.state}>
-        <RotateCw size={14} color="#F87171" />
-        <T variant="smallSemibold" color="#F87171" numberOfLines={1}>
-          {error || 'Upload failed'}
+        <RotateCw size={14} color="#FCD34D" />
+        <T variant="smallSemibold" color="#FCD34D" numberOfLines={1}>
+          Saved on device · will sync when online
         </T>
       </View>
     )

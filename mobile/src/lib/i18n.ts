@@ -80,7 +80,7 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     createTrip: 'Create a Trip',
     joinTrip: 'Join Existing Trip',
     login: 'Login to Trip',
-    recentTrips: 'Recent Cloud Trips',
+    recentTrips: 'Recent Trips',
     feature1Title: 'Squad Trips',
     feature1Desc: 'Invite friends with a simple trip code',
     feature2Title: 'Track Kharcha',

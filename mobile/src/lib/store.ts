@@ -1155,15 +1155,19 @@ export const useStore = create<AppState>()(
       }),
       migrate: (persisted, version) => migratePersisted(persisted, version) as never,
       onRehydrateStorage: () => (_state, error) => {
-        if (error) logSync('error', 'storage.rehydrate', describeError(error))
-        // An upload interrupted by the app being killed is retried from scratch.
-        const attachments = useStore.getState().attachments
-        if (attachments.some(a => a.upload === 'uploading')) {
-          useStore.setState({
-            attachments: attachments.map(a => (a.upload === 'uploading' ? { ...a, upload: 'pending' as const } : a)),
-          })
+        try {
+          if (error) logSync('error', 'storage.rehydrate', describeError(error))
+          const attachments = useStore.getState().attachments || []
+          if (Array.isArray(attachments) && attachments.some(a => a?.upload === 'uploading')) {
+            useStore.setState({
+              attachments: attachments.map(a => (a?.upload === 'uploading' ? { ...a, upload: 'pending' as const } : a)),
+            })
+          }
+        } catch (e) {
+          console.warn('[store] rehydrate post-process error:', e)
+        } finally {
+          useStore.setState({ hydrated: true })
         }
-        useStore.setState({ hydrated: true })
       },
     }
   )
