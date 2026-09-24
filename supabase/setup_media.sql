@@ -110,15 +110,22 @@ BEGIN
       USING (bucket_id = 'trip-media');
   END IF;
 
+  -- Only images no attachments row points to may be deleted (the apps
+  -- delete the row first, then the image).
+  DROP POLICY IF EXISTS "tripmate_media_delete" ON storage.objects;
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'tripmate_media_delete'
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'tripmate_media_delete_orphans'
   ) THEN
-    CREATE POLICY "tripmate_media_delete" ON storage.objects
+    CREATE POLICY "tripmate_media_delete_orphans" ON storage.objects
       FOR DELETE TO anon, authenticated
-      USING (bucket_id = 'trip-media');
+      USING (
+        bucket_id = 'trip-media'
+        AND NOT EXISTS (SELECT 1 FROM public.attachments a WHERE a.storage_path = name)
+      );
   END IF;
 
-  -- android-app bucket policies (public download + release upload)
+  -- android-app bucket: public download only. Releases are uploaded with the
+  -- service-role key (scripts/upload-apk-to-supabase.mjs), never the anon key.
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_select'
   ) THEN
@@ -127,22 +134,6 @@ BEGIN
       USING (bucket_id = 'android-app');
   END IF;
 
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_insert'
-  ) THEN
-    CREATE POLICY "android_app_insert" ON storage.objects
-      FOR INSERT TO anon, authenticated
-      WITH CHECK (bucket_id = 'android-app');
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_update'
-  ) THEN
-    CREATE POLICY "android_app_update" ON storage.objects
-      FOR UPDATE TO anon, authenticated
-      USING (bucket_id = 'android-app')
-      WITH CHECK (bucket_id = 'android-app');
-  END IF;
 END $$;
 
 -- --- 4. Atomic, idempotent writes used by the Android app --------------------
@@ -258,32 +249,15 @@ GRANT EXECUTE ON FUNCTION public.tm_push_expense(JSONB, JSONB) TO anon, authenti
 GRANT EXECUTE ON FUNCTION public.tm_push_hotel_expense(JSONB, JSONB) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.tm_push_settlement_group(JSONB, JSONB) TO anon, authenticated;
 
--- --- 5. Auto-delete files when trip is closed or deleted ----------------------
-CREATE OR REPLACE FUNCTION public.tm_on_trip_closed_or_deleted()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, storage
-AS $$
-BEGIN
-  IF (TG_OP = 'DELETE') OR (TG_OP = 'UPDATE' AND NEW.status = 'closed' AND (OLD.status IS DISTINCT FROM 'closed')) THEN
-    DELETE FROM storage.objects
-    WHERE bucket_id = 'trip-media'
-      AND (name LIKE (COALESCE(NEW.id, OLD.id))::text || '/%');
-
-    IF (TG_OP = 'UPDATE') THEN
-      DELETE FROM public.attachments WHERE trip_id = NEW.id;
-    END IF;
-  END IF;
-  RETURN COALESCE(NEW, OLD);
-END;
-$$;
-
+-- --- 5. Keep images when a trip closes -------------------------------------
+-- Trips close automatically once everyone is settled; bill photos and UPI
+-- screenshots are the record of who paid whom, so they are kept. Rows of a
+-- deleted trip are removed by ON DELETE CASCADE.
 DROP TRIGGER IF EXISTS tr_trip_closed_or_deleted ON public.trips;
-CREATE TRIGGER tr_trip_closed_or_deleted
-  AFTER UPDATE OF status OR DELETE ON public.trips
-  FOR EACH ROW
-  EXECUTE FUNCTION public.tm_on_trip_closed_or_deleted();
+DROP FUNCTION IF EXISTS public.tm_on_trip_closed_or_deleted();
+
+-- Then run migrations/20260925_harden_storage.sql (path-restricted upload
+-- and delete policies).
 
 -- Make the new table and functions visible to the API immediately.
 NOTIFY pgrst, 'reload schema';

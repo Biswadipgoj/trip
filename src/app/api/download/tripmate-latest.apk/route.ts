@@ -1,78 +1,71 @@
 import { NextResponse } from 'next/server'
 import { APP_RELEASE } from '@/config/appRelease'
+import { totalLength } from '@/lib/apkParts'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// Total size of official tripmate-latest.apk (version 4.0.1, build 401)
-const TOTAL_FILE_SIZE = APP_RELEASE.approxBytes || 116028587
+// The APK is stored as parts (Supabase free tier caps objects at 50 MB) and
+// streamed back as one file. The length header is the sum of the parts' real
+// sizes: a stale hard-coded length makes browsers truncate or reject the file,
+// and Android then reports "App not installed".
 
 function getPartUrls(): string[] {
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co').replace(/\/+$/, '')
-  return [
-    `${supabaseUrl}/storage/v1/object/public/android-app/tripmate-latest.apk.part1`,
-    `${supabaseUrl}/storage/v1/object/public/android-app/tripmate-latest.apk.part2`,
-    `${supabaseUrl}/storage/v1/object/public/android-app/tripmate-latest.apk.part3`,
-  ]
+  return [1, 2, 3].map(n => `${supabaseUrl}/storage/v1/object/public/android-app/tripmate-latest.apk.part${n}`)
 }
 
+function apkHeaders(length: number): HeadersInit {
+  return {
+    'Content-Type': 'application/vnd.android.package-archive',
+    'Content-Disposition': `attachment; filename="${APP_RELEASE.fileName}"`,
+    'Content-Length': String(length),
+    'Accept-Ranges': 'none',
+    'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+    'X-Content-Type-Options': 'nosniff',
+  }
+}
+
+const unavailable = () =>
+  NextResponse.json(
+    { error: 'The Android app download is temporarily unavailable. Please try again in a few minutes.' },
+    { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '300' } }
+  )
+
 export async function HEAD() {
-  return new Response(null, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/vnd.android.package-archive',
-      'Content-Disposition': `attachment; filename="${APP_RELEASE.fileName}"`,
-      'Content-Length': String(TOTAL_FILE_SIZE),
-      'Accept-Ranges': 'none',
-      'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
-    },
-  })
+  const length = await totalLength(getPartUrls())
+  if (length === null) return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } })
+  return new Response(null, { status: 200, headers: apkHeaders(length) })
 }
 
 export async function GET() {
   const partUrls = getPartUrls()
-
-  try {
-    // Stream parts sequentially into a single unified HTTP response
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for (const url of partUrls) {
-            const res = await fetch(url, { cache: 'no-store' })
-            if (!res.ok || !res.body) {
-              controller.error(new Error(`Failed to fetch part ${url} (status: ${res.status})`))
-              return
-            }
-
-            const reader = res.body.getReader()
-            while (true) {
-              const { done, value } = await reader.read()
-              if (done) break
-              controller.enqueue(value)
-            }
-          }
-          controller.close()
-        } catch (streamErr) {
-          controller.error(streamErr)
-        }
-      },
-    })
-
-    return new Response(stream, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Disposition': `attachment; filename="${APP_RELEASE.fileName}"`,
-        'Content-Length': String(TOTAL_FILE_SIZE),
-        'Cache-Control': 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=86400',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    })
-  } catch (error) {
-    console.error('[Download Route Error]:', error)
-    return NextResponse.json(
-      { error: 'Failed to stream APK download', details: String(error) },
-      { status: 500 }
-    )
+  const length = await totalLength(partUrls)
+  if (length === null) {
+    console.error('[download] an APK part is missing or unreadable')
+    return unavailable()
   }
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for (const url of partUrls) {
+          const res = await fetch(url, { cache: 'no-store' })
+          if (!res.ok || !res.body) throw new Error(`part fetch failed (${res.status})`)
+          const reader = res.body.getReader()
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            controller.enqueue(value)
+          }
+        }
+        controller.close()
+      } catch (err) {
+        console.error('[download] stream failed:', err)
+        controller.error(err)
+      }
+    },
+  })
+
+  return new Response(stream, { status: 200, headers: apkHeaders(length) })
 }

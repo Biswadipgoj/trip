@@ -1,0 +1,19 @@
+migration applied twice (idempotent); setup_media.sql re-run afterwards
+NOTICE:  PASS  T1 anon INSERT into android-app is denied
+NOTICE:  PASS  T1 anon UPDATE of an APK part is denied
+NOTICE:  PASS  T1 anon DELETE of an APK part is denied
+NOTICE:  PASS  T1 anon can still read (download) the APK
+NOTICE:  PASS  T4 bill upload with the app path is allowed
+NOTICE:  PASS  T4 app payment screenshot path is allowed
+NOTICE:  PASS  T4 legacy web payment_proofs path is allowed
+NOTICE:  PASS  T4 upload into a trip that does not exist is denied
+NOTICE:  PASS  T4 arbitrary path is denied
+NOTICE:  PASS  T4 path traversal is denied
+NOTICE:  PASS  T4 non-image extension is denied
+NOTICE:  PASS  T2 upsert of a valid object path is allowed
+NOTICE:  PASS  T2 moving an object to an invalid path is denied
+NOTICE:  PASS  T3 deleting a referenced bill image is denied
+NOTICE:  PASS  T3 deleting an orphaned image is allowed
+NOTICE:  PASS  Closing a trip keeps its attachments rows
+NOTICE:  PASS  Closing a trip keeps its images
+ALL STORAGE POLICY CHECKS PASSED
