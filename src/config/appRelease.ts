@@ -24,7 +24,7 @@ export interface AppReleaseMetadata {
 
 export const APP_RELEASE: AppReleaseMetadata = {
   version: '4.0.1',
-  versionCode: 401,
+  versionCode: 402,
   releaseDate: 'September 2026',
   minimumAndroidVersion: 'Android 8.0 (Oreo) or later',
   targetAndroidVersion: 'Android 14 / 15',

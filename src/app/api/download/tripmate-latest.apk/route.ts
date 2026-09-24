@@ -33,12 +33,20 @@ const unavailable = () =>
   )
 
 export async function HEAD() {
+  const customUrl = process.env.NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL?.trim()
+  if (customUrl) {
+    return NextResponse.redirect(customUrl, { status: 307 })
+  }
   const length = await totalLength(getPartUrls())
   if (length === null) return new Response(null, { status: 503, headers: { 'Cache-Control': 'no-store' } })
   return new Response(null, { status: 200, headers: apkHeaders(length) })
 }
 
 export async function GET() {
+  const customUrl = process.env.NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL?.trim()
+  if (customUrl) {
+    return NextResponse.redirect(customUrl, { status: 307 })
+  }
   const partUrls = getPartUrls()
   const length = await totalLength(partUrls)
   if (length === null) {

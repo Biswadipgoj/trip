@@ -21,7 +21,8 @@ vi.mock('../src/lib/remote', () => {
     describeError: (e: unknown) => String(e),
     remoteCreateTrip: push, remoteCloseTrip: push, remoteEnsureTrip: push, remoteAddManualMember: push,
     remoteUpdateMemberUpi: push, remotePushExpense: push, remoteDeleteExpense: push, remotePushHotelExpense: push,
-    remoteDeleteHotelExpense: push, remotePushSettlementStatus: push, remotePushSettlementGroup: push,
+    remoteDeleteHotelExpense: push, remotePushSettlementStatus: push, remoteDeleteSettlementStatus: push,
+    remoteCleanStaleSettlements: push, remoteDeleteSettlementsByTrip: push, remotePushSettlementGroup: push,
     remoteDeleteSettlementGroup: push, remotePushSponsorship: push, remoteDeleteSponsorship: push,
     remoteSetTripCreator: push, remoteHealExpenseParticipants: push, remoteHealHotelRooms: push,
     remoteDeleteAttachment: push, remoteRemoveMedia: push,
@@ -102,6 +103,58 @@ describe('settlements', () => {
     s.generateSettlements(trip.id)
     s.generateSettlements(trip.id)
     expect(useStore.getState().settlements[0].id).toBe(id)
+  })
+
+  it('deleting an expense clears all settlements when 0 expenses remain', () => {
+    const { trip, asha, bala } = setupTrip()
+    const s = useStore.getState()
+    const e = s.addExpense({
+      tripId: trip.id, title: 'Dinner', amount: 600, paidBy: asha.id, category: 'food',
+      participants: [asha.id, bala.id], splitType: 'equal', splits: [],
+    })
+    expect(s.getSettlementsByTrip(trip.id)).toHaveLength(1)
+
+    s.deleteExpense(e.id)
+    expect(s.getSettlementsByTrip(trip.id)).toHaveLength(0)
+  })
+
+  it('deleteSettlement removes payment record and recalculates residual dues', () => {
+    const { trip, asha, bala, chetan } = setupTrip()
+    const s = useStore.getState()
+    s.addExpense({
+      tripId: trip.id, title: 'Dinner', amount: 900, paidBy: asha.id, category: 'food',
+      participants: [asha.id, bala.id, chetan.id], splitType: 'equal', splits: [],
+    })
+    const dues = s.getSettlementsByTrip(trip.id)
+    const balaDue = dues.find(d => d.fromMemberId === bala.id)!
+
+    s.updateSettlementStatus(balaDue.id, 'confirmed')
+    expect(s.getSettlementsByTrip(trip.id).filter(x => x.status === 'confirmed')).toHaveLength(1)
+
+    s.deleteSettlement(balaDue.id)
+    expect(s.getSettlementsByTrip(trip.id).filter(x => x.status === 'confirmed')).toHaveLength(0)
+    // Residual dues re-open Bala's debt
+    const reopened = s.getSettlementsByTrip(trip.id).find(d => d.fromMemberId === bala.id)
+    expect(reopened).toBeDefined()
+    expect(reopened?.amount).toBe(300)
+  })
+
+  it('reverting paid status to pending clears timestamps and recalculates', () => {
+    const { trip, asha, bala } = setupTrip()
+    const s = useStore.getState()
+    s.addExpense({
+      tripId: trip.id, title: 'Lunch', amount: 400, paidBy: asha.id, category: 'food',
+      participants: [asha.id, bala.id], splitType: 'equal', splits: [],
+    })
+    const dueItem = s.getSettlementsByTrip(trip.id)[0]
+    s.updateSettlementStatus(dueItem.id, 'paid')
+    expect(s.getSettlementsByTrip(trip.id)[0].status).toBe('paid')
+    expect(s.getSettlementsByTrip(trip.id)[0].paidAt).toBeDefined()
+
+    s.updateSettlementStatus(dueItem.id, 'pending')
+    const reverted = s.getSettlementsByTrip(trip.id)[0]
+    expect(reverted.status).toBe('pending')
+    expect(reverted.paidAt).toBeUndefined()
   })
 })
 

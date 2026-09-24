@@ -29,7 +29,7 @@ export default function RouteLayout({
   return (
     <div className="min-h-screen">
       <AppNav tripId={tripId} />
-      <div className="lg:pl-64 pb-24 lg:pb-0">
+      <div className="lg:pl-72 pb-32 lg:pb-12">
         <div className="min-h-screen px-4 py-6 lg:px-8 lg:py-8 max-w-5xl mx-auto">
           {children}
         </div>

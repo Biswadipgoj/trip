@@ -208,7 +208,7 @@ export interface Attachment {
 // so they are never lost or resurrected by the next pull. (Creates don't need
 // the outbox: every sync re-uploads local rows the server doesn't have yet.)
 
-export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments'
+export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments' | 'settlements'
 
 export type OutboxOp =
   | { kind: 'delete'; table: DeletableTable; rowId: string }

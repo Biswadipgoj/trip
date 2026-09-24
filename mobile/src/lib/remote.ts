@@ -611,6 +611,32 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<boolean
   return !error
 }
 
+export async function remoteDeleteSettlementStatus(settlementId: string): Promise<boolean> {
+  if (!supabase || !isUuid(settlementId)) return true
+  const { error } = await supabase.from('settlements').delete().eq('id', settlementId)
+  pushLog('push.deleteSettlementStatus', error)
+  return !error
+}
+
+export async function remoteCleanStaleSettlements(tripId: string, validSettlementIds: string[]): Promise<boolean> {
+  if (!supabase || !isUuid(tripId)) return true
+  const validUuids = validSettlementIds.filter(isUuid)
+  let query = supabase.from('settlements').delete().eq('trip_id', tripId)
+  if (validUuids.length > 0) {
+    query = query.not('id', 'in', `(${validUuids.join(',')})`)
+  }
+  const { error } = await query
+  pushLog('push.cleanStaleSettlements', error)
+  return !error
+}
+
+export async function remoteDeleteSettlementsByTrip(tripId: string): Promise<boolean> {
+  if (!supabase || !isUuid(tripId)) return true
+  const { error } = await supabase.from('settlements').delete().eq('trip_id', tripId)
+  pushLog('push.deleteSettlementsByTrip', error)
+  return !error
+}
+
 // ─── Attachments (bill photos, UPI screenshots) ───────────────────────────────
 
 export type MediaErrorKind = 'setup' | 'transient'

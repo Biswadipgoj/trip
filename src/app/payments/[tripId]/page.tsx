@@ -8,7 +8,7 @@ import { Avatar } from '@/components/shared/Avatar'
 import { FadeIn } from '@/components/animations/FadeIn'
 import {
   ArrowRight, CheckCircle2, Clock, CreditCard, QrCode,
-  ArrowUpRight, ArrowDownRight, Sparkles
+  ArrowUpRight, ArrowDownRight, Sparkles, Trash2
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
@@ -34,6 +34,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
   const allSponsorships  = useStore(s => s.sponsorships)
   const allSettlements   = useStore(s => s.settlements)
   const updateStatus        = useStore(s => s.updateSettlementStatus)
+  const deleteSettlement    = useStore(s => s.deleteSettlement)
   const generateSettlements = useStore(s => s.generateSettlements)
 
   const members       = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
@@ -227,12 +228,20 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                       </button>
                     )}
                     {settlement && status === 'paid' && (
-                      <button
-                        onClick={() => updateStatus(settlement.id, 'confirmed')}
-                        className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-emerald-500 text-pure-white hover:bg-emerald-400 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
-                      >
-                        Confirm received
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateStatus(settlement.id, 'pending')}
+                          className="text-xs font-medium min-h-[36px] px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/5 active:scale-[0.97] transition"
+                        >
+                          Undo
+                        </button>
+                        <button
+                          onClick={() => updateStatus(settlement.id, 'confirmed')}
+                          className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-emerald-500 text-pure-white hover:bg-emerald-400 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
+                        >
+                          Confirm received
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -312,6 +321,18 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     <span className="text-sm font-bold text-emerald-400 flex-shrink-0">
                       {formatCurrency(payment.amount)}
                     </span>
+                    <button
+                      onClick={() => {
+                        if (confirm(`Remove this payment record of ${formatCurrency(payment.amount)} from ${fromM.name} to ${toM.name}? Balances and dues will be recalculated.`)) {
+                          deleteSettlement(payment.id)
+                        }
+                      }}
+                      title="Remove payment record"
+                      className="p-1.5 rounded-lg text-white/40 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-1"
+                      aria-label="Remove payment record"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                     <Avatar name={toM.name} color={toM.avatarColor} size="sm" />
                   </div>
                   <div className="mt-2 pt-2 border-t border-white/5">

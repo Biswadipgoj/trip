@@ -12,6 +12,7 @@ import { ALLOW_LOCAL_PREVIEW } from './config'
 import {
   describeError, isRemoteEnabled, remoteAddManualMember, remoteCloseTrip, remoteCreateTrip,
   remoteDeleteAttachment, remoteDeleteExpense, remoteDeleteHotelExpense, remoteDeleteSettlementGroup,
+  remoteDeleteSettlementStatus,
   remoteFindTripByCode, remotePushExpense, remotePushHotelExpense, remotePushSettlementGroup,
   remotePushSettlementStatus, remoteUpdateMemberUpi,
 } from './remote'
@@ -172,11 +173,19 @@ export async function cloudSetPaymentStatus(settlementId: string, status: Paymen
   const updated: Settlement = {
     ...current,
     status,
-    paidAt: status === 'paid' || status === 'confirmed' ? (current.paidAt ?? now) : current.paidAt,
-    confirmedAt: status === 'confirmed' ? now : current.confirmedAt,
+    paidAt: status === 'paid' || status === 'confirmed' ? (current.paidAt ?? now) : undefined,
+    confirmedAt: status === 'confirmed' ? now : undefined,
   }
   await must(remotePushSettlementStatus(updated), 'update the payment')
   useStore.getState().applySettlement(updated)
+}
+
+export async function cloudDeleteSettlement(settlementId: string) {
+  const current = useStore.getState().settlements.find(x => x.id === settlementId)
+  if (!current) return
+  if (mode() === 'local') return useStore.getState().deleteSettlement(settlementId)
+  await must(remoteDeleteSettlementStatus(settlementId), 'delete the payment')
+  useStore.getState().deleteSettlement(settlementId)
 }
 
 // ─── Photos ───────────────────────────────────────────────────────────────────

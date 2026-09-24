@@ -55,6 +55,46 @@ describe('settlement generation', () => {
     useStore.getState().deleteExpense(e.id)
     expect(due(trip.id)).toHaveLength(0)
   })
+
+  it('deleting all expenses clears even confirmed payments and dues', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    const e = addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    useStore.getState().updateSettlementStatus(manuDue.id, 'confirmed')
+    expect(confirmed(trip.id)).toHaveLength(1)
+
+    useStore.getState().deleteExpense(e.id)
+    expect(useStore.getState().settlements.filter(s => s.tripId === trip.id)).toHaveLength(0)
+  })
+
+  it('deleteSettlement removes payment record and re-opens dues', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    useStore.getState().updateSettlementStatus(manuDue.id, 'confirmed')
+    expect(confirmed(trip.id)).toHaveLength(1)
+
+    useStore.getState().deleteSettlement(manuDue.id)
+    expect(confirmed(trip.id)).toHaveLength(0)
+    // Manu's due is restored
+    const restored = due(trip.id).find(d => d.fromMemberId === manu.id)
+    expect(restored).toBeDefined()
+    expect(restored?.amount).toBe(1000)
+  })
+
+  it('reverting paid status to pending clears timestamp and recalculates', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    useStore.getState().updateSettlementStatus(manuDue.id, 'paid')
+    expect(useStore.getState().settlements.find(s => s.id === manuDue.id)?.status).toBe('paid')
+    expect(useStore.getState().settlements.find(s => s.id === manuDue.id)?.paidAt).toBeDefined()
+
+    useStore.getState().updateSettlementStatus(manuDue.id, 'pending')
+    const reverted = useStore.getState().settlements.find(s => s.id === manuDue.id)!
+    expect(reverted.status).toBe('pending')
+    expect(reverted.paidAt).toBeUndefined()
+  })
 })
 
 describe('payment confirmation cascade (Issue A)', () => {

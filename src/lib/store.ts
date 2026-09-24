@@ -13,7 +13,8 @@ import {
   isRemoteEnabled, remoteCreateTrip, remoteCloseTrip, remoteEnsureTrip,
   remoteAddManualMember, remoteUpdateMemberUpi,
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
-  remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
+  remotePushSettlementStatus, remoteDeleteSettlementStatus, remoteCleanStaleSettlements, remoteDeleteSettlementsByTrip,
+  remotePushSettlementGroup, remoteDeleteSettlementGroup,
   remotePushSponsorship, remoteDeleteSponsorship, remoteSetTripCreator, TripBundle,
   remoteUploadMedia, remoteInsertAttachment, remoteDeleteAttachment, remoteRemoveMedia,
   remoteMediaExists, MediaError,
@@ -241,6 +242,7 @@ interface AppState {
   generateSettlements:       (tripId: string) => void
   getSettlementsByTrip:      (tripId: string) => Settlement[]
   updateSettlementStatus:    (id: string, status: PaymentStatus) => void
+  deleteSettlement:          (id: string) => void
 
   // ─── Attachment / Media Actions ──────────────────────────────────────────────
   addAttachment: (data: Omit<Attachment, 'id' | 'createdAt' | 'upload'> & { file?: File | Blob }) => Promise<Attachment>
@@ -463,13 +465,32 @@ export const useStore = create<AppState>()(
           })
 
           // 2. Generate minimal settlements directly in memory
-          const confirmedRecords = tripRows.filter(s => s.status === 'confirmed')
           const tripExp = mergedExpenses.filter(e => e.tripId === trip.id)
           const tripHot = mergedHotels.filter(h => h.tripId === trip.id)
           const tripMem = mergedMembers.filter(m => m.tripId === trip.id)
           const tripGrp = mergedGroups.filter(g => g.tripId === trip.id)
           const tripSp  = mergedSponsorships.filter(sp => sp.tripId === trip.id)
 
+          // If no expenses or hotel stays remain, clear all settlements for this trip
+          if (tripExp.length === 0 && tripHot.length === 0) {
+            fireAndForget(remoteDeleteSettlementsByTrip(trip.id))
+            return {
+              synced,
+              trips: s.trips.some(t => t.id === trip.id)
+                ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
+                : [...s.trips, mergedTrip],
+              members: mergedMembers,
+              expenses: mergedExpenses,
+              hotelExpenses: mergedHotels,
+              settlementGroups: mergedGroups,
+              sponsorships: mergedSponsorships,
+              attachments,
+              settlements: otherRows,
+              session: s.session,
+            }
+          }
+
+          const confirmedRecords = tripRows.filter(s => s.status === 'confirmed')
           const balances = applyConfirmedTransfers(
             calculateBalances(tripExp, tripHot, tripMem),
             confirmedRecords,
@@ -506,6 +527,9 @@ export const useStore = create<AppState>()(
             }
           })
 
+          const validSettlements = [...confirmedRecords, ...dues]
+          fireAndForget(remoteCleanStaleSettlements(trip.id, validSettlements.map(x => x.id)))
+
           return {
             synced,
             trips: s.trips.some(t => t.id === trip.id)
@@ -517,7 +541,7 @@ export const useStore = create<AppState>()(
             settlementGroups: mergedGroups,
             sponsorships: mergedSponsorships,
             attachments,
-            settlements: [...otherRows, ...confirmedRecords, ...dues],
+            settlements: [...otherRows, ...validSettlements],
             session: s.session,
           }
         })
@@ -752,8 +776,20 @@ export const useStore = create<AppState>()(
         const groups        = state.settlementGroups.filter(g => g.tripId === tripId)
         const sponsorships  = state.sponsorships.filter(sp => sp.tripId === tripId)
 
+        // When no expenses or hotel stays remain in the trip, all settlements must be cleared
+        if (expenses.length === 0 && hotelExpenses.length === 0) {
+          set(s => ({
+            settlements: s.settlements.filter(x => x.tripId !== tripId),
+          }))
+          fireAndForget(remoteDeleteSettlementsByTrip(tripId))
+          return
+        }
+
         const prevSettlements  = state.settlements.filter(s => s.tripId === tripId)
-        const confirmedRecords = prevSettlements.filter(s => s.status === 'confirmed')
+        const memberIds = new Set(members.map(m => m.id))
+        const confirmedRecords = prevSettlements.filter(
+          s => s.status === 'confirmed' && memberIds.has(s.fromMemberId) && memberIds.has(s.toMemberId)
+        )
 
         // 1. Raw expense balances, minus cash already moved by confirmed
         //    payments. Groups/sponsorships are passed so a couple's combined
@@ -797,13 +833,18 @@ export const useStore = create<AppState>()(
           }
         })
 
+        const updatedTripSettlements = [...confirmedRecords, ...dues]
+
         set(s => ({
           settlements: [
             ...s.settlements.filter(x => x.tripId !== tripId),
-            ...confirmedRecords,
-            ...dues,
+            ...updatedTripSettlements,
           ],
         }))
+
+        // Clean stale settlement rows on Supabase
+        const validIds = updatedTripSettlements.map(x => x.id)
+        fireAndForget(remoteCleanStaleSettlements(tripId, validIds))
       },
 
       getSettlementsByTrip: (tripId) =>
@@ -817,8 +858,8 @@ export const useStore = create<AppState>()(
               ? {
                   ...x,
                   status,
-                  paidAt:       status === 'paid'      ? now : x.paidAt,
-                  confirmedAt:  status === 'confirmed'  ? now : x.confirmedAt,
+                  paidAt:       status === 'paid' || status === 'confirmed' ? (x.paidAt ?? now) : undefined,
+                  confirmedAt:  status === 'confirmed' ? now : undefined,
                 }
               : x
           ),
@@ -826,10 +867,20 @@ export const useStore = create<AppState>()(
         const updated = get().settlements.find(x => x.id === settlementId)
         if (updated) {
           fireAndForget(remotePushSettlementStatus(updated))
-          // Confirming means cash moved — recompute the residual dues so the
-          // change cascades across Dashboard, Payments, Members and Report.
-          if (status === 'confirmed') get().generateSettlements(updated.tripId)
+          // Recompute residual dues so Dashboard, Payments, Members, Report update immediately
+          get().generateSettlements(updated.tripId)
         }
+      },
+
+      deleteSettlement: (settlementId) => {
+        const s = get().settlements.find(x => x.id === settlementId)
+        if (!s) return
+        set(st => ({
+          settlements: st.settlements.filter(x => x.id !== settlementId),
+          attachments: st.attachments.filter(a => a.settlementId !== settlementId),
+        }))
+        get().generateSettlements(s.tripId)
+        fireAndForget(remoteDeleteSettlementStatus(settlementId))
       },
 
       // ─── Attachments ──────────────────────────────────────────────────────────

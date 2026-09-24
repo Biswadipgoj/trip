@@ -200,7 +200,7 @@ export interface Attachment {
   nextAttemptAt?: number
 }
 
-export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments'
+export type DeletableTable = 'expenses' | 'hotel_expenses' | 'settlement_groups' | 'sponsorships' | 'attachments' | 'settlements'
 
 export type OutboxOp =
   | { kind: 'delete'; table: DeletableTable; rowId: string }

@@ -36,3 +36,6 @@ next-env.d.ts
 
 # Biswodip engineering: third-party upstream clones (lock file and evidence are committed)
 .biswodip/upstream/
+.kilo/
+.agents/
+supabase/.temp/

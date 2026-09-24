@@ -7,16 +7,16 @@ import { StyleSheet, View } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { router } from 'expo-router'
 import {
-  ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles,
+  ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles, Trash2,
 } from 'lucide-react-native'
 import { useStore } from '../../lib/store'
 import { proofsFor, useTripData, type Due } from '../../lib/hooks'
 import { syncTrip } from '../../lib/sync'
-import { cloudSetPaymentStatus, withCloud } from '../../lib/cloud'
+import { cloudDeleteSettlement, cloudSetPaymentStatus, withCloud } from '../../lib/cloud'
 import { confirmAction } from '../../lib/dialogs'
 import { toast } from '../../lib/toast'
 import { buildUpiLink, formatCurrency, formatDate } from '../../lib/utils'
-import type { Attachment, Member } from '../../types'
+import type { Attachment, Member, Settlement } from '../../types'
 import { GlassCard } from '../../components/ui/GlassCard'
 import { T } from '../../components/ui/Text'
 import { Button } from '../../components/ui/Button'
@@ -68,6 +68,36 @@ export default function PaymentsScreen() {
     tick('success')
     setConfetti(n => n + 1)
     toast.success('Payment confirmed — balances updated 🎉')
+  }
+
+  const undoDue = async (due: Due) => {
+    if (!due.settlement) return
+    const success = await withCloud(async () => {
+      await cloudSetPaymentStatus(due.settlement!.id, 'pending')
+      return true
+    })
+    if (success) {
+      tick('light')
+      toast.info('Payment status reverted to Due')
+    }
+  }
+
+  const removePayment = async (p: Settlement, fromName: string, toName: string) => {
+    const ok = await confirmAction({
+      title: 'Remove payment record?',
+      message: `Remove this payment record of ${formatCurrency(p.amount)} from ${fromName} to ${toName}? Balances and dues will be recalculated.`,
+      confirmLabel: 'Delete',
+      destructive: true,
+    })
+    if (!ok) return
+    const success = await withCloud(async () => {
+      await cloudDeleteSettlement(p.id)
+      return true
+    })
+    if (success) {
+      tick('light')
+      toast.success('Payment removed — dues recalculated')
+    }
   }
 
   const openPay = (due: Due) => {
@@ -148,6 +178,7 @@ export default function PaymentsScreen() {
                 onToggleQr={() => setQrFor(qrFor === due.key ? null : due.key)}
                 onPay={() => openPay(due)}
                 onConfirm={() => void confirmDue(due)}
+                onUndo={() => void undoDue(due)}
               />
             </FadeIn>
           )
@@ -191,6 +222,16 @@ export default function PaymentsScreen() {
                       </View>
                     </View>
                     <T variant="title" color={C.emerald400}>{formatCurrency(p.amount)}</T>
+                    <PressScale
+                      onPress={() => void removePayment(p, from.name, to.name)}
+                      haptic="medium"
+                      hitSlop={8}
+                      accessibilityRole="button"
+                      accessibilityLabel="Remove payment record"
+                      style={styles.deleteBtn}
+                    >
+                      <Trash2 size={16} color={C.red500} />
+                    </PressScale>
                     <Avatar name={to.name} color={to.avatarColor} size="sm" glow={false} />
                   </View>
                 </GlassCard>
@@ -204,7 +245,7 @@ export default function PaymentsScreen() {
   )
 }
 
-function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onConfirm }: {
+function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onConfirm, onUndo }: {
   due: Due
   to?: Member
   me?: string
@@ -214,6 +255,7 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
   onToggleQr: () => void
   onPay: () => void
   onConfirm: () => void
+  onUndo?: () => void
 }) {
   const { route, status, settlement } = due
   const iPay = me === route.fromMemberId
@@ -266,7 +308,12 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
               <Button title={iPay ? 'Pay' : 'Settle'} size="sm" onPress={onPay} />
             )}
             {settlement && status === 'paid' && (
-              <Button title="Confirm" variant="success" size="sm" icon={CircleCheck} onPress={onConfirm} />
+              <View style={styles.inline}>
+                {onUndo && (
+                  <Button title="Undo" variant="ghost" size="sm" onPress={onUndo} />
+                )}
+                <Button title="Confirm" variant="success" size="sm" icon={CircleCheck} onPress={onConfirm} />
+              </View>
             )}
           </View>
         </View>
@@ -306,6 +353,7 @@ const styles = StyleSheet.create({
   proofs: { gap: 8, marginBottom: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  deleteBtn: { padding: 6, borderRadius: 8 },
   qr: { alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 14, borderTopWidth: 1, borderTopColor: ink(0.08) },
   qrBox: { padding: 10, borderRadius: 16, backgroundColor: C.white },
 })
