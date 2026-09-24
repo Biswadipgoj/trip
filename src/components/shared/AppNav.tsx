@@ -12,6 +12,7 @@ import {
   CreditCard,
   BarChart3,
   LogOut,
+  Smartphone,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useTripSync } from '@/hooks/useTripSync'
@@ -70,7 +71,17 @@ export function AppNav({ tripId }: AppNavProps) {
               {me?.name ? `${me.name} · ` : ''}{session?.tripCode || ''}
             </p>
           </div>
-          {/* Sync pill removed */}
+          {/* Permanent Android app download entry */}
+          <Link
+            href="/download"
+            id="download-btn-mobile-top"
+            aria-label="Download TripMate Android App"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-500/10 border border-brand-500/20 active:scale-95 transition-transform"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>App</span>
+          </Link>
+
           <button
             id="logout-btn-mobile"
             onClick={handleLogout}
@@ -130,6 +141,19 @@ export function AppNav({ tripId }: AppNavProps) {
 
         {/* Footer */}
         <div className="border-t border-white/10 pt-4 mt-4 space-y-2">
+          {/* Permanent Android app download entry */}
+          <Link
+            href="/download"
+            id="nav-download-app-desktop"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-brand-700 bg-brand-500/10 hover:bg-brand-500/15 border border-brand-500/20 transition-all"
+          >
+            <Smartphone className="w-4 h-4 text-brand-600 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-slate-800 truncate leading-tight">TripMate Android App</p>
+              <p className="text-[10px] text-slate-500">Offline & receipt sync</p>
+            </div>
+          </Link>
+
           <div className="px-3 flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-xs text-white/65">Logged in as</p>

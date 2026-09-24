@@ -30,6 +30,8 @@ export const viewport: Viewport = {
   themeColor: '#fbf7ec',
 }
 
+import { AndroidDownloadModal } from '@/components/download/AndroidDownloadModal'
+
 export default function RootLayout({
   children,
 }: {
@@ -62,6 +64,7 @@ export default function RootLayout({
           <div className="relative z-10">
             {children}
             <BrandFooter />
+            <AndroidDownloadModal />
           </div>
         </StoreProvider>
       </body>

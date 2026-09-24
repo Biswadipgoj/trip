@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStore } from '@/lib/store'
 import { motion } from 'framer-motion'
-import { Sparkles, ArrowRight, Users, Receipt, CheckCircle2 } from 'lucide-react'
+import { Sparkles, ArrowRight, Users, Receipt, CheckCircle2, Smartphone } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -103,6 +103,26 @@ export default function Home() {
           </Link>
           <Link href="/login" id="login-btn" className="btn-ghost inline-flex items-center justify-center gap-2">
             <span>Login</span>
+          </Link>
+        </motion.div>
+
+        {/* Android App Download Banner */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.65, duration: 0.5 }}
+          className="mt-6 flex justify-center"
+        >
+          <Link
+            href="/download"
+            id="home-download-app-link"
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 hover:bg-white px-4 py-2 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-md transition-all active:scale-95"
+          >
+            <Smartphone className="w-4 h-4 text-brand-600" />
+            <span>TripMate for Android available</span>
+            <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold text-brand-700">
+              Direct APK
+            </span>
           </Link>
         </motion.div>
       </motion.div>

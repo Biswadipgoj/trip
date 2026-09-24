@@ -2,6 +2,9 @@
 
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import Link from 'next/link'
+import { Smartphone } from 'lucide-react'
+import { APP_RELEASE } from '@/config/appRelease'
 
 /**
  * Interactive brand signature.
@@ -20,6 +23,17 @@ export function BrandFooter() {
   return (
     <>
       <footer className="relative z-10 mt-10 px-4 pb-28 lg:pb-8 pt-6 text-center">
+        {/* Permanent Android APK download entry */}
+        <div className="mb-4">
+          <Link
+            href="/download"
+            id="footer-download-app-link"
+            className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 hover:bg-white px-4 py-2 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-md transition-all active:scale-95"
+          >
+            <Smartphone className="w-4 h-4 text-brand-600" />
+            <span>TripMate for Android available (v{APP_RELEASE.version})</span>
+          </Link>
+        </div>
         <motion.button
           id="brand-signature"
           type="button"

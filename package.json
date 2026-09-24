@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "upload:apk": "node ./scripts/upload-apk-to-supabase.mjs"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",

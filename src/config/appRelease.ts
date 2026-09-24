@@ -1,0 +1,61 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// Centralized TripMate Android Release Configuration
+//
+// All APK distribution details, version numbers, and Supabase Storage endpoints
+// are declared here. Updating the release version or APK location requires editing
+// only this file or supplying NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL.
+// ──────────────────────────────────────────────────────────────────────────────
+
+export interface AppReleaseMetadata {
+  version: string
+  versionCode: number
+  releaseDate: string
+  minimumAndroidVersion: string
+  targetAndroidVersion: string
+  fileName: string
+  fileSizeFormatted: string
+  approxBytes: number
+  bucketName: string
+  storagePath: string
+  packageName: string
+  appName: string
+  features: string[]
+}
+
+export const APP_RELEASE: AppReleaseMetadata = {
+  version: '4.0.1',
+  versionCode: 401,
+  releaseDate: 'September 2026',
+  minimumAndroidVersion: 'Android 8.0 (Oreo) or later',
+  targetAndroidVersion: 'Android 14 / 15',
+  fileName: 'tripmate-latest.apk',
+  fileSizeFormatted: '110 MB',
+  approxBytes: 116028587,
+  bucketName: 'android-app',
+  storagePath: 'android-app/tripmate-latest.apk',
+  packageName: 'com.biswodip.tripmate',
+  appName: 'TripMate',
+  features: [
+    'Offline-first: full functionality even without cell reception',
+    'Automatic 5-minute background sync when online',
+    'Instant receipt & bill photo capture with camera compression',
+    'Direct UPI settlement payment proof screenshots',
+    'Smart debt minimization algorithm with zero ads',
+  ],
+}
+
+/**
+ * Returns the direct download URL for the TripMate Android APK.
+ *
+ * 1. Honors explicit NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL override if defined.
+ * 2. Falls back to the official Supabase Storage public URL:
+ *    `${NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/android-app/tripmate-latest.apk`
+ */
+export function getApkDownloadUrl(): string {
+  const customUrl = process.env.NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL?.trim()
+  if (customUrl) return customUrl
+
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co').trim()
+  const cleanBase = supabaseUrl.replace(/\/+$/, '')
+  return `${cleanBase}/storage/v1/object/public/${APP_RELEASE.bucketName}/${APP_RELEASE.fileName}`
+}

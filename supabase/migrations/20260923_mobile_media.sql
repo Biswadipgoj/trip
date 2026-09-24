@@ -9,11 +9,22 @@
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- --- 1. Storage bucket -------------------------------------------------------
--- Public read (object paths are random UUIDs), 5 MB limit, images only.
+-- --- 1. Storage buckets ------------------------------------------------------
+-- (a) trip-media: public read (object paths are random UUIDs), 5 MB limit, images only.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('trip-media', 'trip-media', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- (b) android-app: public direct download for the release APK, 200 MB limit.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('android-app', 'android-app', true, 209715200, ARRAY['application/vnd.android.package-archive', 'application/octet-stream'])
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- --- 2. attachments table ----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.attachments (
@@ -105,6 +116,32 @@ BEGIN
     CREATE POLICY "tripmate_media_delete" ON storage.objects
       FOR DELETE TO anon, authenticated
       USING (bucket_id = 'trip-media');
+  END IF;
+
+  -- android-app bucket policies (public download + release upload)
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_select'
+  ) THEN
+    CREATE POLICY "android_app_select" ON storage.objects
+      FOR SELECT TO anon, authenticated
+      USING (bucket_id = 'android-app');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_insert'
+  ) THEN
+    CREATE POLICY "android_app_insert" ON storage.objects
+      FOR INSERT TO anon, authenticated
+      WITH CHECK (bucket_id = 'android-app');
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'android_app_update'
+  ) THEN
+    CREATE POLICY "android_app_update" ON storage.objects
+      FOR UPDATE TO anon, authenticated
+      USING (bucket_id = 'android-app')
+      WITH CHECK (bucket_id = 'android-app');
   END IF;
 END $$;
 
