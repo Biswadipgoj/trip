@@ -31,7 +31,7 @@ export function isAndroidDevice(): boolean {
 
 /**
  * Hook to manage the Android download prompt modal state, persistence, and actions.
- * Only activates when running on an Android device (or ?test_android=1 for dev testing).
+ * Strictly only activates when running on an Android device.
  */
 export function useAndroidAppPrompt() {
   const [isOpen, setIsOpen] = useState(false)
@@ -43,14 +43,10 @@ export function useAndroidAppPrompt() {
     if (typeof window === 'undefined') return
 
     const android = isAndroidDevice()
-    const urlParams = new URLSearchParams(window.location.search)
-    const isTestMode = urlParams.get('test_android') === '1'
+    setIsAndroid(android)
 
-    const activeForDevice = android || isTestMode
-    setIsAndroid(activeForDevice)
-
-    // NEVER open on desktop or iOS unless explicit test query is provided
-    if (!activeForDevice) {
+    // NEVER open on desktop, iPhone, iPad, or any non-Android client
+    if (!android) {
       setIsOpen(false)
       return
     }
@@ -58,7 +54,7 @@ export function useAndroidAppPrompt() {
     // Check dismissal history in localStorage
     try {
       const dismissedRaw = localStorage.getItem(STORAGE_KEY)
-      if (dismissedRaw && !isTestMode) {
+      if (dismissedRaw) {
         const dismissedAt = parseInt(dismissedRaw, 10)
         if (!isNaN(dismissedAt) && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
           return // User dismissed recently, honor cooldown
@@ -86,7 +82,9 @@ export function useAndroidAppPrompt() {
   }, [])
 
   const openPrompt = useCallback(() => {
-    setIsOpen(true)
+    if (isAndroidDevice()) {
+      setIsOpen(true)
+    }
   }, [])
 
   const handleDownload = useCallback(() => {

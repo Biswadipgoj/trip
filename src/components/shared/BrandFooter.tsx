@@ -1,10 +1,11 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { Smartphone } from 'lucide-react'
 import { APP_RELEASE } from '@/config/appRelease'
+import { isAndroidDevice } from '@/hooks/useAndroidAppPrompt'
 
 /**
  * Interactive brand signature.
@@ -16,6 +17,11 @@ import { APP_RELEASE } from '@/config/appRelease'
  */
 export function BrandFooter() {
   const [open, setOpen] = useState(false)
+  const [isAndroid, setIsAndroid] = useState(false)
+
+  useEffect(() => {
+    setIsAndroid(isAndroidDevice())
+  }, [])
 
   const reveal = useCallback(() => setOpen(true), [])
   const close = useCallback(() => setOpen(false), [])
@@ -23,17 +29,19 @@ export function BrandFooter() {
   return (
     <>
       <footer className="relative z-10 mt-10 px-4 pb-28 lg:pb-8 pt-6 text-center">
-        {/* Permanent Android APK download entry */}
-        <div className="mb-4">
-          <Link
-            href="/download"
-            id="footer-download-app-link"
-            className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/90 bg-white hover:bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 shadow-md transition-all active:scale-95"
-          >
-            <Smartphone className="w-4 h-4 text-violet-600" />
-            <span>TripMate for Android available (v{APP_RELEASE.version})</span>
-          </Link>
-        </div>
+        {/* Android APK download entry — strictly only shown to Android users */}
+        {isAndroid && (
+          <div className="mb-4">
+            <Link
+              href="/download"
+              id="footer-download-app-link"
+              className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/90 bg-white hover:bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 shadow-md transition-all active:scale-95"
+            >
+              <Smartphone className="w-4 h-4 text-violet-600" />
+              <span>TripMate for Android available (v{APP_RELEASE.version})</span>
+            </Link>
+          </div>
+        )}
         <motion.button
           id="brand-signature"
           type="button"

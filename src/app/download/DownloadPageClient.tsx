@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -15,14 +15,21 @@ import {
   Camera,
   QrCode,
   FileCheck,
+  Globe,
 } from 'lucide-react'
 import { APP_RELEASE, getApkDownloadUrl } from '@/config/appRelease'
 import { triggerApkDownload } from '@/lib/downloadApk'
+import { isAndroidDevice } from '@/hooks/useAndroidAppPrompt'
 
 export function DownloadPageClient() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
+  const [isAndroid, setIsAndroid] = useState<boolean | null>(null)
   const downloadUrl = getApkDownloadUrl()
+
+  useEffect(() => {
+    setIsAndroid(isAndroidDevice())
+  }, [])
 
   const handleDownload = () => {
     setIsDownloading(true)
@@ -64,6 +71,29 @@ export function DownloadPageClient() {
           <span>Back to TripMate</span>
         </Link>
       </div>
+
+      {/* Non-Android Device Notice */}
+      {isAndroid === false && (
+        <div className="mb-6 rounded-2xl bg-amber-50 p-4 border border-amber-200 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-start gap-2.5">
+            <Globe className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-bold text-amber-950">
+                You are currently browsing from a non-Android device
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                The TripMate native app is specifically built for Android phones. You can continue using TripMate right in your browser with full features.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all"
+          >
+            <span>Continue to Web App</span>
+          </Link>
+        </div>
+      )}
 
       {/* Hero Card — Crisp Bright Pure White */}
       <motion.div
@@ -145,6 +175,8 @@ export function DownloadPageClient() {
                 <span className="relative z-10 text-white drop-shadow-sm">
                   {isDownloading
                     ? `Downloading APK (${downloadProgress}%)...`
+                    : isAndroid === false
+                    ? 'Download APK (for Android transfer)'
                     : 'Download Android App (APK)'}
                 </span>
               </button>
