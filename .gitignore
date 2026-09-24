@@ -33,3 +33,7 @@ next-env.d.ts
 # Misc
 .cache/
 *.log
+
+# Biswodip engineering: third-party upstream clones + local evidence logs (lock file is committed)
+.biswodip/upstream/
+.biswodip/evidence/

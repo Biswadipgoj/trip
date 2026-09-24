@@ -1,0 +1,9 @@
+{
+  "skill": "prototype",
+  "installedAt": "2026-09-24T21:07:46.352Z",
+  "installedBy": "biswodip-goj-unified-engineering",
+  "integration": "emilkowalski",
+  "repo": "https://github.com/emilkowalski/skills.git",
+  "commit": "d16ebe60d09a5ba2afcb7054ede9d0a10c9f6128",
+  "upstreamPath": "skills/prototype"
+}
