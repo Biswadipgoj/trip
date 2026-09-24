@@ -17,7 +17,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- --- 2. attachments table ----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.attachments (
-  id               UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id          UUID          NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   kind             TEXT          NOT NULL CHECK (kind IN ('bill', 'payment_proof')),
   -- bills belong to exactly one expense or hotel stay
@@ -71,11 +71,7 @@ EXCEPTION
 END $$;
 
 -- --- 3. Storage policies -----------------------------------------------------
--- Upload / Upsert: well-formed paths inside an existing trip:
---   <trip-uuid>/bills/<uuid>.jpg   or   <trip-uuid>/payments/<uuid>.jpg
--- Read: public bucket read access.
--- Delete: only images no attachments row points to any more (the app deletes
--- the row first), so nobody can wipe another member's live bill.
+-- Allow authenticated and anonymous users to read and write to the trip-media bucket
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -83,11 +79,7 @@ BEGIN
   ) THEN
     CREATE POLICY "tripmate_media_insert" ON storage.objects
       FOR INSERT TO anon, authenticated
-      WITH CHECK (
-        bucket_id = 'trip-media'
-        AND name ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(bills|payments)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$'
-        AND EXISTS (SELECT 1 FROM public.trips t WHERE t.id::text = split_part(name, '/', 1))
-      );
+      WITH CHECK (bucket_id = 'trip-media');
   END IF;
 
   IF NOT EXISTS (
@@ -95,14 +87,8 @@ BEGIN
   ) THEN
     CREATE POLICY "tripmate_media_update" ON storage.objects
       FOR UPDATE TO anon, authenticated
-      USING (
-        bucket_id = 'trip-media'
-        AND name ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(bills|payments)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$'
-      )
-      WITH CHECK (
-        bucket_id = 'trip-media'
-        AND name ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(bills|payments)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$'
-      );
+      USING (bucket_id = 'trip-media')
+      WITH CHECK (bucket_id = 'trip-media');
   END IF;
 
   IF NOT EXISTS (
@@ -114,14 +100,11 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'tripmate_media_delete_orphans'
+    SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'tripmate_media_delete'
   ) THEN
-    CREATE POLICY "tripmate_media_delete_orphans" ON storage.objects
+    CREATE POLICY "tripmate_media_delete" ON storage.objects
       FOR DELETE TO anon, authenticated
-      USING (
-        bucket_id = 'trip-media'
-        AND NOT EXISTS (SELECT 1 FROM public.attachments a WHERE a.storage_path = name)
-      );
+      USING (bucket_id = 'trip-media');
   END IF;
 END $$;
 
@@ -195,7 +178,7 @@ BEGIN
   LOOP
     v_room_id := CASE
       WHEN (v_room->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (v_room->>'id')::UUID
-      ELSE uuid_generate_v4()
+      ELSE gen_random_uuid()
     END;
     INSERT INTO rooms (id, hotel_expense_id, trip_id, name, cost)
     VALUES (v_room_id, v_id, v_trip, COALESCE(v_room->>'name', 'Room'), COALESCE((v_room->>'cost')::NUMERIC, 0))
