@@ -1,0 +1,13 @@
+     × retries a dropped connection during the file upload 8ms
+     × waits for the expense row (foreign key) instead of failing 3ms
+     × stays pending (not failed) when the expense is still not on the server 2ms
+     × reports storage that is not set up without retrying, and can be retried later 2ms
+     × files payment screenshots under payments/, like the Android app 2ms
+     × rejects a file over 5 MB before sending anything 12ms
+     × drops preview URLs from the previous page (they can never load) 1ms
+     × marks an upload that was running as interrupted 1ms
+     × never writes a row for an image whose file was never stored 2ms
+     × links an interrupted upload whose file did arrive 1ms
+     × does not link an interrupted upload whose file is missing 1ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+      Tests  11 failed | 2 passed (13)

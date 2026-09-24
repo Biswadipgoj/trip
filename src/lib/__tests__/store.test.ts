@@ -569,7 +569,8 @@ describe('media & attachments compatibility', () => {
     expect(att.id).toBeTruthy()
     expect(att.tripId).toBe(trip.id)
     expect(att.expenseId).toBe(exp.id)
-    expect(att.storagePath).toContain(`${trip.id}/bills/${att.id}`)
+    // No file was stored, so there is no storage path to point other devices at.
+    expect(att.storagePath).toBeUndefined()
 
     const tripAtts = useStore.getState().getAttachmentsByTrip(trip.id)
     expect(tripAtts).toHaveLength(1)
@@ -600,7 +601,7 @@ describe('media & attachments compatibility', () => {
     expect(useStore.getState().getAttachmentsByExpense(exp.id)).toHaveLength(0)
   })
 
-  it('closing a trip removes its attachments from active store', async () => {
+  it('closing a trip keeps its bill photos (they record who paid whom)', async () => {
     const { trip, dip } = seedTrip()
     const exp = addEqualExpense(trip.id, 800, dip.id, [dip.id])
 
@@ -616,7 +617,8 @@ describe('media & attachments compatibility', () => {
 
     useStore.getState().closeTrip(trip.id)
 
-    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(0)
+    expect(useStore.getState().getTripById(trip.id)?.status).toBe('closed')
+    expect(useStore.getState().getAttachmentsByTrip(trip.id)).toHaveLength(1)
   })
 
   it('merges remote attachments and tracks sync state', () => {

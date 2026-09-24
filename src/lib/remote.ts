@@ -506,6 +506,24 @@ export function mediaPublicUrl(path: string | undefined): string | null {
   return supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
+/** Time-limited URL — works even when the bucket is not public. */
+export async function mediaSignedUrl(path: string | undefined, expiresInSeconds = 3600): Promise<string | null> {
+  if (!supabase || !path) return null
+  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, expiresInSeconds)
+  return error ? null : data?.signedUrl ?? null
+}
+
+/** Whether an image is stored at `path`; null when that can't be determined. */
+export async function remoteMediaExists(path: string): Promise<boolean | null> {
+  if (!supabase) return null
+  const slash = path.lastIndexOf('/')
+  const folder = path.slice(0, slash)
+  const name = path.slice(slash + 1)
+  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).list(folder, { search: name, limit: 1 })
+  if (error) return null
+  return (data ?? []).some(o => o.name === name)
+}
+
 export async function remoteUploadMedia(path: string, body: ArrayBuffer | Blob, contentType: string): Promise<void> {
   if (!supabase) throw new MediaError('Cloud sync is not configured.', 'setup')
   const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, body, {
