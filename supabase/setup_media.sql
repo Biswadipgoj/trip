@@ -17,7 +17,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- --- 2. attachments table ----------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.attachments (
-  id               UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id          UUID          NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   kind             TEXT          NOT NULL CHECK (kind IN ('bill', 'payment_proof')),
   -- bills belong to exactly one expense or hotel stay
@@ -195,7 +195,7 @@ BEGIN
   LOOP
     v_room_id := CASE
       WHEN (v_room->>'id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (v_room->>'id')::UUID
-      ELSE uuid_generate_v4()
+      ELSE gen_random_uuid()
     END;
     INSERT INTO rooms (id, hotel_expense_id, trip_id, name, cost)
     VALUES (v_room_id, v_id, v_trip, COALESCE(v_room->>'name', 'Room'), COALESCE((v_room->>'cost')::NUMERIC, 0))
