@@ -28,6 +28,7 @@ export function useAndroidAppPrompt() {
   const [isOpen, setIsOpen] = useState(false)
   const [isAndroid, setIsAndroid] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -77,12 +78,26 @@ export function useAndroidAppPrompt() {
 
   const handleDownload = useCallback(() => {
     setIsDownloading(true)
+    setDownloadProgress(5)
     triggerApkDownload({
-      onStart: () => setIsDownloading(true),
-      onComplete: () => {
-        setTimeout(() => setIsDownloading(false), 2000)
+      onStart: () => {
+        setIsDownloading(true)
+        setDownloadProgress(10)
       },
-      onError: () => setIsDownloading(false),
+      onProgress: (pct) => {
+        setDownloadProgress(pct)
+      },
+      onComplete: () => {
+        setDownloadProgress(100)
+        setTimeout(() => {
+          setIsDownloading(false)
+          setDownloadProgress(0)
+        }, 1500)
+      },
+      onError: () => {
+        setIsDownloading(false)
+        setDownloadProgress(0)
+      },
     })
   }, [])
 
@@ -90,6 +105,7 @@ export function useAndroidAppPrompt() {
     isOpen,
     isAndroid,
     isDownloading,
+    downloadProgress,
     openPrompt,
     closePrompt,
     handleDownload,

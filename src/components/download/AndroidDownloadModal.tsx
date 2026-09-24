@@ -18,7 +18,7 @@ import { useAndroidAppPrompt } from '@/hooks/useAndroidAppPrompt'
 import { APP_RELEASE } from '@/config/appRelease'
 
 export function AndroidDownloadModal() {
-  const { isOpen, isDownloading, closePrompt, handleDownload } = useAndroidAppPrompt()
+  const { isOpen, isDownloading, downloadProgress, closePrompt, handleDownload } = useAndroidAppPrompt()
   const [showInstructions, setShowInstructions] = useState(false)
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -136,10 +136,20 @@ export function AndroidDownloadModal() {
                 id="btn-download-android-app"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="btn-brand flex items-center justify-center gap-2.5 w-full py-3.5 text-sm font-semibold shadow-md active:scale-[0.98] transition-all"
+                className="btn-brand relative flex items-center justify-center gap-2.5 w-full py-3.5 text-sm font-semibold shadow-md active:scale-[0.98] transition-all overflow-hidden"
               >
-                <Download className={`h-4 w-4 ${isDownloading ? 'animate-bounce' : ''}`} />
-                <span>{isDownloading ? 'Starting Download...' : 'Download Android App'}</span>
+                {isDownloading && (
+                  <div
+                    className="absolute inset-0 bg-white/20 transition-all duration-300 pointer-events-none"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                )}
+                <Download className={`h-4 w-4 relative z-10 ${isDownloading ? 'animate-bounce' : ''}`} />
+                <span className="relative z-10">
+                  {isDownloading
+                    ? `Downloading APK (${downloadProgress}%)...`
+                    : 'Download Android App'}
+                </span>
               </button>
 
               <button

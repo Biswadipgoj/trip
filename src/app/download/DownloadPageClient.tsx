@@ -22,16 +22,31 @@ import { triggerApkDownload } from '@/lib/downloadApk'
 
 export function DownloadPageClient() {
   const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadProgress, setDownloadProgress] = useState(0)
   const downloadUrl = getApkDownloadUrl()
 
   const handleDownload = () => {
     setIsDownloading(true)
+    setDownloadProgress(5)
     triggerApkDownload({
-      onStart: () => setIsDownloading(true),
-      onComplete: () => {
-        setTimeout(() => setIsDownloading(false), 2500)
+      onStart: () => {
+        setIsDownloading(true)
+        setDownloadProgress(10)
       },
-      onError: () => setIsDownloading(false),
+      onProgress: (pct) => {
+        setDownloadProgress(pct)
+      },
+      onComplete: () => {
+        setDownloadProgress(100)
+        setTimeout(() => {
+          setIsDownloading(false)
+          setDownloadProgress(0)
+        }, 1500)
+      },
+      onError: () => {
+        setIsDownloading(false)
+        setDownloadProgress(0)
+      },
     })
   }
 
@@ -108,10 +123,20 @@ export function DownloadPageClient() {
                 id="btn-download-page-apk"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="btn-brand flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-3.5 text-sm font-semibold shadow-lg active:scale-95 transition-all"
+                className="btn-brand relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-3.5 text-sm font-semibold shadow-lg active:scale-95 transition-all overflow-hidden"
               >
-                <Download className={`h-5 w-5 ${isDownloading ? 'animate-bounce' : ''}`} />
-                <span>{isDownloading ? 'Downloading APK...' : 'Download Android App (APK)'}</span>
+                {isDownloading && (
+                  <div
+                    className="absolute inset-0 bg-white/20 transition-all duration-300 pointer-events-none"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                )}
+                <Download className={`h-5 w-5 relative z-10 ${isDownloading ? 'animate-bounce' : ''}`} />
+                <span className="relative z-10">
+                  {isDownloading
+                    ? `Downloading APK (${downloadProgress}%)...`
+                    : 'Download Android App (APK)'}
+                </span>
               </button>
 
               <a
