@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import * as tus from 'tus-js-client';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co';
@@ -17,27 +18,59 @@ async function upload() {
   }
 
   const stat = fs.statSync(APK_PATH);
-  console.log(`Uploading ${DEST_PATH} (${(stat.size / 1024 / 1024).toFixed(2)} MB)...`);
+  const sizeMB = (stat.size / 1024 / 1024).toFixed(2);
+  console.log(`Preparing to upload ${DEST_PATH} (${sizeMB} MB) via Resumable TUS protocol...`);
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+  // Extract project ref from URL (e.g. https://qufmbheewymzyzkfaivr.supabase.co -> qufmbheewymzyzkfaivr)
+  const urlObj = new URL(SUPABASE_URL);
+  const projectRef = urlObj.hostname.split('.')[0];
+  const endpoint = `https://${projectRef}.storage.supabase.co/storage/v1/upload/resumable`;
 
-  // Read file as buffer
-  const fileBuffer = fs.readFileSync(APK_PATH);
+  console.log(`TUS Endpoint: ${endpoint}`);
 
-  const { data, error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(DEST_PATH, fileBuffer, {
-      contentType: 'application/vnd.android.package-archive',
-      cacheControl: '3600',
-      upsert: true,
+  const fileStream = fs.createReadStream(APK_PATH);
+
+  await new Promise((resolve, reject) => {
+    const upload = new tus.Upload(fileStream, {
+      endpoint: endpoint,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      headers: {
+        authorization: `Bearer ${SUPABASE_KEY}`,
+        apikey: SUPABASE_KEY,
+        'x-upsert': 'true',
+      },
+      uploadDataDuringCreation: true,
+      removeFingerprintOnSuccess: true,
+      metadata: {
+        bucketName: BUCKET_NAME,
+        objectName: DEST_PATH,
+        contentType: 'application/vnd.android.package-archive',
+        cacheControl: '3600',
+      },
+      chunkSize: 6 * 1024 * 1024, // 6 MB chunks
+      onError: (error) => {
+        console.error('TUS upload failed:', error);
+        reject(error);
+      },
+      onProgress: (bytesUploaded, bytesTotal) => {
+        const pct = ((bytesUploaded / bytesTotal) * 100).toFixed(1);
+        console.log(`Uploaded ${(bytesUploaded / 1024 / 1024).toFixed(1)} / ${(bytesTotal / 1024 / 1024).toFixed(1)} MB (${pct}%)`);
+      },
+      onSuccess: () => {
+        console.log('\n✓ APK successfully uploaded to Supabase Storage!');
+        resolve();
+      },
     });
 
-  if (error) {
-    console.error('Upload failed:', error);
-    process.exit(1);
-  }
+    upload.findPreviousUploads().then((previousUploads) => {
+      if (previousUploads.length) {
+        upload.resumeFromPreviousUpload(previousUploads[0]);
+      }
+      upload.start();
+    }).catch(reject);
+  });
 
-  console.log('Upload successful!', data);
+  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
   const { data: publicUrlData } = supabase.storage
     .from(BUCKET_NAME)
     .getPublicUrl(DEST_PATH);
@@ -46,6 +79,6 @@ async function upload() {
 }
 
 upload().catch((err) => {
-  console.error('Unhandled error:', err);
+  console.error('\nUpload error details:', err.message || err);
   process.exit(1);
 });
