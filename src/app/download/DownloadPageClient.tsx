@@ -8,7 +8,6 @@ import {
   Download,
   ShieldCheck,
   Smartphone,
-  CheckCircle2,
   AlertTriangle,
   ArrowLeft,
   Sparkles,
@@ -27,11 +26,11 @@ export function DownloadPageClient() {
 
   const handleDownload = () => {
     setIsDownloading(true)
-    setDownloadProgress(5)
+    setDownloadProgress(20)
     triggerApkDownload({
       onStart: () => {
         setIsDownloading(true)
-        setDownloadProgress(10)
+        setDownloadProgress(35)
       },
       onProgress: (pct) => {
         setDownloadProgress(pct)
@@ -41,7 +40,7 @@ export function DownloadPageClient() {
         setTimeout(() => {
           setIsDownloading(false)
           setDownloadProgress(0)
-        }, 1500)
+        }, 1200)
       },
       onError: () => {
         setIsDownloading(false)
@@ -51,27 +50,34 @@ export function DownloadPageClient() {
   }
 
   return (
-    <main className="min-h-screen py-12 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto">
+    <main
+      className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto text-slate-900"
+      style={{ colorScheme: 'light' }}
+    >
       {/* Top Breadcrumb Navigation */}
-      <div className="mb-8">
+      <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-brand-600 transition-colors"
+          className="inline-flex items-center gap-2 text-sm font-bold text-violet-700 hover:text-violet-900 bg-white/90 px-3.5 py-1.5 rounded-full border border-violet-200/80 shadow-sm transition-all"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 text-violet-700" />
           <span>Back to TripMate</span>
         </Link>
       </div>
 
-      {/* Hero Card */}
+      {/* Hero Card — Crisp Bright Pure White */}
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
+        initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/90 p-6 sm:p-10 shadow-xl backdrop-blur-2xl text-slate-800"
+        transition={{ duration: 0.5 }}
+        className="relative overflow-hidden rounded-[32px] border border-violet-200/90 bg-white p-6 sm:p-10 shadow-2xl text-slate-950"
+        style={{
+          backgroundColor: '#ffffff',
+          boxShadow: '0 25px 60px -12px rgba(108, 62, 200, 0.22), 0 0 0 1px rgba(139, 92, 246, 0.12)',
+        }}
       >
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
-          <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-3xl shadow-xl ring-1 ring-black/5">
+          <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-3xl shadow-xl ring-2 ring-violet-200 bg-white">
             <Image
               src="/logo.png"
               alt="TripMate App"
@@ -83,56 +89,60 @@ export function DownloadPageClient() {
           </div>
 
           <div className="flex-1">
-            <div className="inline-flex items-center gap-1.5 rounded-full bg-brand-500/10 px-3.5 py-1 text-xs font-semibold text-brand-600 mb-3">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3.5 py-1 text-xs font-bold text-violet-800 mb-3">
+              <Sparkles className="h-3.5 w-3.5 text-violet-600" />
               <span>Official TripMate Android Release</span>
             </div>
 
             <h1
-              className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900"
+              className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-950"
               style={{ fontFamily: "'Space Grotesk', sans-serif" }}
             >
               TripMate for Android
             </h1>
 
-            <p className="mt-2 text-sm sm:text-base text-slate-600 max-w-xl">
-              Split trip expenses effortlessly, snap bill receipts, and settle debts with UPI.
+            <p className="mt-2 text-sm sm:text-base font-medium text-slate-700 max-w-xl leading-relaxed">
+              Split trip expenses effortlessly, snap bill receipts with the camera, and settle debts with UPI.
               Runs 100% offline and syncs automatically with friends when online.
             </p>
 
-            {/* Version Meta Chips */}
-            <div className="mt-4 flex flex-wrap items-center justify-center sm:justify-start gap-2.5 text-xs text-slate-600">
-              <span className="rounded-lg bg-slate-100 px-2.5 py-1 font-semibold text-brand-700">
+            {/* Version Meta Badges */}
+            <div className="mt-4 flex flex-wrap items-center justify-center sm:justify-start gap-2.5 text-xs font-bold">
+              <span className="rounded-lg bg-violet-100 px-3 py-1 text-violet-900 border border-violet-200">
                 v{APP_RELEASE.version} (Build {APP_RELEASE.versionCode})
               </span>
-              <span className="rounded-lg bg-slate-100 px-2.5 py-1">
+              <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-800 border border-slate-200">
                 {APP_RELEASE.fileSizeFormatted}
               </span>
-              <span className="rounded-lg bg-slate-100 px-2.5 py-1">
+              <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-800 border border-slate-200">
                 {APP_RELEASE.minimumAndroidVersion}
               </span>
-              <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700 border border-emerald-100">
-                <ShieldCheck className="h-3.5 w-3.5" /> Verified APK
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1 font-bold text-emerald-900 border border-emerald-200">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" /> Verified APK
               </span>
             </div>
 
-            {/* Download Button */}
+            {/* Action Download Buttons */}
             <div className="mt-6 flex flex-col sm:flex-row items-center gap-3">
               <button
                 type="button"
                 id="btn-download-page-apk"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="btn-brand relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-3.5 text-sm font-semibold shadow-lg active:scale-95 transition-all overflow-hidden"
+                className="relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-4 rounded-2xl text-sm font-bold text-white shadow-xl active:scale-95 transition-all overflow-hidden"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(262, 85%, 58%) 0%, hsl(310, 80%, 54%) 100%)',
+                  boxShadow: '0 10px 25px -4px rgba(139, 92, 246, 0.45)',
+                }}
               >
                 {isDownloading && (
                   <div
-                    className="absolute inset-0 bg-white/20 transition-all duration-300 pointer-events-none"
+                    className="absolute inset-0 bg-white/25 transition-all duration-300 pointer-events-none"
                     style={{ width: `${downloadProgress}%` }}
                   />
                 )}
-                <Download className={`h-5 w-5 relative z-10 ${isDownloading ? 'animate-bounce' : ''}`} />
-                <span className="relative z-10">
+                <Download className={`h-5 w-5 relative z-10 text-white ${isDownloading ? 'animate-bounce' : ''}`} />
+                <span className="relative z-10 text-white drop-shadow-sm">
                   {isDownloading
                     ? `Downloading APK (${downloadProgress}%)...`
                     : 'Download Android App (APK)'}
@@ -142,15 +152,15 @@ export function DownloadPageClient() {
               <a
                 href={downloadUrl}
                 download={APP_RELEASE.fileName}
-                className="btn-ghost flex items-center justify-center gap-2 text-xs font-semibold px-4 py-3"
+                className="flex items-center justify-center gap-2 text-xs font-bold text-violet-800 bg-violet-50 hover:bg-violet-100 px-5 py-3.5 rounded-2xl border border-violet-200/90 transition-all w-full sm:w-auto"
               >
-                <FileCheck className="h-4 w-4" />
-                <span>Direct Storage Link</span>
+                <FileCheck className="h-4 w-4 text-violet-700" />
+                <span>Direct Download Link</span>
               </a>
             </div>
 
-            <p className="mt-2.5 text-[11px] text-slate-400">
-              Direct download from official TripMate Supabase Storage. No Google Play or third-party store required.
+            <p className="mt-3 text-xs font-medium text-slate-600">
+              Safe direct download from TripMate official storage. No Google Play account required.
             </p>
           </div>
         </div>
@@ -158,33 +168,42 @@ export function DownloadPageClient() {
 
       {/* Feature Highlights Grid */}
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
-          <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 mb-3">
+        <div
+          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          style={{ backgroundColor: '#ffffff' }}
+        >
+          <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <WifiOff className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-900">Offline-First Engine</h3>
-          <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-            Record expenses in the mountains or on flights. Your changes stay local and sync seamlessly when network returns.
+          <h3 className="text-sm font-bold text-slate-950">Offline-First Engine</h3>
+          <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
+            Record expenses in remote spots or on flights. All data stays safe locally and syncs automatically when online.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
-          <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 mb-3">
+        <div
+          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          style={{ backgroundColor: '#ffffff' }}
+        >
+          <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <Camera className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-900">Receipt & Bill Photos</h3>
-          <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-            Snap dinner bills and hotel folios with client-side image compression. Backed up safely to Supabase Storage.
+          <h3 className="text-sm font-bold text-slate-950">Receipt & Bill Photos</h3>
+          <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
+            Snap dinner bills and hotel folios with client-side image compression. Synced safely to Supabase Storage.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur-xl">
-          <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-600 mb-3">
+        <div
+          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          style={{ backgroundColor: '#ffffff' }}
+        >
+          <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <QrCode className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-900">One-Tap UPI Settle</h3>
-          <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-            Launch GPay, PhonePe, or Paytm directly with auto-filled amounts and payee UPI IDs. Attach payment screenshots easily.
+          <h3 className="text-sm font-bold text-slate-950">One-Tap UPI Settle</h3>
+          <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
+            Launch GPay, PhonePe, or Paytm with auto-filled amounts and payee UPI IDs. Attach payment screenshots easily.
           </p>
         </div>
       </div>
@@ -193,101 +212,105 @@ export function DownloadPageClient() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2, duration: 0.5 }}
-        className="mt-8 rounded-3xl border border-white/60 bg-white/90 p-6 sm:p-8 shadow-md backdrop-blur-2xl"
+        transition={{ delay: 0.15, duration: 0.5 }}
+        className="mt-8 rounded-3xl border border-violet-200/90 bg-white p-6 sm:p-8 shadow-lg text-slate-950"
+        style={{ backgroundColor: '#ffffff' }}
       >
         <h2
-          className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2"
+          className="text-xl font-extrabold tracking-tight text-slate-950 flex items-center gap-2"
           style={{ fontFamily: "'Space Grotesk', sans-serif" }}
         >
-          <Smartphone className="h-5 w-5 text-brand-600" />
+          <Smartphone className="h-5 w-5 text-violet-700" />
           <span>How to Install on Android</span>
         </h2>
-        <p className="mt-1 text-xs text-slate-600">
-          Android protects your device by asking for confirmation before installing APK files downloaded outside Google Play.
+        <p className="mt-1 text-xs font-medium text-slate-700">
+          Android protects your phone by asking for permission before installing APK files downloaded directly from web browsers.
         </p>
 
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="flex items-start gap-3.5 rounded-2xl bg-slate-50 p-4 border border-slate-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-xs font-bold text-white shadow-sm">
+          <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
               1
             </span>
             <div>
-              <p className="text-xs font-bold text-slate-900">Download the APK</p>
-              <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs font-bold text-slate-950">Download the APK</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-700 leading-relaxed">
                 Tap <strong>Download Android App</strong> above. The file <code>{APP_RELEASE.fileName}</code> will download directly to your phone.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 rounded-2xl bg-slate-50 p-4 border border-slate-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-xs font-bold text-white shadow-sm">
+          <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
               2
             </span>
             <div>
-              <p className="text-xs font-bold text-slate-900">Open the APK File</p>
-              <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs font-bold text-slate-950">Open the APK File</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-700 leading-relaxed">
                 When finished, tap the notification or open your browser&apos;s <strong>Downloads</strong> folder and tap <code>{APP_RELEASE.fileName}</code>.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 rounded-2xl bg-slate-50 p-4 border border-slate-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-xs font-bold text-white shadow-sm">
+          <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
               3
             </span>
             <div>
-              <p className="text-xs font-bold text-slate-900">Allow Installation</p>
-              <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
-                If Android displays &ldquo;For your security, your phone is not allowed to install unknown apps from this source&rdquo;, tap <strong>Settings</strong> and switch <strong>Allow from this source</strong> to ON.
+              <p className="text-xs font-bold text-slate-950">Allow Installation</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-700 leading-relaxed">
+                If Android displays &ldquo;For your security, your phone is not allowed to install unknown apps from this source&rdquo;, tap <strong>Settings</strong> and toggle <strong>Allow from this source</strong> to ON.
               </p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3.5 rounded-2xl bg-slate-50 p-4 border border-slate-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-brand-600 text-xs font-bold text-white shadow-sm">
+          <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
               4
             </span>
             <div>
-              <p className="text-xs font-bold text-slate-900">Complete Install</p>
-              <p className="mt-0.5 text-xs text-slate-600 leading-relaxed">
-                Return to the installation prompt and tap <strong>Install</strong>. Open TripMate and you&apos;re ready to create or join trips!
+              <p className="text-xs font-bold text-slate-950">Complete Install</p>
+              <p className="mt-0.5 text-xs font-medium text-slate-700 leading-relaxed">
+                Return to the installation screen and tap <strong>Install</strong>. Open TripMate and you&apos;re ready to go!
               </p>
             </div>
           </div>
         </div>
 
         {/* Security / Play Protect notice */}
-        <div className="mt-6 flex items-start gap-3 rounded-2xl bg-amber-500/10 p-4 border border-amber-500/20 text-xs text-amber-900">
+        <div className="mt-6 flex items-start gap-3 rounded-2xl bg-amber-50 p-4 border border-amber-200 text-xs text-amber-950">
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong className="font-semibold text-amber-950">Notice regarding Google Play Protect:</strong>
-            <p className="mt-0.5 text-amber-800">
-              Because this release APK is hosted directly on TripMate&apos;s infrastructure rather than Google Play Store, Play Protect may display a prompt asking if you want to install. Tap <strong>Install anyway</strong> to proceed. The package is signed with TripMate&apos;s verified release credentials.
+            <strong className="font-bold text-amber-950">Notice regarding Google Play Protect:</strong>
+            <p className="mt-0.5 font-medium text-amber-900">
+              Because this release APK is hosted directly on TripMate&apos;s official infrastructure rather than Google Play Store, Play Protect may display a prompt asking if you want to install. Tap <strong>Install anyway</strong> to proceed. The package is signed with TripMate&apos;s verified release credentials.
             </p>
           </div>
         </div>
       </motion.div>
 
       {/* Package Specs Table */}
-      <div className="mt-8 rounded-3xl border border-white/60 bg-white/80 p-6 shadow-sm backdrop-blur-xl text-xs">
-        <h3 className="font-bold text-slate-900 text-sm mb-3">Release Specification</h3>
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-slate-600">
+      <div
+        className="mt-8 rounded-3xl border border-violet-200/90 bg-white p-6 shadow-md text-xs text-slate-900"
+        style={{ backgroundColor: '#ffffff' }}
+      >
+        <h3 className="font-bold text-slate-950 text-sm mb-3">Release Specification</h3>
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
-            <dt className="text-slate-400">Package Name</dt>
-            <dd className="font-semibold text-slate-800 mt-0.5 font-mono">{APP_RELEASE.packageName}</dd>
+            <dt className="text-slate-600 font-medium">Package Name</dt>
+            <dd className="font-bold text-slate-950 mt-0.5 font-mono">{APP_RELEASE.packageName}</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Release Version</dt>
-            <dd className="font-semibold text-slate-800 mt-0.5">v{APP_RELEASE.version} ({APP_RELEASE.versionCode})</dd>
+            <dt className="text-slate-600 font-medium">Release Version</dt>
+            <dd className="font-bold text-slate-950 mt-0.5">v{APP_RELEASE.version} ({APP_RELEASE.versionCode})</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Target Architecture</dt>
-            <dd className="font-semibold text-slate-800 mt-0.5">arm64-v8a, armeabi-v7a, x86_64</dd>
+            <dt className="text-slate-600 font-medium">Target Architecture</dt>
+            <dd className="font-bold text-slate-950 mt-0.5">arm64-v8a, armeabi-v7a, x86_64</dd>
           </div>
           <div>
-            <dt className="text-slate-400">Storage Distribution</dt>
-            <dd className="font-semibold text-slate-800 mt-0.5">Supabase Storage ({APP_RELEASE.bucketName})</dd>
+            <dt className="text-slate-600 font-medium">Distribution Engine</dt>
+            <dd className="font-bold text-slate-950 mt-0.5">TripMate Cloud ({APP_RELEASE.bucketName})</dd>
           </div>
         </dl>
       </div>

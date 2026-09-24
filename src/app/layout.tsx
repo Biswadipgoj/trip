@@ -40,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head />
-      <body className="min-h-screen bg-surface-0 text-white antialiased">
+      <body className="min-h-screen bg-surface-0 text-slate-900 antialiased">
         {/* Aurora gradient blobs — vivid violet, mint and fuchsia over cream */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
           <div

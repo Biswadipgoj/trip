@@ -28,9 +28,9 @@ export function BrandFooter() {
           <Link
             href="/download"
             id="footer-download-app-link"
-            className="inline-flex items-center gap-2 rounded-2xl border border-white/60 bg-white/80 hover:bg-white px-4 py-2 text-xs font-semibold text-slate-800 shadow-sm backdrop-blur-md transition-all active:scale-95"
+            className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/90 bg-white hover:bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 shadow-md transition-all active:scale-95"
           >
-            <Smartphone className="w-4 h-4 text-brand-600" />
+            <Smartphone className="w-4 h-4 text-violet-600" />
             <span>TripMate for Android available (v{APP_RELEASE.version})</span>
           </Link>
         </div>
@@ -51,7 +51,7 @@ export function BrandFooter() {
           <span className="tm-word tm-w5">Biswodip</span>
           <span className="tm-word tm-w6">Goj</span>
         </motion.button>
-        <p className="mt-1.5 text-[11px] text-white/50">Tap the signature ✨</p>
+        <p className="mt-1.5 text-[11px] text-slate-600/80 font-medium">Tap the signature ✨</p>
       </footer>
 
       <AnimatePresence>

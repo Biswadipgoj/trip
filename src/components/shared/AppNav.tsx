@@ -71,16 +71,6 @@ export function AppNav({ tripId }: AppNavProps) {
               {me?.name ? `${me.name} · ` : ''}{session?.tripCode || ''}
             </p>
           </div>
-          {/* Permanent Android app download entry */}
-          <Link
-            href="/download"
-            id="download-btn-mobile-top"
-            aria-label="Download TripMate Android App"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-medium text-brand-700 bg-brand-500/10 border border-brand-500/20 active:scale-95 transition-transform"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>App</span>
-          </Link>
 
           <button
             id="logout-btn-mobile"

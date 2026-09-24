@@ -7,22 +7,31 @@ const STORAGE_KEY = 'tripmate_android_download_dismissed'
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
 /**
- * Checks if the current browser environment is running on Android.
+ * Checks strictly if the current browser environment is running on a real Android device.
+ * Excludes Windows, Mac, Linux desktops, iOS, iPadOS.
  */
 export function isAndroidDevice(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
 
   const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase()
 
-  // Explicitly ignore iOS devices
-  if (/iphone|ipad|ipod/.test(ua)) return false
+  // Explicitly exclude desktop operating systems
+  if (/windows nt|macintosh|mac os x|cros|linux x86_64/.test(ua) && !/android/.test(ua)) {
+    return false
+  }
 
-  // Detect Android
+  // Explicitly exclude Apple iOS / iPadOS
+  if (/iphone|ipad|ipod/.test(ua)) {
+    return false
+  }
+
+  // Must contain android
   return /android/.test(ua)
 }
 
 /**
  * Hook to manage the Android download prompt modal state, persistence, and actions.
+ * Only activates when running on an Android device (or ?test_android=1 for dev testing).
  */
 export function useAndroidAppPrompt() {
   const [isOpen, setIsOpen] = useState(false)
@@ -34,13 +43,17 @@ export function useAndroidAppPrompt() {
     if (typeof window === 'undefined') return
 
     const android = isAndroidDevice()
-    setIsAndroid(android)
-
-    // Allow URL query override for testing on desktop (?test_android=1)
     const urlParams = new URLSearchParams(window.location.search)
     const isTestMode = urlParams.get('test_android') === '1'
 
-    if (!android && !isTestMode) return
+    const activeForDevice = android || isTestMode
+    setIsAndroid(activeForDevice)
+
+    // NEVER open on desktop or iOS unless explicit test query is provided
+    if (!activeForDevice) {
+      setIsOpen(false)
+      return
+    }
 
     // Check dismissal history in localStorage
     try {
@@ -78,11 +91,11 @@ export function useAndroidAppPrompt() {
 
   const handleDownload = useCallback(() => {
     setIsDownloading(true)
-    setDownloadProgress(5)
+    setDownloadProgress(20)
     triggerApkDownload({
       onStart: () => {
         setIsDownloading(true)
-        setDownloadProgress(10)
+        setDownloadProgress(35)
       },
       onProgress: (pct) => {
         setDownloadProgress(pct)
@@ -92,7 +105,7 @@ export function useAndroidAppPrompt() {
         setTimeout(() => {
           setIsDownloading(false)
           setDownloadProgress(0)
-        }, 1500)
+        }, 1200)
       },
       onError: () => {
         setIsDownloading(false)

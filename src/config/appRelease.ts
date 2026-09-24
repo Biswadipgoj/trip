@@ -55,7 +55,7 @@ export function getApkDownloadUrl(): string {
   const customUrl = process.env.NEXT_PUBLIC_TRIPMATE_ANDROID_APK_URL?.trim()
   if (customUrl) return customUrl
 
-  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co').trim()
-  const cleanBase = supabaseUrl.replace(/\/+$/, '')
-  return `${cleanBase}/storage/v1/object/public/${APP_RELEASE.bucketName}/${APP_RELEASE.fileName}`
+  // Return the official Next.js streaming endpoint which merges the Supabase Storage
+  // parts into the complete 116MB APK without 404 NoSuchKey or client memory issues
+  return '/api/download/tripmate-latest.apk'
 }
