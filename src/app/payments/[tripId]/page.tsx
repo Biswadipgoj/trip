@@ -78,7 +78,6 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
     return map
   }, [members])
 
-  const pendingCount   = settlements.filter(s => s.status === 'pending').length
   const confirmedCount = confirmedPayments.length
   const nonZeroBalances = balances.filter(b => Math.abs(b.netBalance) > 0.01)
 
@@ -97,7 +96,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                 ? confirmedCount > 0
                   ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
                   : 'All balances are clear'
-                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} still due · ${pendingCount} pending · ${confirmedCount} confirmed`}
+                : `${routes.length} payment${routes.length !== 1 ? 's' : ''} to settle${confirmedCount > 0 ? ` · ${confirmedCount} confirmed` : ''}`}
             </p>
           </div>
         </div>
@@ -169,24 +168,23 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
           return (
             <FadeIn key={route.id} delay={0.1 + i * 0.07}>
               <GlassCard className="p-5">
-                {/* From → To */}
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar name={route.fromName} color={route.fromColor} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{route.fromName}</p>
-                    <p className="text-xs text-white/60">pays</p>
+                {/* Who pays whom, then how much — two rows so names fit a phone. */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    <Avatar name={route.fromName} color={route.fromColor} size="sm" />
+                    <p className="text-sm font-semibold text-white truncate" title={route.fromName}>{route.fromName}</p>
                   </div>
-                  <div className="flex flex-col items-center px-2">
-                    <p className="text-lg font-bold text-white">{formatCurrency(route.amount)}</p>
-                    <ArrowRight className="w-4 h-4 text-brand-400 mt-0.5" />
+                  <ArrowRight className="w-4 h-4 text-brand-500 flex-shrink-0" aria-label="pays" />
+                  <div className="flex-1 min-w-0 flex items-center justify-end gap-2">
+                    <p className="text-sm font-semibold text-white truncate text-right" title={route.toName}>{route.toName}</p>
+                    <Avatar name={route.toName} color={route.toColor} size="sm" />
                   </div>
-                  <div className="flex-1 min-w-0 text-right">
-                    <p className="text-sm font-semibold text-white truncate">{route.toName}</p>
-                    {toMember?.upiId && (
-                      <p className="text-xs text-brand-400 font-mono truncate">{toMember.upiId}</p>
-                    )}
-                  </div>
-                  <Avatar name={route.toName} color={route.toColor} size="md" />
+                </div>
+                <div className="flex items-baseline justify-between gap-3 mt-3 mb-4">
+                  <p className="text-2xl font-bold text-white tabular-nums">{formatCurrency(route.amount)}</p>
+                  {toMember?.upiId && (
+                    <p className="text-xs text-brand-600 font-mono truncate min-w-0">{toMember.upiId}</p>
+                  )}
                 </div>
 
                 {/* Status badge */}
@@ -211,7 +209,8 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     {upiLink && (
                       <button
                         onClick={() => setShowQr(isShowingQr ? null : route.id)}
-                        className="flex items-center gap-1 text-xs text-white/60 hover:text-white transition-colors"
+                        aria-expanded={isShowingQr}
+                        className="flex items-center gap-1 text-sm min-h-[40px] px-2 rounded-lg text-white/70 hover:text-white transition-colors"
                       >
                         <QrCode className="w-3.5 h-3.5" />
                         UPI
@@ -222,17 +221,17 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     {settlement && status === 'pending' && (
                       <button
                         onClick={() => updateStatus(settlement.id, 'paid')}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-brand-600/25 border border-brand-500/30 text-brand-400 hover:bg-brand-600/40 transition-colors"
+                        className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-brand-600 text-pure-white hover:bg-brand-700 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
                       >
-                        Mark Paid
+                        Mark paid
                       </button>
                     )}
                     {settlement && status === 'paid' && (
                       <button
                         onClick={() => updateStatus(settlement.id, 'confirmed')}
-                        className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30 transition-colors"
+                        className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-emerald-500 text-pure-white hover:bg-emerald-400 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
                       >
-                        Confirm
+                        Confirm received
                       </button>
                     )}
                   </div>

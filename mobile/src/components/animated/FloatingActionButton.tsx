@@ -26,7 +26,7 @@ export function FAB({ onPress, bottom = 20, icon: Icon = Plus, accessibilityLabe
     >
       <PressScale onPress={onPress} scaleTo={0.9} haptic="medium" accessibilityRole="button" accessibilityLabel={accessibilityLabel}>
         <LinearGradient colors={G.violetFuchsia} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
-          <Sheen period={4.5} />
+          <Sheen />
           <View style={styles.icon}>
             <Icon size={26} color={C.white} strokeWidth={2.4} />
           </View>

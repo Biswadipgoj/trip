@@ -3,7 +3,7 @@
 // — Dashboard, Members, Expenses, Payments, Report.
 import { StyleSheet, View } from 'react-native'
 import Animated, { FadeInUp, FadeOutUp, useReducedMotion } from 'react-native-reanimated'
-import { Redirect, Tabs, useIsFocused } from 'expo-router'
+import { Redirect, Tabs } from 'expo-router'
 import { WifiOff } from 'lucide-react-native'
 import { useStore } from '../../lib/store'
 import { useSyncStatus } from '../../lib/synclog'
@@ -29,7 +29,6 @@ export default function TripTabsLayout() {
       : 0
   )
   const logout = useStore(s => s.logout)
-  const focused = useIsFocused()
 
   useTripSync(session?.tripId)
 
@@ -49,7 +48,7 @@ export default function TripTabsLayout() {
 
   return (
     <View style={styles.root}>
-      <LiquidBackground paused={!focused} />
+      <LiquidBackground />
       <TripTopBar
         tripId={session.tripId}
         tripName={trip?.name || 'TripMate'}
@@ -61,7 +60,8 @@ export default function TripTabsLayout() {
         tabBar={props => <TabBar {...props} badges={{ settlements: myDues }} />}
         screenOptions={{
           headerShown: false,
-          animation: 'shift',
+          // Tabs are peers: switching is instant, never a slide.
+          animation: 'none',
           lazy: true,
           sceneStyle: { backgroundColor: 'transparent' },
         }}
@@ -76,7 +76,9 @@ export default function TripTabsLayout() {
   )
 }
 
-/** Offline banner: confirms all data stays safe on device and will auto-sync when back online. */
+/** Offline banner. Changes are saved to the cloud before they show as done
+ *  (lib/cloud.ts), so offline the trip is read-only — except bill photos,
+ *  which wait on the phone and upload by themselves. */
 function OfflineBanner() {
   const online = useSyncStatus(s => s.online)
   const reduced = useReducedMotion()
@@ -90,7 +92,7 @@ function OfflineBanner() {
     >
       <WifiOff size={16} color={C.amber700} strokeWidth={2.3} />
       <T variant="smallMedium" color={C.amber700} style={styles.flex}>
-        Offline mode · All changes stay safe on this phone and will auto-sync when reconnected.
+        You’re offline. You can view your trip; connect to add or change anything. Bill photos upload when you’re back online.
       </T>
     </Animated.View>
   )

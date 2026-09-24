@@ -14,7 +14,6 @@ import {
   Link2, Crown, Heart, Trash2, Plus, UserPlus, AlertTriangle
 } from 'lucide-react'
 import { isRemoteEnabled } from '@/lib/remote'
-import Link from 'next/link'
 
 interface MembersPageProps {
   params: Promise<{ tripId: string }>
@@ -126,7 +125,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <Link2 className="w-4 h-4 text-brand-400" />
                   Invite friends
                 </p>
-                <p className="text-xs text-white/60 mt-0.5 truncate">
+                <p className="text-xs text-white/60 mt-0.5">
                   Share the join link — works on any device, valid 30 days
                 </p>
               </div>
@@ -147,9 +146,8 @@ export default function MembersPage({ params }: MembersPageProps) {
               <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-3 py-2">
                 <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-amber-700">
-                  Cloud sync is OFF — invites will not work on other devices until the Supabase
-                  environment variables are configured on the deployment.{' '}
-                  <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
+                  Invites can&apos;t reach other phones right now. Friends can still join once
+                  TripMate is back online.
                 </p>
               </div>
             )}
@@ -167,7 +165,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <UserPlus className="w-4 h-4 text-accent-400" />
                   Add member
                 </p>
-                <p className="text-xs text-white/60 mt-0.5 truncate">
+                <p className="text-xs text-white/60 mt-0.5">
                   Add friends by name — they can join with the link later
                 </p>
               </div>

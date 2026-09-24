@@ -7,13 +7,14 @@ import Animated, {
   Extrapolation, FadeIn, interpolate, useAnimatedStyle, useSharedValue, withSpring, withTiming,
 } from 'react-native-reanimated'
 import { scheduleOnRN } from 'react-native-worklets'
-import { Image } from 'expo-image'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { StatusBar } from 'expo-status-bar'
-import { CircleCheck, CloudUpload, ImageOff, RotateCw, Smartphone, Trash2, X } from 'lucide-react-native'
+import { CircleCheck, Clock, CloudUpload, ImageOff, RotateCw, Trash2, X } from 'lucide-react-native'
 import { useStore } from '../lib/store'
-import { attachmentUri, retryUpload } from '../lib/uploads'
+import { retryUpload } from '../lib/uploads'
+import { AttachmentImage } from '../components/attachments/AttachmentImage'
+import type { Attachment } from '../types'
 import { cloudRemoveAttachment, withCloud } from '../lib/cloud'
 import { isRemoteEnabled } from '../lib/remote'
 import { confirmAction } from '../lib/dialogs'
@@ -117,7 +118,6 @@ export default function Viewer() {
     )
   }
 
-  const uri = attachmentUri(attachment)
   const cloud = isRemoteEnabled()
   const title = attachment.kind === 'bill' ? 'Bill photo' : 'UPI payment screenshot'
 
@@ -145,16 +145,16 @@ export default function Viewer() {
 
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.fill, styles.center]}>
-          {uri ? (
-            <Animated.View style={[{ width, height }, imageStyle]}>
-              <Image source={{ uri }} style={styles.fill} contentFit="contain" transition={200} cachePolicy="memory-disk" />
-            </Animated.View>
-          ) : (
-            <View style={styles.center}>
-              <ImageOff size={36} color={whiteA(0.6)} />
-              <T variant="body" color={whiteA(0.75)} style={styles.missingText}>Image not available yet</T>
-            </View>
-          )}
+          <Animated.View style={[{ width, height }, imageStyle]}>
+            <AttachmentImage
+              attachment={attachment}
+              alt={title}
+              style={styles.fill}
+              contentFit="contain"
+              tone="dark"
+              showRetryLabel
+            />
+          </Animated.View>
         </Animated.View>
       </GestureDetector>
 
@@ -172,14 +172,14 @@ export default function Viewer() {
       {/* Info */}
       <View style={[styles.bottom, { paddingBottom: insets.bottom + 16 }]} pointerEvents="box-none">
         <View style={styles.infoCard}>
-          <UploadState upload={attachment.upload} cloud={cloud} />
+          <UploadState attachment={attachment} cloud={cloud} />
           <T variant="small" color={whiteA(0.75)}>
             {uploader ? `Added by ${uploader.name} · ` : ''}{formatDate(attachment.createdAt)} ({formatRelativeTime(attachment.createdAt)})
           </T>
           {attachment.upload === 'failed' && cloud && (
             <PressScale onPress={() => { tick('light'); retryUpload(attachment.id) }} style={styles.pill} accessibilityRole="button">
               <RotateCw size={14} color={C.white} />
-              <T variant="smallSemibold" color={C.white}>Sync now</T>
+              <T variant="smallSemibold" color={C.white}>Try upload again</T>
             </PressScale>
           )}
         </View>
@@ -188,35 +188,26 @@ export default function Viewer() {
   )
 }
 
-function UploadState({ upload, cloud }: { upload: string; cloud: boolean }) {
+function UploadState({ attachment: a, cloud }: { attachment: Attachment; cloud: boolean }) {
   if (!cloud) return null
-  if (upload === 'uploaded') {
-    return (
-      <View style={styles.state}>
-        <CircleCheck size={14} color="#6EE7B7" />
-        <T variant="smallSemibold" color="#6EE7B7">Synced to cloud</T>
-      </View>
-    )
+  const line = (Icon: typeof Clock, color: string, text: string) => (
+    <View style={styles.state}>
+      <Icon size={14} color={color} />
+      <T variant="smallSemibold" color={color} style={styles.flexShrink}>{text}</T>
+    </View>
+  )
+  switch (a.upload) {
+    case 'uploaded':
+      return line(CircleCheck, '#6EE7B7', 'Shared with the trip')
+    case 'uploading':
+      return line(CloudUpload, '#FCD34D', 'Uploading…')
+    case 'pending':
+      return line(Clock, '#FCD34D', 'Saved on this phone · uploads automatically')
+    case 'failed':
+      return line(RotateCw, '#FCA5A5', a.uploadError
+        ? `Not uploaded yet: ${a.uploadError}`
+        : 'Saved on this phone · not uploaded yet')
   }
-  if (upload === 'uploading') {
-    return (
-      <View style={styles.state}>
-        <CloudUpload size={14} color="#FCD34D" />
-        <T variant="smallSemibold" color="#FCD34D">Syncing…</T>
-      </View>
-    )
-  }
-  if (upload === 'failed') {
-    return (
-      <View style={styles.state}>
-        <RotateCw size={14} color="#FCD34D" />
-        <T variant="smallSemibold" color="#FCD34D" numberOfLines={1}>
-          Saved on device · will sync when online
-        </T>
-      </View>
-    )
-  }
-  return null
 }
 
 const styles = StyleSheet.create({

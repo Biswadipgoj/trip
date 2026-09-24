@@ -1,0 +1,662 @@
+{
+  "verifiedAt": "2026-09-24T21:09:42.043Z",
+  "root": "/home/user/trip",
+  "errors": 0,
+  "warnings": 3,
+  "results": [
+    {
+      "id": "taste",
+      "name": "Taste Skill",
+      "checks": [
+        {
+          "name": "checkout exists",
+          "ok": true,
+          "detail": "/home/user/trip/.biswodip/upstream/taste-skill",
+          "level": "error"
+        },
+        {
+          "name": "remote matches manifest",
+          "ok": true,
+          "detail": "https://github.com/Leonxlnx/taste-skill.git",
+          "level": "error"
+        },
+        {
+          "name": "commit matches lock",
+          "ok": true,
+          "detail": "c184364c5865 vs c184364c5865",
+          "level": "warn"
+        },
+        {
+          "name": "no local modifications",
+          "ok": true,
+          "detail": "",
+          "level": "warn"
+        },
+        {
+          "name": "expected upstream files present",
+          "ok": true,
+          "detail": "",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE present",
+          "ok": true,
+          "detail": "LICENSE",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE unchanged",
+          "ok": true,
+          "detail": "sha256 compared with lock",
+          "level": "error"
+        },
+        {
+          "name": "skill brandkit",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/brandkit",
+          "level": "error"
+        },
+        {
+          "name": "skill design-taste-frontend",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/design-taste-frontend",
+          "level": "error"
+        },
+        {
+          "name": "skill design-taste-frontend-v1",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/design-taste-frontend-v1",
+          "level": "error"
+        },
+        {
+          "name": "skill full-output-enforcement",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/full-output-enforcement",
+          "level": "error"
+        },
+        {
+          "name": "skill gpt-taste",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/gpt-taste",
+          "level": "error"
+        },
+        {
+          "name": "skill high-end-visual-design",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/high-end-visual-design",
+          "level": "error"
+        },
+        {
+          "name": "skill image-to-code",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/image-to-code",
+          "level": "error"
+        },
+        {
+          "name": "skill imagegen-frontend-mobile",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/imagegen-frontend-mobile",
+          "level": "error"
+        },
+        {
+          "name": "skill imagegen-frontend-web",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/imagegen-frontend-web",
+          "level": "error"
+        },
+        {
+          "name": "skill industrial-brutalist-ui",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/industrial-brutalist-ui",
+          "level": "error"
+        },
+        {
+          "name": "skill minimalist-ui",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/minimalist-ui",
+          "level": "error"
+        },
+        {
+          "name": "skill redesign-existing-projects",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/redesign-existing-projects",
+          "level": "error"
+        },
+        {
+          "name": "skill stitch-design-taste",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/stitch-design-taste",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "emilkowalski",
+      "name": "Emil Kowalski Skills",
+      "checks": [
+        {
+          "name": "checkout exists",
+          "ok": true,
+          "detail": "/home/user/trip/.biswodip/upstream/emilkowalski-skills",
+          "level": "error"
+        },
+        {
+          "name": "remote matches manifest",
+          "ok": true,
+          "detail": "https://github.com/emilkowalski/skills.git",
+          "level": "error"
+        },
+        {
+          "name": "commit matches lock",
+          "ok": true,
+          "detail": "d16ebe60d09a vs d16ebe60d09a",
+          "level": "warn"
+        },
+        {
+          "name": "no local modifications",
+          "ok": true,
+          "detail": "",
+          "level": "warn"
+        },
+        {
+          "name": "expected upstream files present",
+          "ok": true,
+          "detail": "",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE present",
+          "ok": true,
+          "detail": "LICENSE",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE unchanged",
+          "ok": true,
+          "detail": "sha256 compared with lock",
+          "level": "error"
+        },
+        {
+          "name": "skill animate",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/animate",
+          "level": "error"
+        },
+        {
+          "name": "skill animate-expo",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/animate-expo",
+          "level": "error"
+        },
+        {
+          "name": "skill animation-vocabulary",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/animation-vocabulary",
+          "level": "error"
+        },
+        {
+          "name": "skill apple-design",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/apple-design",
+          "level": "error"
+        },
+        {
+          "name": "skill ask-sonner",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/ask-sonner",
+          "level": "error"
+        },
+        {
+          "name": "skill emil-design-eng",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/emil-design-eng",
+          "level": "error"
+        },
+        {
+          "name": "skill find-animation-opportunities",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/find-animation-opportunities",
+          "level": "error"
+        },
+        {
+          "name": "skill improve-animations",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/improve-animations",
+          "level": "error"
+        },
+        {
+          "name": "skill mobile-native",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/mobile-native",
+          "level": "error"
+        },
+        {
+          "name": "skill pick-ui-library",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/pick-ui-library",
+          "level": "error"
+        },
+        {
+          "name": "skill prototype",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/prototype",
+          "level": "error"
+        },
+        {
+          "name": "skill review-animations",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/review-animations",
+          "level": "error"
+        },
+        {
+          "name": "skill write-swift",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/write-swift",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "headroom",
+      "name": "Headroom",
+      "checks": [
+        {
+          "name": "checkout exists",
+          "ok": true,
+          "detail": "/home/user/trip/.biswodip/upstream/headroom",
+          "level": "error"
+        },
+        {
+          "name": "remote matches manifest",
+          "ok": true,
+          "detail": "https://github.com/headroomlabs-ai/headroom.git",
+          "level": "error"
+        },
+        {
+          "name": "commit matches lock",
+          "ok": true,
+          "detail": "df8ebdf97da6 vs df8ebdf97da6",
+          "level": "warn"
+        },
+        {
+          "name": "no local modifications",
+          "ok": true,
+          "detail": "",
+          "level": "warn"
+        },
+        {
+          "name": "expected upstream files present",
+          "ok": true,
+          "detail": "",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE present",
+          "ok": true,
+          "detail": "LICENSE",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE unchanged",
+          "ok": true,
+          "detail": "sha256 compared with lock",
+          "level": "error"
+        },
+        {
+          "name": "headroom CLI available",
+          "ok": false,
+          "detail": "not installed — dependent phase BLOCKED",
+          "level": "warn"
+        }
+      ]
+    },
+    {
+      "id": "strix",
+      "name": "Strix",
+      "checks": [
+        {
+          "name": "checkout exists",
+          "ok": true,
+          "detail": "/home/user/trip/.biswodip/upstream/strix",
+          "level": "error"
+        },
+        {
+          "name": "remote matches manifest",
+          "ok": true,
+          "detail": "https://github.com/usestrix/strix.git",
+          "level": "error"
+        },
+        {
+          "name": "commit matches lock",
+          "ok": true,
+          "detail": "ae38fe70cd02 vs ae38fe70cd02",
+          "level": "warn"
+        },
+        {
+          "name": "no local modifications",
+          "ok": true,
+          "detail": "",
+          "level": "warn"
+        },
+        {
+          "name": "expected upstream files present",
+          "ok": true,
+          "detail": "",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE present",
+          "ok": true,
+          "detail": "LICENSE",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE unchanged",
+          "ok": true,
+          "detail": "sha256 compared with lock",
+          "level": "error"
+        },
+        {
+          "name": "skill api-security-testing",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/api-security-testing",
+          "level": "error"
+        },
+        {
+          "name": "skill application-security-testing",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/application-security-testing",
+          "level": "error"
+        },
+        {
+          "name": "skill ci-security-scanning-with-strix",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/ci-security-scanning-with-strix",
+          "level": "error"
+        },
+        {
+          "name": "skill find-security-vulnerabilities-in-code",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/find-security-vulnerabilities-in-code",
+          "level": "error"
+        },
+        {
+          "name": "skill fix-security-vulnerabilities-with-strix",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/fix-security-vulnerabilities-with-strix",
+          "level": "error"
+        },
+        {
+          "name": "skill managed-pentesting-with-strix",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/managed-pentesting-with-strix",
+          "level": "error"
+        },
+        {
+          "name": "skill owasp-top-10-testing",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/owasp-top-10-testing",
+          "level": "error"
+        },
+        {
+          "name": "skill penetration-testing-with-strix",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/penetration-testing-with-strix",
+          "level": "error"
+        },
+        {
+          "name": "skill web-app-penetration-testing",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/web-app-penetration-testing",
+          "level": "error"
+        },
+        {
+          "name": "strix CLI available",
+          "ok": false,
+          "detail": "not installed — dependent phase BLOCKED",
+          "level": "warn"
+        },
+        {
+          "name": "docker running",
+          "ok": false,
+          "detail": "Strix cannot run",
+          "level": "warn"
+        }
+      ]
+    },
+    {
+      "id": "no-ai-slop",
+      "name": "No AI Slop",
+      "checks": [
+        {
+          "name": "checkout exists",
+          "ok": true,
+          "detail": "/home/user/trip/.biswodip/upstream/no-ai-slop",
+          "level": "error"
+        },
+        {
+          "name": "remote matches manifest",
+          "ok": true,
+          "detail": "https://github.com/petergyang/no-ai-slop.git",
+          "level": "error"
+        },
+        {
+          "name": "commit matches lock",
+          "ok": true,
+          "detail": "000650b15698 vs 000650b15698",
+          "level": "warn"
+        },
+        {
+          "name": "no local modifications",
+          "ok": true,
+          "detail": "",
+          "level": "warn"
+        },
+        {
+          "name": "expected upstream files present",
+          "ok": true,
+          "detail": "",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE present",
+          "ok": true,
+          "detail": "LICENSE",
+          "level": "error"
+        },
+        {
+          "name": "upstream LICENSE unchanged",
+          "ok": true,
+          "detail": "sha256 compared with lock",
+          "level": "error"
+        },
+        {
+          "name": "skill no-ai-slop",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/no-ai-slop",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command @dip",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/agents/dip.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:bootstrap",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/bootstrap.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:design",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/design.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:handoff",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/handoff.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:pentest",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/pentest.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:release",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/release.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "commands",
+      "name": "Command /dip:security",
+      "checks": [
+        {
+          "name": "file present",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/commands/dip/security.md",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-bootstrap",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-bootstrap",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-design-review",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-design-review",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-handoff",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-handoff",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-pentest",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-pentest",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-release-gate",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-release-gate",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-security-review",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-security-review",
+          "level": "error"
+        }
+      ]
+    },
+    {
+      "id": "biswodip",
+      "name": "Biswodip skill biswodip-unified-engineering",
+      "checks": [
+        {
+          "name": "installed + valid frontmatter",
+          "ok": true,
+          "detail": "/home/user/trip/.claude/skills/biswodip-unified-engineering",
+          "level": "error"
+        }
+      ]
+    }
+  ]
+}

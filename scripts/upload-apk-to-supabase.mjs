@@ -4,7 +4,15 @@ import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1Zm1iaGVld3ltenl6a2ZhaXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5OTUxMDYsImV4cCI6MjA5NjU3MTEwNn0.pv9WAWZ41O09HWal24PTIpDhtal_GYJRgnf1IoLUhn4';
+// Releases are written with the service-role key only. The public anon key
+// cannot write to the android-app bucket (supabase/migrations/20260925_harden_storage.sql),
+// so nobody holding the web bundle's key can replace the APK.
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_KEY) {
+  console.error('Error: set SUPABASE_SERVICE_ROLE_KEY (Supabase Dashboard -> Project Settings -> API) to upload a release.');
+  console.error('Keep it out of the repo and out of any NEXT_PUBLIC_/EXPO_PUBLIC_ variable.');
+  process.exit(1);
+}
 
 const APK_PATH = path.resolve('./dist/tripmate-latest.apk');
 const BUCKET_NAME = 'android-app';

@@ -298,10 +298,8 @@ function JoinTripContent() {
                 <div className="flex items-start gap-2 rounded-xl bg-amber-500/15 border border-amber-500/30 px-3 py-2.5">
                   <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-700">
-                    Cloud sync is not configured on this deployment, so joining only works on the
-                    device where the trip was created. Ask the admin to set the Supabase environment
-                    variables on Vercel.{' '}
-                    <Link href="/debug" className="underline font-semibold">Open Sync Doctor</Link>
+                    Joining from another phone isn&apos;t available right now. Open the trip on the
+                    phone where it was created, or try again later.
                   </p>
                 </div>
               )}

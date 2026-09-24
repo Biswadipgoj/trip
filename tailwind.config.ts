@@ -1,6 +1,9 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
+  // hover: styles only on devices that can hover — a tap on a phone left
+  // them stuck on until the next tap elsewhere.
+  future: { hoverOnlyWhenSupported: true },
   darkMode: ['class'],
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',

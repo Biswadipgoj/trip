@@ -41,7 +41,7 @@ const SIZES: Record<Size, { py: number; px: number; font: number; icon: number; 
 
 export function Button({
   title, onPress, variant = 'brand', size = 'md', icon: Icon, iconRight: IconRight, tone, loading,
-  disabled, full, haptic = 'light', style, accessibilityLabel, testID,
+  disabled, full, haptic = false, style, accessibilityLabel, testID,
 }: ButtonProps) {
   const s = SIZES[size]
   const tint = variant === 'danger' ? C.red500 : variant === 'success' ? C.emerald400 : tone ?? C.brand500
@@ -83,7 +83,7 @@ export function Button({
           end={{ x: 1, y: 1 }}
           style={[styles.clip, { borderRadius: s.radius, boxShadow: inactive ? undefined : shadow.btnBrand }]}
         >
-          {!inactive && <Sheen period={6} />}
+          {!inactive && <Sheen />}
           {content}
         </LinearGradient>
       ) : (

@@ -10,12 +10,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/** ₹1,25,000 for whole amounts, ₹6,682.50 otherwise — never one decimal. */
 export function formatCurrency(amount: number): string {
+  const decimals = Math.round(Math.abs(amount) * 100) % 100 === 0 ? 0 : 2
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   }).format(amount)
 }
 

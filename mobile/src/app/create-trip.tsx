@@ -137,7 +137,7 @@ export default function CreateTripScreen() {
             <View style={styles.progress}>
               {['Trip Details', 'Set PIN'].map((label, i) => (
                 <View key={label} style={styles.flex}>
-                  <ProgressBar pct={i <= stepIndex ? 100 : 0} height={4} delay={0} duration={500} trackColor={violet(0.16)} />
+                  <ProgressBar pct={i <= stepIndex ? 100 : 0} height={4} trackColor={violet(0.16)} />
                   <T variant="tinySemibold" color={i <= stepIndex ? C.brand500 : ink(0.5)} style={styles.progressLabel}>
                     {label}
                   </T>

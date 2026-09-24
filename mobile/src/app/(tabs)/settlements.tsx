@@ -4,15 +4,7 @@
 // (UPI app + QR + screenshot upload); UPI screenshots show on each payment.
 import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated'
+import Animated from 'react-native-reanimated'
 import { router } from 'expo-router'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles,
@@ -41,41 +33,7 @@ import { C, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 
 function MoneyFlowArrow() {
-  const reduced = useReducedMotion()
-  const tx = useSharedValue(-5)
-  const op = useSharedValue(0.5)
-
-  useEffect(() => {
-    if (!reduced) {
-      tx.value = withRepeat(
-        withSequence(
-          withTiming(5, { duration: 750, easing: Easing.inOut(Easing.ease) }),
-          withTiming(-5, { duration: 750, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-      op.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 750, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.5, { duration: 750, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    }
-  }, [reduced, tx, op])
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }],
-    opacity: op.value,
-  }))
-
-  return (
-    <Animated.View style={animStyle}>
-      <ArrowRight size={16} color={C.brand500} />
-    </Animated.View>
-  )
+  return <ArrowRight size={16} color={C.brand500} />
 }
 
 export default function PaymentsScreen() {
@@ -91,7 +49,6 @@ export default function PaymentsScreen() {
     if (tripId) generateSettlements(tripId)
   }, [tripId, generateSettlements])
 
-  const pendingCount = settlements.filter(s => s.status === 'pending').length
   const confirmedCount = confirmed.length
   const nonZero = balances.filter(b => Math.abs(b.netBalance) > 0.01)
 
@@ -132,7 +89,7 @@ export default function PaymentsScreen() {
               ? confirmedCount > 0
                 ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
                 : 'All balances are clear'
-              : `${routes.length} payment${routes.length !== 1 ? 's' : ''} still due · ${pendingCount} pending · ${confirmedCount} confirmed`
+              : `${routes.length} payment${routes.length !== 1 ? 's' : ''} to settle${confirmedCount > 0 ? ` · ${confirmedCount} confirmed` : ''}`
           }
         />
 
@@ -258,27 +215,32 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
   onPay: () => void
   onConfirm: () => void
 }) {
-  const reduced = useReducedMotion()
   const { route, status, settlement } = due
   const iPay = me === route.fromMemberId
   return (
     <Animated.View layout={SMOOTH_LAYOUT}>
       <GlassCard>
-        <View style={styles.flow}>
-          <Avatar name={route.fromName} color={route.fromColor} size="md" />
-          <View style={styles.flex}>
-            <T variant="title" numberOfLines={2}>{route.fromName}{iPay ? ' (you)' : ''}</T>
-            <T variant="small" color={ink(0.6)}>pays</T>
+        {/* Two rows so names fit a phone: who pays whom, then how much. */}
+        <View
+          style={styles.flow}
+          accessible
+          accessibilityLabel={`${route.fromName}${iPay ? ' (you)' : ''} pays ${route.toName} ${formatCurrency(route.amount)}`}
+        >
+          <View style={styles.party}>
+            <Avatar name={route.fromName} color={route.fromColor} size="sm" />
+            <T variant="title" numberOfLines={1} style={styles.shrink}>{route.fromName}{iPay ? ' (you)' : ''}</T>
           </View>
-          <View style={styles.amountCol}>
-            <T variant="moneySm">{formatCurrency(route.amount)}</T>
-            <MoneyFlowArrow />
+          <MoneyFlowArrow />
+          <View style={[styles.party, styles.partyRight]}>
+            <T variant="title" numberOfLines={1} style={[styles.shrink, styles.rightAlign]}>{route.toName}</T>
+            <Avatar name={route.toName} color={route.toColor} size="sm" />
           </View>
-          <View style={[styles.flex, styles.rightText]}>
-            <T variant="title" numberOfLines={2} style={styles.rightAlign}>{route.toName}</T>
-            {to?.upiId ? <T variant="tiny" color={C.brand500} numberOfLines={1} style={styles.upi}>{to.upiId}</T> : null}
-          </View>
-          <Avatar name={route.toName} color={route.toColor} size="md" />
+        </View>
+        <View style={styles.amountRow}>
+          <T variant="money">{formatCurrency(route.amount)}</T>
+          {to?.upiId ? (
+            <T variant="tiny" color={C.brand500} numberOfLines={1} style={[styles.upi, styles.shrink]}>{to.upiId}</T>
+          ) : null}
         </View>
 
         {proofs.length > 0 && (
@@ -334,10 +296,12 @@ const styles = StyleSheet.create({
   gap12: { gap: 12 },
   cardTitle: { marginBottom: 12 },
   note: { marginTop: 12 },
-  flow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  amountCol: { alignItems: 'center', paddingHorizontal: 2 },
-  rightText: { alignItems: 'flex-end' },
+  flow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  party: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  partyRight: { justifyContent: 'flex-end' },
+  shrink: { flexShrink: 1 },
   rightAlign: { textAlign: 'right' },
+  amountRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, marginTop: 10, marginBottom: 14 },
   upi: { fontFamily: F.mono },
   proofs: { gap: 8, marginBottom: 12 },
   actions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },

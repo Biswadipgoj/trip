@@ -1,0 +1,66 @@
+$ npx tsc --noEmit
+exit=0
+
+$ npx next lint
+For existing projects, migrate to the ESLint CLI:
+npx @next/codemod@canary next-lint-to-eslint-cli .
+
+✔ No ESLint warnings or errors
+exit=0
+
+$ npx vitest run
+      Tests  77 passed (77)
+   Start at  22:05:04
+   Duration  1.15s (transform 904ms, setup 104ms, import 1.23s, tests 236ms, environment 1ms)
+
+exit=0
+
+$ npx next build
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+exit=0
+
+$ npx vitest run --config mobile/vitest.config.mts
+      Tests  36 passed (36)
+   Start at  22:05:56
+   Duration  838ms (transform 841ms, setup 0ms, import 1.10s, tests 318ms, environment 0ms)
+
+exit=0
+
+$ npx vitest run --config mobile/vitest.config.mts
+      Tests  36 passed (36)
+   Start at  22:07:16
+   Duration  723ms (transform 783ms, setup 0ms, import 983ms, tests 275ms, environment 0ms)
+
+exit=0
+
+$ (mobile) npx tsc --noEmit
+exit=0
+
+$ (mobile) npx expo lint
+  58:9  warning  The 'members' logical expression could make the dependencies of useMemo Hook (at line 70) change on every render. Move it inside the useMemo callback. Alternatively, wrap the initialization of 'members' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+✖ 2 problems (0 errors, 2 warnings)
+
+exit=0
+
+$ (mobile) npx expo export --platform android --output-dir <scratchpad>/android-export
+_expo/static/js/android/entry-5cc4cc01164b2203291decb9c7575bb7.hbc (7.5MB)
+exit=0
+
+$ (mobile) npx expo-doctor
+19/21 checks passed. 2 checks failed:
+  ✖ Check Expo config schema — "Host not in allowlist" (sandbox proxy blocks the Expo API)
+  ✖ Validate packages against React Native Directory — unexpected server response (same cause)
+exit=1  -> BLOCKED (network), not a project finding
+--- after dependency upgrades (next 15.5.26, jspdf 4.2.1, postcss 8.5.28) and PDF fix ---
+$ npx tsc --noEmit            exit=0
+$ npx next lint               exit=0  (No ESLint warnings or errors)
+$ npx vitest run              exit=0  Tests 81 passed (81)
+$ npx next build              exit=0  Compiled successfully (Next.js 15.5.26)
+$ npm audit                   before: critical 2 · high 6 · moderate 4 · low 1
+                              after:  critical 0 · high 1 · moderate 3 · low 0
+  remaining: postcss inside next (build-time; fix = next 16 major), next moderate (fix = 16),
+             vitest/@vitest/mocker moderate (dev-only test runner; 4.1.11 install conflicts)

@@ -28,15 +28,16 @@ const SETUP_BACKOFF_MS = 15_000
 const NEVER = Number.MAX_SAFE_INTEGER
 
 // File-existence checks are synchronous native calls; thumbnails ask often.
-const existsCache = new Map<string, boolean>()
+// Only "exists" is cached: a file reported missing (e.g. checked while it was
+// still being moved into place) is checked again next time, otherwise the
+// thumbnail would switch to a cloud URL that may not exist yet.
+const existsCache = new Map<string, true>()
 
-function fileExists(uri: string): boolean {
-  let known = existsCache.get(uri)
-  if (known === undefined) {
-    known = localFileExists(uri)
-    existsCache.set(uri, known)
-  }
-  return known
+export function fileExists(uri: string, check: (uri: string) => boolean = localFileExists): boolean {
+  if (existsCache.has(uri)) return true
+  const exists = check(uri)
+  if (exists) existsCache.set(uri, true)
+  return exists
 }
 
 // The store deletes on-device copies through this (it can't import native
@@ -101,10 +102,19 @@ export function retryUpload(id: string) {
   void processUploads()
 }
 
+/** Image sources in the order to try: the on-device copy, then the public
+ *  cloud URL. (A signed URL is the last resort — see AttachmentImage.) */
+export function attachmentSources(a: Attachment): string[] {
+  const out: string[] = []
+  if (a.localUri && fileExists(a.localUri)) out.push(a.localUri)
+  const pub = mediaPublicUrl(a.storagePath)
+  if (pub) out.push(pub)
+  return out
+}
+
 /** Best image source: the on-device copy when present, else the cloud URL. */
 export function attachmentUri(a: Attachment): string | null {
-  if (a.localUri && fileExists(a.localUri)) return a.localUri
-  return mediaPublicUrl(a.storagePath)
+  return attachmentSources(a)[0] ?? null
 }
 
 const stillExists = (id: string) => useStore.getState().attachments.some(x => x.id === id)

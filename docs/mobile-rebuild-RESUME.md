@@ -1,5 +1,8 @@
 # TripMate Android rebuild — RESUME FILE
 
+> **Superseded (2026-09-24):** read `handoff.md` at the repository root first — it has the current
+> state, evidence and next steps. This file is kept for history.
+
 _Last updated: 2026-09-23. Written mid-task so work can continue after a logout._
 **To continue: say "resume" — Claude reads this file and carries on from "Next steps".**
 

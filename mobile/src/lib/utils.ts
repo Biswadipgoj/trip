@@ -31,30 +31,41 @@ export function formatIndianNumber(value: number, maxDecimals = 2): string {
   const sign = value < 0 ? '-' : ''
   const fixed = Math.abs(value).toFixed(maxDecimals)
   const [int, rawDec = ''] = fixed.split('.')
-  const dec = rawDec.replace(/0+$/, '')
+  // Whole amounts show no decimals; anything else shows all of them
+  // (₹6,682.50, never ₹6,682.5).
+  const dec = /^0*$/.test(rawDec) ? '' : rawDec
   return `${sign}${groupIndian(int)}${dec ? `.${dec}` : ''}`
 }
 
-let inrFormatter: Intl.NumberFormat | null | undefined
+/** Whether an amount has paise (after rounding to 2 decimals). */
+const hasPaise = (amount: number) => Math.round(Math.abs(amount) * 100) % 100 !== 0
+
+const inrFormatters: Partial<Record<0 | 2, Intl.NumberFormat | null>> = {}
 let dateFormatter: Intl.DateTimeFormat | null | undefined
 
-export function formatCurrency(amount: number): string {
-  if (inrFormatter === undefined) {
+function inrFormatter(decimals: 0 | 2): Intl.NumberFormat | null {
+  if (inrFormatters[decimals] === undefined) {
     try {
-      inrFormatter = new Intl.NumberFormat('en-IN', {
+      inrFormatters[decimals] = new Intl.NumberFormat('en-IN', {
         style: 'currency',
         currency: 'INR',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
       })
     } catch {
-      inrFormatter = null
+      inrFormatters[decimals] = null
     }
   }
+  return inrFormatters[decimals] ?? null
+}
+
+/** ₹1,25,000 for whole amounts, ₹6,682.50 otherwise — never one decimal. */
+export function formatCurrency(amount: number): string {
   const safe = Number.isFinite(amount) ? amount : 0
-  if (inrFormatter) {
+  const formatter = inrFormatter(hasPaise(safe) ? 2 : 0)
+  if (formatter) {
     try {
-      return inrFormatter.format(safe)
+      return formatter.format(safe)
     } catch {
       /* fall through to the manual formatter */
     }

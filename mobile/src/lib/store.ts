@@ -364,17 +364,14 @@ export const useStore = create<AppState>()(
       },
 
       closeTrip: (tripId) => {
-        const tripAttachments = get().attachments.filter(a => a.tripId === tripId)
-        const localUris = tripAttachments.map(a => a.localUri).filter((u): u is string => !!u)
-        if (localUris.length > 0) cleanLocalFiles(localUris)
-
+        // Bill photos and payment screenshots stay: they are the record of
+        // who paid whom, and trips close automatically once all is settled.
         set(s => ({
           trips: s.trips.map(t =>
             t.id === tripId
               ? { ...t, status: 'closed' as const, closedAt: new Date().toISOString() }
               : t
           ),
-          attachments: s.attachments.filter(a => a.tripId !== tripId),
         }))
         get().enqueue(tripId, { kind: 'closeTrip' })
       },
@@ -1063,13 +1060,9 @@ export const useStore = create<AppState>()(
       },
 
       applyTripClosed: (tripId, closedAt) => {
-        const tripAttachments = get().attachments.filter(a => a.tripId === tripId)
-        const localUris = tripAttachments.map(a => a.localUri).filter((u): u is string => !!u)
-        if (localUris.length > 0) cleanLocalFiles(localUris)
-
+        // Images are kept (see closeTrip).
         set(s => ({
           trips: s.trips.map(t => (t.id === tripId ? { ...t, status: 'closed' as const, closedAt } : t)),
-          attachments: s.attachments.filter(a => a.tripId !== tripId),
         }))
       },
 

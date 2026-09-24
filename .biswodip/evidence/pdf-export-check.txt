@@ -1,0 +1,10 @@
+Web report "Export PDF" — the rupee sign garbled every money line (jsPDF built-in fonts are Latin-1).
+
+Before (jsPDF 4.2.1, text 'Total Expenses: ₹26,730', uncompressed content stream):
+  (\0T\0o\0t\0a\0l\0 \0E\0x\0p\0e\0n\0s\0e\0s\0:\0  ¹\02\06\0,\07\03\00) Tj      <- UTF-16, prints as garbage
+After (pdfSafe): (Total Expenses: Rs. 26,730) Tj
+
+End-to-end (Playwright, next dev 15.5.26, seeded 4-member trip, click "Export PDF"):
+  trip-report-Goa Getaway 2026.pdf: 24 text lines, 0 garbled
+  (Total Expenses: Rs. 26,730) Tj · (Avg per person: Rs. 6,682.50) Tj · (Stay: Rs. 12,000 \(45%\)) Tj
+Unit: src/lib/__tests__/pdfText.test.ts (4 tests).

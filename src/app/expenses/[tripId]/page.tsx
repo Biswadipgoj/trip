@@ -15,9 +15,10 @@ import { FadeIn } from '@/components/animations/FadeIn'
 import { ExpenseCategory, SplitType, ParticipantSplit, ExpensePayer, Room } from '@/types'
 import {
   Plus, Receipt, Trash2, ChevronDown, X, Check,
-  Users, IndianRupee, Tag, Info, Hotel, BedDouble, Paperclip, Camera,
+  Users, IndianRupee, Tag, Info, Hotel, BedDouble, Paperclip, Camera, Loader2,
 } from 'lucide-react'
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
+import { prepareImageForUpload, ImagePrepError, type PreparedUpload } from '@/lib/image'
 
 interface ExpensesPageProps {
   params: Promise<{ tripId: string }>
@@ -76,8 +77,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
   const [splitValues, setSplitValues]   = useState<Record<string, string>>({})
   const [notes, setNotes]           = useState('')
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
-  const [billFile, setBillFile]     = useState<File | null>(null)
+  const [bill, setBill]             = useState<PreparedUpload | null>(null)
   const [billPreview, setBillPreview] = useState<string | null>(null)
+  const [billError, setBillError]   = useState<string | null>(null)
+  const [billPreparing, setBillPreparing] = useState(false)
 
   // ── Room state — used when category is "stay" (hotel booking mode) ──────────
   const [rooms, setRooms] = useState<Room[]>([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
@@ -129,7 +132,8 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
     setParticipants(members.map(m => m.id))
     setSplitValues({}); setNotes(''); setFormErrors({})
     setRooms([{ id: generateId(), name: 'Room 1', cost: 0, occupantIds: [] }])
-    setBillFile(null)
+    setBill(null)
+    setBillError(null)
     if (billPreview) {
       try { URL.revokeObjectURL(billPreview) } catch {}
       setBillPreview(null)
@@ -153,15 +157,16 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
       if (Object.keys(errs).length > 0) return
 
       const createdHotel = addHotelExpense({ tripId, title: title.trim(), totalAmount: totalRoomCost, paidBy, rooms })
-      if (billFile) {
-        addAttachment({
+      if (bill) {
+        void addAttachment({
           tripId,
           kind: 'bill',
           hotelExpenseId: createdHotel.id,
-          mimeType: billFile.type || 'image/jpeg',
-          sizeBytes: billFile.size,
+          mimeType: bill.mimeType,
+          width: bill.width,
+          height: bill.height,
           uploadedBy: session?.memberId,
-          file: billFile,
+          file: bill.blob,
         })
       }
       setShowModal(false)
@@ -213,15 +218,16 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
       participants, splitType, splits, notes: notes.trim(),
     })
 
-    if (billFile) {
-      addAttachment({
+    if (bill) {
+      void addAttachment({
         tripId,
         kind: 'bill',
         expenseId: createdExpense.id,
-        mimeType: billFile.type || 'image/jpeg',
-        sizeBytes: billFile.size,
+        mimeType: bill.mimeType,
+        width: bill.width,
+        height: bill.height,
         uploadedBy: session?.memberId,
-        file: billFile,
+        file: bill.blob,
       })
     }
 
@@ -1029,45 +1035,65 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     <Paperclip className="w-3.5 h-3.5 inline mr-1" />
                     Attach Bill / Receipt (optional)
                   </label>
-                  {billFile && billPreview ? (
+                  {bill && billPreview ? (
                     <div className="relative rounded-xl border border-white/20 bg-white/5 p-2 flex items-center gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={billPreview} alt="Bill preview" className="w-12 h-12 object-cover rounded-lg" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-white truncate font-medium">{billFile.name}</p>
-                        <p className="text-[10px] text-white/50">{(billFile.size / 1024).toFixed(0)} KB</p>
+                        <p className="text-xs text-white font-medium">Bill photo ready</p>
+                        <p className="text-[11px] text-white/60">
+                          {(bill.blob.size / 1024).toFixed(0)} KB · uploads when you save
+                        </p>
                       </div>
                       <button
                         type="button"
+                        aria-label="Remove bill photo"
                         onClick={() => {
-                          setBillFile(null)
+                          setBill(null)
                           if (billPreview) {
                             try { URL.revokeObjectURL(billPreview) } catch {}
                             setBillPreview(null)
                           }
                         }}
-                        className="p-1.5 rounded-lg text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
-                    <label className="flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 px-3 py-2.5 text-xs text-white/60 hover:text-white cursor-pointer transition-all">
-                      <Camera className="w-4 h-4 text-brand-400" />
-                      <span>Click to upload receipt photo</span>
+                    <label
+                      className={`flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 px-3 py-2.5 text-xs text-white/60 hover:text-white cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand-400 ${billPreparing ? 'opacity-60 pointer-events-none' : ''}`}
+                    >
+                      {billPreparing
+                        ? <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />
+                        : <Camera className="w-4 h-4 text-brand-400" />}
+                      <span>{billPreparing ? 'Preparing photo…' : 'Add a photo of the bill'}</span>
                       <input
                         type="file"
                         accept="image/*"
-                        className="hidden"
-                        onChange={e => {
+                        className="sr-only"
+                        disabled={billPreparing}
+                        onChange={async e => {
                           const f = e.target.files?.[0]
-                          if (f) {
-                            setBillFile(f)
-                            setBillPreview(URL.createObjectURL(f))
+                          e.target.value = ''
+                          if (!f) return
+                          setBillError(null)
+                          setBillPreparing(true)
+                          try {
+                            const prepared = await prepareImageForUpload(f)
+                            setBill(prepared)
+                            setBillPreview(URL.createObjectURL(prepared.blob))
+                          } catch (err) {
+                            setBillError(err instanceof ImagePrepError ? err.message : "Couldn't open this photo. Try another one.")
+                          } finally {
+                            setBillPreparing(false)
                           }
                         }}
                       />
                     </label>
+                  )}
+                  {billError && (
+                    <p role="alert" className="mt-1.5 text-xs text-red-400">{billError}</p>
                   )}
                 </div>
 

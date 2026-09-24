@@ -1,10 +1,11 @@
+import os
 import sys
 from openai import OpenAI
 
 try:
     client = OpenAI(
         base_url="https://integrate.api.nvidia.com/v1",
-        api_key="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"
+        api_key=os.environ["NVIDIA_API_KEY"]
     )
 
     print("Connecting to NVIDIA API for model z-ai/glm-5.3...")

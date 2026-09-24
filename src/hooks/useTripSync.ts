@@ -73,18 +73,21 @@ export function useTripSync(tripId: string) {
     // 5-minute interval
     const interval = setInterval(sync, SYNC_INTERVAL_MS)
 
-    // Debounced window focus sync (minimum 60s since last sync)
+    // Debounced sync when the user comes back (minimum 60s since last sync).
+    // Phone browsers report returning to a tab via visibilitychange, not focus.
     const onFocus = () => {
-      if (Date.now() - lastSyncTime.current > 60_000) {
+      if (document.visibilityState !== 'hidden' && Date.now() - lastSyncTime.current > 60_000) {
         sync()
       }
     }
     window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onFocus)
 
     return () => {
       cancelled = true
       clearInterval(interval)
       window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onFocus)
     }
   }, [tripId, mergeRemoteTrip, pushTripToRemote])
 }

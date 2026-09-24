@@ -2,9 +2,10 @@ import { describe, it, expect } from 'vitest'
 import {
   calculateBalances, calculateSettlements, calculateNetBalances,
   applyConfirmedTransfers, resolveExpenseSplits, roundMoney,
-  createInviteToken, parseInviteToken, inviteSignature,
+  createInviteToken, parseInviteToken, inviteSignature, formatCurrency,
 } from '@/lib/utils'
 import type { Expense, Member, Settlement, Trip } from '@/types'
+import { isSafeMediaPath } from '@/lib/remote'
 
 const TRIP_ID = '00000000-0000-4000-8000-00000000aaaa'
 
@@ -157,5 +158,32 @@ describe('invite tokens', () => {
   it('rejects garbage tokens', () => {
     expect(parseInviteToken('not-a-token').ok).toBe(false)
     expect(parseInviteToken(null).ok).toBe(false)
+  })
+})
+
+describe('formatCurrency', () => {
+  it('shows whole rupees without decimals and paise with exactly two', () => {
+    expect(formatCurrency(100)).toBe('₹100')
+    expect(formatCurrency(125000)).toBe('₹1,25,000')
+    expect(formatCurrency(6682.5)).toBe('₹6,682.50')
+    expect(formatCurrency(4028.333)).toBe('₹4,028.33')
+    expect(formatCurrency(-3178.33)).toBe('-₹3,178.33')
+  })
+})
+
+describe('isSafeMediaPath (ADV-1)', () => {
+  const trip = '11111111-1111-4111-8111-111111111111'
+  const id = '44444444-4444-4444-8444-444444444444'
+  it('accepts the paths the apps write', () => {
+    expect(isSafeMediaPath(`${trip}/bills/${id}.jpg`)).toBe(true)
+    expect(isSafeMediaPath(`${trip}/payments/${id}.png`)).toBe(true)
+    expect(isSafeMediaPath(`${trip}/payment_proofs/${id}.webp`)).toBe(true)
+  })
+  it('refuses paths that climb out of the trip folder or are not images', () => {
+    expect(isSafeMediaPath(`${trip}/../../android-app/tripmate-latest.apk.part1`)).toBe(false)
+    expect(isSafeMediaPath(`${trip}/bills/../${id}.jpg`)).toBe(false)
+    expect(isSafeMediaPath(`${trip}/bills/${id}.svg`)).toBe(false)
+    expect(isSafeMediaPath('https://evil.example/x.jpg')).toBe(false)
+    expect(isSafeMediaPath(undefined)).toBe(false)
   })
 })

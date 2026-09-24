@@ -1,13 +1,11 @@
 // Brand signature (web BrandFooter): "Mastermind Behind The Code: Biswodip
-// Goj", every word in its own vivid gradient. Tapping it floats a nameplate
+// Goj", every word in its own vivid gradient. Tapping it shows a nameplate
 // over a frosted veil.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import Animated, {
-  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming,
-} from 'react-native-reanimated'
+import Animated from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
-import { C, FOOTER_WORDS, G, brand500, ink } from '../../theme/colors'
+import { FOOTER_WORDS, G, brand500, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 import { PressScale } from '../animated/SpringPressable'
 import { Overlay } from './BottomSheet'
@@ -45,24 +43,8 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
 }
 
 function Nameplate() {
-  const reduced = useReducedMotion()
-  const translateY = useSharedValue(0)
-
-  useEffect(() => {
-    if (reduced) return
-    translateY.value = withRepeat(
-      withTiming(-7, { duration: 2250, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    )
-  }, [reduced, translateY])
-
-  const floatStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }))
-
   return (
-    <Animated.View style={[styles.plate, floatStyle]}>
+    <Animated.View style={styles.plate}>
       <LinearGradient
         colors={['rgba(255,255,255,0.95)', 'rgba(244,238,255,0.92)']}
         start={{ x: 0, y: 0 }}

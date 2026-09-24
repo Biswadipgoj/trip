@@ -501,9 +501,35 @@ export class MediaError extends Error {
   }
 }
 
+/** Paths the apps write: <trip uuid>/(bills|payments|payment_proofs)/<uuid>.<ext>.
+ *  Anything else (e.g. a row pointing at '../other-trip/…') is never loaded. */
+const MEDIA_PATH = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(bills|payments|payment_proofs)\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$/
+
+export function isSafeMediaPath(path: string | undefined): path is string {
+  return !!path && MEDIA_PATH.test(path)
+}
+
 export function mediaPublicUrl(path: string | undefined): string | null {
-  if (!supabase || !path) return null
+  if (!supabase || !isSafeMediaPath(path)) return null
   return supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
+}
+
+/** Time-limited URL — works even when the bucket is not public. */
+export async function mediaSignedUrl(path: string | undefined, expiresInSeconds = 3600): Promise<string | null> {
+  if (!supabase || !isSafeMediaPath(path)) return null
+  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, expiresInSeconds)
+  return error ? null : data?.signedUrl ?? null
+}
+
+/** Whether an image is stored at `path`; null when that can't be determined. */
+export async function remoteMediaExists(path: string): Promise<boolean | null> {
+  if (!supabase) return null
+  const slash = path.lastIndexOf('/')
+  const folder = path.slice(0, slash)
+  const name = path.slice(slash + 1)
+  const { data, error } = await supabase.storage.from(MEDIA_BUCKET).list(folder, { search: name, limit: 1 })
+  if (error) return null
+  return (data ?? []).some(o => o.name === name)
 }
 
 export async function remoteUploadMedia(path: string, body: ArrayBuffer | Blob, contentType: string): Promise<void> {

@@ -1,7 +1,8 @@
-const apiKey = "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";
+const apiKey = process.env.NVIDIA_API_KEY;
+if (!apiKey) { console.error("Set NVIDIA_API_KEY in your shell (never commit it)."); process.exit(1); }
 const url = "https://integrate.api.nvidia.com/v1/chat/completions";
 
-console.log("Testing nemotron with key nvapi-LaEk...");
+console.log("Testing nemotron...");
 const startTime = Date.now();
 
 try {

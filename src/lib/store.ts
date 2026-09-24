@@ -16,16 +16,61 @@ import {
   remotePushSettlementStatus, remotePushSettlementGroup, remoteDeleteSettlementGroup,
   remotePushSponsorship, remoteDeleteSponsorship, remoteSetTripCreator, TripBundle,
   remoteUploadMedia, remoteInsertAttachment, remoteDeleteAttachment, remoteRemoveMedia,
+  remoteMediaExists, MediaError,
 } from '@/lib/remote'
 import { logSync } from '@/lib/synclog'
+import { ALLOWED_UPLOAD_TYPES, MAX_UPLOAD_BYTES, extensionFor } from '@/lib/image'
+import { createPreviewUrl, isDeadPreview, isLivePreview } from '@/lib/media'
 
 // Remote pushes are best-effort: cloud sync must never block or break local UX.
-// Failures are reported to the Sync Doctor (/debug) so they stay diagnosable.
+// Failures are recorded in the sync log so they stay diagnosable.
 function fireAndForget(p: Promise<unknown>) {
   p.catch(err => {
     console.warn('[sync] push failed (local data is safe):', err)
     logSync('error', 'push.rejected', err instanceof Error ? err.message : String(err))
   })
+}
+
+// ─── Bill photo / UPI screenshot uploads ─────────────────────────────────────
+// An image becomes visible to other members in two steps: the file is stored
+// in the bucket (then `storagePath` is set), and an `attachments` row links it
+// to its expense/payment. The row has foreign keys, so it can only be written
+// once the expense row itself is on the server — which may take a moment
+// after a new expense is saved. Until then the image stays 'pending' and the
+// next sync links it; it is never shown as failed for that reason.
+
+/** Picked files kept in memory so a failed upload can be retried this session. */
+const pendingFiles = new Map<string, Blob>()
+
+const UPLOAD_RETRY_DELAYS_MS = [1_000, 3_000]
+const LINK_RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000]
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+
+async function withRetries<T>(fn: () => Promise<T>, delays: number[], retryable: (e: unknown) => boolean): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn()
+    } catch (err) {
+      if (attempt >= delays.length || !retryable(err)) throw err
+      await sleep(delays[attempt])
+    }
+  }
+}
+
+const isTransientMedia = (e: unknown) => !(e instanceof MediaError && e.kind === 'setup')
+
+/** User-facing reason for a failed upload. */
+function uploadErrorMessage(err: unknown): string {
+  if (err instanceof MediaError && err.kind === 'setup') return "Photo storage isn't set up on the server yet."
+  const msg = err instanceof Error ? err.message : String(err)
+  if (/failed to fetch|network|timed? ?out|abort/i.test(msg)) return 'No connection — tap to retry.'
+  if (/payload too large|exceeded the maximum|too large/i.test(msg)) return 'This photo is too large.'
+  if (/mime type|not supported/i.test(msg)) return 'This photo format is not supported.'
+  return "Couldn't upload — tap to retry."
+}
+
+export function mediaFolder(kind: AttachmentKind): 'bills' | 'payments' {
+  return kind === 'bill' ? 'bills' : 'payments'
 }
 
 // Two paise-tolerant amounts are "the same payment".
@@ -200,6 +245,8 @@ interface AppState {
   // ─── Attachment / Media Actions ──────────────────────────────────────────────
   addAttachment: (data: Omit<Attachment, 'id' | 'createdAt' | 'upload'> & { file?: File | Blob }) => Promise<Attachment>
   deleteAttachment: (id: string) => Promise<void>
+  /** Re-runs a failed upload (the picked file is kept for this session). */
+  retryAttachment: (id: string) => Promise<void>
   getAttachmentsByTrip: (tripId: string) => Attachment[]
   getAttachmentsByExpense: (expenseId: string) => Attachment[]
   getAttachmentsByHotelExpense: (hotelExpenseId: string) => Attachment[]
@@ -273,7 +320,8 @@ export const useStore = create<AppState>()(
               ? { ...t, status: 'closed' as const, closedAt: new Date().toISOString() }
               : t
           ),
-          attachments: s.attachments.filter(a => a.tripId !== tripId),
+          // Bill photos and payment screenshots stay: they are the record of
+          // who paid whom, and trips close automatically once all is settled.
         }))
         fireAndForget(remoteCloseTrip(tripId))
       },
@@ -360,7 +408,12 @@ export const useStore = create<AppState>()(
           const remoteAttachments = rawBundle.attachments as Attachment[] | null | undefined
           let attachments = s.attachments
           if (remoteAttachments && Array.isArray(remoteAttachments)) {
-            attachments = mergeById(s.attachments, remoteAttachments, a => a.tripId === trip.id)
+            const localById = new Map(s.attachments.map(a => [a.id, a]))
+            const incoming = remoteAttachments.map(r => {
+              const l = localById.get(r.id)
+              return l && isLivePreview(l.localUri) ? { ...r, localUri: l.localUri } : r
+            })
+            attachments = mergeById(s.attachments, incoming, a => a.tripId === trip.id)
             remoteAttachments.forEach(a => { synced[a.id] = true })
           }
 
@@ -537,9 +590,11 @@ export const useStore = create<AppState>()(
         const rawRemote = remote as any
         const remoteAtts = (rawRemote?.attachments ?? []) as Attachment[]
         const attachmentIds = new Set(remoteAtts.map(x => x.id))
+        // Only images whose file is in the bucket get a row — a row without its
+        // file would show a broken image on every other device.
         s.attachments
-          .filter(a => a.tripId === tripId && !onServer(attachmentIds, a.id))
-          .forEach(a => fireAndForget(remoteInsertAttachment(a)))
+          .filter(a => a.tripId === tripId && !onServer(attachmentIds, a.id) && a.storagePath && a.upload !== 'uploading')
+          .forEach(a => fireAndForget(a.upload === 'failed' ? healInterruptedAttachment(a.id) : linkAttachment(a.id)))
       },
 
 
@@ -591,10 +646,7 @@ export const useStore = create<AppState>()(
         }))
         if (expense) get().generateSettlements(expense.tripId)
         fireAndForget(remoteDeleteExpense(expenseId))
-        relatedAtts.forEach(a => {
-          fireAndForget(remoteDeleteAttachment(a.id))
-          if (a.storagePath) fireAndForget(remoteRemoveMedia([a.storagePath]))
-        })
+        relatedAtts.forEach(a => fireAndForget(removeAttachmentRemote(a)))
       },
 
       getExpensesByTrip: (tripId) =>
@@ -627,10 +679,7 @@ export const useStore = create<AppState>()(
         }))
         if (hotel) get().generateSettlements(hotel.tripId)
         fireAndForget(remoteDeleteHotelExpense(id))
-        relatedAtts.forEach(a => {
-          fireAndForget(remoteDeleteAttachment(a.id))
-          if (a.storagePath) fireAndForget(remoteRemoveMedia([a.storagePath]))
-        })
+        relatedAtts.forEach(a => fireAndForget(removeAttachmentRemote(a)))
       },
 
       getHotelExpensesByTrip: (tripId) =>
@@ -785,78 +834,75 @@ export const useStore = create<AppState>()(
 
       // ─── Attachments ──────────────────────────────────────────────────────────
       addAttachment: async (data) => {
+        const { file, ...meta } = data
         const id = generateId()
-        const tripId = data.tripId
-        const now = new Date().toISOString()
-        const file = data.file
-        const ext = data.mimeType.includes('/') ? data.mimeType.split('/')[1].replace('jpeg', 'jpg') : 'jpg'
-        const storagePath = `${tripId}/${data.kind}s/${id}.${ext}`
-
-        let localUri = data.localUri
-        if (!localUri && file && typeof window !== 'undefined' && window.URL) {
-          try {
-            localUri = URL.createObjectURL(file)
-          } catch { /* ignore */ }
-        }
-
         const attachment: Attachment = {
+          ...meta,
           id,
-          tripId,
-          kind: data.kind,
-          expenseId: data.expenseId,
-          hotelExpenseId: data.hotelExpenseId,
-          settlementId: data.settlementId,
-          fromMemberId: data.fromMemberId,
-          toMemberId: data.toMemberId,
-          amount: data.amount,
-          storagePath,
-          localUri,
-          mimeType: data.mimeType,
-          width: data.width,
-          height: data.height,
-          sizeBytes: data.sizeBytes ?? (file ? file.size : undefined),
-          uploadedBy: data.uploadedBy,
-          createdAt: now,
-          upload: file ? 'uploading' : 'uploaded',
+          localUri: data.localUri ?? (file ? createPreviewUrl(file) : undefined),
+          sizeBytes: data.sizeBytes ?? file?.size,
+          // Set once the file is really in the bucket (see uploadAttachment).
+          storagePath: file ? undefined : data.storagePath,
+          createdAt: new Date().toISOString(),
+          upload: file ? 'uploading' : (data.storagePath ? 'pending' : 'failed'),
         }
-
         set(s => ({ attachments: [...s.attachments, attachment] }))
 
         if (file) {
-          try {
-            const buf = await file.arrayBuffer()
-            await remoteUploadMedia(storagePath, buf, data.mimeType)
-            await remoteInsertAttachment({ ...attachment, upload: 'uploaded' })
-            set(s => ({
-              attachments: s.attachments.map(a =>
-                a.id === id ? { ...a, upload: 'uploaded', uploadError: undefined } : a
-              ),
-              synced: { ...s.synced, [id]: true },
-            }))
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            set(s => ({
-              attachments: s.attachments.map(a =>
-                a.id === id ? { ...a, upload: 'failed', uploadError: msg } : a
-              ),
-            }))
-          }
-        } else if (isRemoteEnabled()) {
-          fireAndForget(remoteInsertAttachment(attachment))
+          pendingFiles.set(id, file)
+          await get().retryAttachment(id)
+        } else if (attachment.storagePath && isRemoteEnabled()) {
+          await linkAttachment(id)
+        }
+        return get().attachments.find(a => a.id === id) ?? attachment
+      },
+
+      retryAttachment: async (id) => {
+        const a = get().attachments.find(x => x.id === id)
+        if (!a) return
+        if (a.storagePath) return linkAttachment(id) // file already stored — only the row is missing
+        const file = pendingFiles.get(id)
+        if (!file) {
+          patchAttachment(id, { upload: 'failed', uploadError: 'This upload was interrupted. Remove the photo and add it again.' })
+          return
+        }
+        if (!isRemoteEnabled()) {
+          patchAttachment(id, { upload: 'failed', uploadError: "Photo storage isn't connected in this deployment." })
+          return
+        }
+        const mimeType = ALLOWED_UPLOAD_TYPES.includes(a.mimeType) ? a.mimeType : 'image/jpeg'
+        if (file.size > MAX_UPLOAD_BYTES) {
+          patchAttachment(id, { upload: 'failed', uploadError: 'This photo is too large.' })
+          return
         }
 
-        return attachment
+        patchAttachment(id, { upload: 'uploading', uploadError: undefined })
+        const path = `${a.tripId}/${mediaFolder(a.kind)}/${id}.${extensionFor(mimeType)}`
+        try {
+          const body = await file.arrayBuffer()
+          await withRetries(() => remoteUploadMedia(path, body, mimeType), UPLOAD_RETRY_DELAYS_MS, isTransientMedia)
+        } catch (err) {
+          logSync('error', 'media.upload', err instanceof Error ? err.message : String(err))
+          patchAttachment(id, { upload: 'failed', uploadError: uploadErrorMessage(err) })
+          return
+        }
+        pendingFiles.delete(id)
+        if (!get().attachments.some(x => x.id === id)) {
+          // Removed while uploading: the file has no row, so it can go.
+          fireAndForget(remoteRemoveMedia([path]))
+          return
+        }
+        patchAttachment(id, { storagePath: path, upload: 'pending' })
+        await linkAttachment(id)
       },
 
       deleteAttachment: async (id) => {
         const a = get().attachments.find(x => x.id === id)
+        pendingFiles.delete(id)
         set(s => ({ attachments: s.attachments.filter(x => x.id !== id) }))
-        if (a) {
-          fireAndForget(remoteDeleteAttachment(id))
-          if (a.storagePath) {
-            fireAndForget(remoteRemoveMedia([a.storagePath]))
-          }
-        }
+        if (!a || !isRemoteEnabled()) return
+        await removeAttachmentRemote(a).catch(err =>
+          logSync('error', 'media.delete', err instanceof Error ? err.message : String(err)))
       },
 
       getAttachmentsByTrip: (tripId) =>
@@ -901,8 +947,84 @@ export const useStore = create<AppState>()(
       },
       onRehydrateStorage: () => (state) => {
         // Called after localStorage data is loaded — safe to show protected routes now
-        if (state) state.setHydrated(true)
+        if (!state) return
+        // Previews (`blob:` URLs) die with the page, and an upload that was
+        // running when the page closed did not finish.
+        const atts = state.attachments ?? []
+        if (atts.some(a => isDeadPreview(a.localUri) || a.upload === 'uploading')) {
+          useStore.setState({ attachments: atts.map(recoverAfterReload) })
+        }
+        state.setHydrated(true)
       },
     }
   )
 )
+
+// ─── Upload helpers that need the store instance ─────────────────────────────
+
+function patchAttachment(id: string, patch: Partial<Attachment>) {
+  useStore.setState(s => ({ attachments: s.attachments.map(a => (a.id === id ? { ...a, ...patch } : a)) }))
+}
+
+/** State of a persisted attachment after a page reload. */
+export function recoverAfterReload(a: Attachment): Attachment {
+  const next = { ...a }
+  if (isDeadPreview(next.localUri)) next.localUri = undefined
+  if (next.upload === 'uploading') {
+    // Before this fix `storagePath` was set before the upload, so whether the
+    // file arrived is unknown; the next sync checks (healInterruptedAttachment).
+    next.upload = 'failed'
+    next.uploadError = next.storagePath ? undefined : 'This upload was interrupted. Remove the photo and add it again.'
+  }
+  return next
+}
+
+const linking = new Set<string>()
+
+/** Writes the attachments row for an image that is already in the bucket. */
+async function linkAttachment(id: string): Promise<void> {
+  const a = useStore.getState().attachments.find(x => x.id === id)
+  if (!a?.storagePath || !isRemoteEnabled() || linking.has(id)) return
+  linking.add(id)
+  try {
+    await withRetries(() => remoteInsertAttachment(a), LINK_RETRY_DELAYS_MS, isTransientMedia)
+    if (!useStore.getState().attachments.some(x => x.id === id)) {
+      // Deleted while linking: undo the row, then the file.
+      if (await remoteDeleteAttachment(id).catch(() => false)) fireAndForget(remoteRemoveMedia([a.storagePath]))
+      return
+    }
+    patchAttachment(id, { upload: 'uploaded', uploadError: undefined })
+    useStore.setState(s => ({ synced: { ...s.synced, [id]: true } }))
+  } catch (err) {
+    logSync('error', 'media.link', err instanceof Error ? err.message : String(err))
+    // Usually the expense isn't on the server yet; the next sync links it.
+    const setup = err instanceof MediaError && err.kind === 'setup'
+    patchAttachment(id, setup ? { upload: 'failed', uploadError: uploadErrorMessage(err) } : { upload: 'pending', uploadError: undefined })
+  } finally {
+    linking.delete(id)
+  }
+}
+
+/** An upload that was interrupted: link it if its file arrived, else report it. */
+async function healInterruptedAttachment(id: string): Promise<void> {
+  const a = useStore.getState().attachments.find(x => x.id === id)
+  if (!a?.storagePath) return
+  const exists = await remoteMediaExists(a.storagePath)
+  if (exists === null) return // can't tell right now; try on the next sync
+  if (exists) {
+    patchAttachment(id, { upload: 'pending', uploadError: undefined })
+    await linkAttachment(id)
+  } else if (pendingFiles.has(id)) {
+    patchAttachment(id, { storagePath: undefined })
+    await useStore.getState().retryAttachment(id)
+  } else {
+    patchAttachment(id, { storagePath: undefined, uploadError: 'This upload was interrupted. Remove the photo and add it again.' })
+  }
+}
+
+/** Deletes an attachment's row, then its file (storage only frees files
+ *  that no row points to — see 20260925_harden_storage.sql). */
+async function removeAttachmentRemote(a: Attachment): Promise<void> {
+  const removed = await remoteDeleteAttachment(a.id)
+  if (removed && a.storagePath) await remoteRemoveMedia([a.storagePath])
+}

@@ -35,7 +35,7 @@ export function BrandFooter() {
             <Link
               href="/download"
               id="footer-download-app-link"
-              className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/90 bg-white hover:bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 shadow-md transition-all active:scale-95"
+              className="inline-flex items-center gap-2 rounded-2xl border border-violet-200/90 bg-pure-white hover:bg-violet-50 px-4 py-2 text-xs font-bold text-violet-900 shadow-md transition-all active:scale-95"
             >
               <Smartphone className="w-4 h-4 text-violet-600" />
               <span>TripMate for Android available (v{APP_RELEASE.version})</span>

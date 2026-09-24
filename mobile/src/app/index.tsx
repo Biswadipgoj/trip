@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ScrollView, StyleSheet, View } from 'react-native'
 import Animated, {
-  Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming,
+  useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSpring,
 } from 'react-native-reanimated'
 import { Redirect, router } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -18,7 +18,7 @@ import { Button } from '../components/ui/Button'
 import { GlassCard } from '../components/ui/GlassCard'
 import { BrandFooter } from '../components/ui/BrandFooter'
 import { StatusBadge } from '../components/animated/PulseBadge'
-import { FadeIn, stagger } from '../components/animated/FadeInView'
+import { FadeIn } from '../components/animated/FadeInView'
 import { LanguagePicker, LanguageTriggerButton } from '../components/ui/LanguagePicker'
 import { C, brand500, brand600, ink } from '../theme/colors'
 import { F } from '../theme/typography'
@@ -29,30 +29,17 @@ function PoppingLogo() {
   const reduced = useReducedMotion()
   const scale = useSharedValue(reduced ? 1 : 0)
   const rotate = useSharedValue(reduced ? 0 : -20)
-  const floatY = useSharedValue(0)
 
   useEffect(() => {
     if (reduced) return
     scale.value = withDelay(100, withSpring(1, POP_SPRING))
     rotate.value = withDelay(100, withSpring(0, POP_SPRING))
-    floatY.value = withDelay(
-      800,
-      withRepeat(
-        withSequence(
-          withTiming(-10, { duration: 3000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0, { duration: 3000, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    )
-  }, [reduced, scale, rotate, floatY])
+  }, [reduced, scale, rotate])
 
   const pop = useAnimatedStyle(() => ({
     transform: [
       { scale: scale.value },
       { rotate: `${rotate.value}deg` },
-      { translateY: floatY.value },
     ],
   }))
 
@@ -67,8 +54,8 @@ export default function Home() {
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
   const session = useStore(s => s.session)
-  const trips = useStore(s => s.trips) || []
-  const members = useStore(s => s.members) || []
+  const trips = useStore(s => s.trips)
+  const members = useStore(s => s.members)
   const [showLanguagePicker, setShowLanguagePicker] = useState(false)
 
   // Trips someone can log in to (members with mobile + PIN).

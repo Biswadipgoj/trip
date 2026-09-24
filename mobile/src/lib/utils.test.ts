@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { Expense, HotelExpense, Member, Trip } from '../types'
 import {
   buildUpiLink, calculateBalances, calculateSettlements, createInviteLink, createInviteToken,
-  createTripShareMessage, distributeEqually, extractJoinInput, formatCompactINR, formatIndianNumber,
+  createTripShareMessage, distributeEqually, extractJoinInput, formatCompactINR, formatCurrency, formatIndianNumber,
   groupIndian, isValidUpiId, parseInviteToken, resolveExpenseSplits, resolveHotelSplits, roundMoney,
 } from './utils'
 
@@ -80,7 +80,7 @@ describe('balances and settlements', () => {
 describe('formatting', () => {
   it('groups digits the Indian way', () => {
     expect(groupIndian('1234567')).toBe('12,34,567')
-    expect(formatIndianNumber(125000.5)).toBe('1,25,000.5')
+    expect(formatIndianNumber(125000.5)).toBe('1,25,000.50')
     expect(formatIndianNumber(-42)).toBe('-42')
   })
 
@@ -145,5 +145,20 @@ describe('UPI', () => {
     expect(isValidUpiId('9876543210@paytm')).toBe(true)
     expect(isValidUpiId('no-at-sign')).toBe(false)
     expect(isValidUpiId('x@1bank')).toBe(false)
+  })
+})
+
+describe('money formatting', () => {
+  it('formatCurrency shows whole rupees without decimals and paise with exactly two', () => {
+    expect(formatCurrency(100)).toBe('₹100')
+    expect(formatCurrency(125000)).toBe('₹1,25,000')
+    expect(formatCurrency(6682.5)).toBe('₹6,682.50')
+    expect(formatCurrency(-3178.33)).toBe('-₹3,178.33')
+  })
+
+  it('formatIndianNumber (count-up figures) never shows one decimal', () => {
+    expect(formatIndianNumber(6682.5)).toBe('6,682.50')
+    expect(formatIndianNumber(6682)).toBe('6,682')
+    expect(formatIndianNumber(12001.66)).toBe('12,001.66')
   })
 })

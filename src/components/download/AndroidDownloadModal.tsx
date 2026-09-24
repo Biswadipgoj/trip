@@ -65,7 +65,7 @@ export function AndroidDownloadModal() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: '100%' }}
           transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="relative w-full max-w-md overflow-hidden rounded-t-[28px] sm:rounded-[28px] border border-violet-200/90 bg-white p-6 shadow-2xl text-slate-900"
+          className="relative w-full max-w-md overflow-hidden rounded-t-[28px] sm:rounded-[28px] border border-violet-200/90 bg-pure-white p-6 shadow-2xl text-slate-900"
           style={{
             maxHeight: '90vh',
             backgroundColor: '#ffffff',
@@ -90,7 +90,7 @@ export function AndroidDownloadModal() {
 
           {/* App Header & Branding */}
           <div className="mt-4 flex items-center gap-4">
-            <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl shadow-md ring-2 ring-violet-200 bg-white">
+            <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl shadow-md ring-2 ring-violet-200 bg-pure-white">
               <Image
                 src="/logo.png"
                 alt="TripMate Logo"
@@ -144,7 +144,7 @@ export function AndroidDownloadModal() {
               id="btn-download-android-app"
               onClick={handleDownload}
               disabled={isDownloading}
-              className="relative flex items-center justify-center gap-2.5 w-full py-3.5 px-4 rounded-2xl text-sm font-bold text-white shadow-lg active:scale-[0.98] transition-all overflow-hidden"
+              className="relative flex items-center justify-center gap-2.5 w-full py-3.5 px-4 rounded-2xl text-sm font-bold text-pure-white shadow-lg active:scale-[0.98] transition-all overflow-hidden"
               style={{
                 background: 'linear-gradient(135deg, hsl(262, 85%, 58%) 0%, hsl(310, 80%, 54%) 100%)',
                 boxShadow: '0 8px 20px -4px rgba(139, 92, 246, 0.45)',
@@ -152,12 +152,12 @@ export function AndroidDownloadModal() {
             >
               {isDownloading && (
                 <div
-                  className="absolute inset-0 bg-white/25 transition-all duration-300 pointer-events-none"
+                  className="absolute inset-0 bg-pure-white/25 transition-all duration-300 pointer-events-none"
                   style={{ width: `${downloadProgress}%` }}
                 />
               )}
-              <Download className={`h-4 w-4 relative z-10 text-white ${isDownloading ? 'animate-bounce' : ''}`} />
-              <span className="relative z-10 text-white drop-shadow-sm">
+              <Download className={`h-4 w-4 relative z-10 text-pure-white ${isDownloading ? 'animate-bounce' : ''}`} />
+              <span className="relative z-10 text-pure-white drop-shadow-sm">
                 {isDownloading
                   ? `Downloading APK (${downloadProgress}%)...`
                   : 'Download Android App (APK)'}
@@ -204,7 +204,7 @@ export function AndroidDownloadModal() {
                 >
                   <ol className="mt-3 space-y-2.5 text-[12px] text-slate-800 bg-violet-50/60 rounded-2xl p-3.5 border border-violet-100">
                     <li className="flex items-start gap-2.5">
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-white shadow-sm">
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-pure-white shadow-sm">
                         1
                       </span>
                       <span className="leading-snug">
@@ -212,7 +212,7 @@ export function AndroidDownloadModal() {
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-white shadow-sm">
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-pure-white shadow-sm">
                         2
                       </span>
                       <span className="leading-snug">
@@ -220,7 +220,7 @@ export function AndroidDownloadModal() {
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-white shadow-sm">
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-pure-white shadow-sm">
                         3
                       </span>
                       <span className="leading-snug">
@@ -228,7 +228,7 @@ export function AndroidDownloadModal() {
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-white shadow-sm">
+                      <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-violet-600 text-[11px] font-bold text-pure-white shadow-sm">
                         4
                       </span>
                       <span className="leading-snug">
