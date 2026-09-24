@@ -51,25 +51,8 @@ export function useAndroidAppPrompt() {
       return
     }
 
-    // Check dismissal history in localStorage
-    try {
-      const dismissedRaw = localStorage.getItem(STORAGE_KEY)
-      if (dismissedRaw) {
-        const dismissedAt = parseInt(dismissedRaw, 10)
-        if (!isNaN(dismissedAt) && Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) {
-          return // User dismissed recently, honor cooldown
-        }
-      }
-    } catch {
-      // localStorage may fail in strict private browsing, fail gracefully
-    }
-
-    // Delay showing the prompt by 1.2 seconds for a smoother initial page render
-    const timer = setTimeout(() => {
-      setIsOpen(true)
-    }, 1200)
-
-    return () => clearTimeout(timer)
+    // Keep modal closed by default so it never blocks page interactions
+    setIsOpen(false)
   }, [])
 
   const closePrompt = useCallback(() => {

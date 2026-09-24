@@ -331,9 +331,6 @@ export const useStore = create<AppState>()(
       mergeRemoteTrip: (bundle) => {
         const { trip, members, expenses, hotelExpenses, settlementGroups, sponsorships, settlementStatuses } = bundle
         set(state => {
-          // Adopt clones: a local trip with the SAME code but a different id
-          // (legacy id or an old duplicated join) is the same real-world trip —
-          // re-link its records onto the server id so the histories merge.
           let s = state
           const clones = state.trips.filter(t => t.tripCode === trip.tripCode && t.id !== trip.id)
           for (const clone of clones) {
@@ -341,8 +338,6 @@ export const useStore = create<AppState>()(
           }
 
           const localTrip = s.trips.find(t => t.id === trip.id) ?? clones[0]
-          // budget is device-local; creatorId may be empty on a freshly-healed
-          // remote row — never let it wipe the locally-known admin.
           const mergedTrip: Trip = {
             ...trip,
             budget: localTrip?.budget,
@@ -357,7 +352,6 @@ export const useStore = create<AppState>()(
             return [...kept, ...remote]
           }
 
-          // Everything in this pull is now known to live on the server
           const synced = { ...s.synced }
           ;[...members, ...expenses, ...hotelExpenses, ...settlementGroups, ...sponsorships]
             .forEach(x => { synced[x.id] = true })
@@ -370,93 +364,110 @@ export const useStore = create<AppState>()(
             remoteAttachments.forEach(a => { synced[a.id] = true })
           }
 
+          const mergedMembers = mergeById(s.members, members, m => m.tripId === trip.id)
+          const mergedExpenses = mergeById(s.expenses, expenses, e => e.tripId === trip.id)
+          const mergedHotels = mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id)
+          const mergedGroups = mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id)
+          const mergedSponsorships = mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id)
+
+          // 1. Incorporate remote confirmed payments
+          let tripRows = s.settlements.filter(x => x.tripId === trip.id)
+          const otherRows = s.settlements.filter(x => x.tripId !== trip.id)
+          const remoteConfirmed = settlementStatuses.filter(r => r.status === 'confirmed')
+
+          remoteConfirmed.forEach(r => {
+            const match = tripRows.find(x => x.id === r.id) ?? tripRows.find(
+              x =>
+                x.fromMemberId === r.fromMemberId &&
+                x.toMemberId === r.toMemberId &&
+                sameAmount(x.amount, r.amount)
+            )
+            if (match?.status === 'confirmed') return
+            if (match) {
+              tripRows = tripRows.map(x =>
+                x === match
+                  ? {
+                      ...x,
+                      amount: r.amount,
+                      status: 'confirmed' as const,
+                      paidAt: x.paidAt ?? r.paidAt,
+                      confirmedAt: x.confirmedAt ?? r.confirmedAt,
+                    }
+                  : x
+              )
+            } else {
+              tripRows = [...tripRows, {
+                id: r.id,
+                tripId: trip.id,
+                fromMemberId: r.fromMemberId,
+                toMemberId: r.toMemberId,
+                amount: r.amount,
+                status: 'confirmed' as const,
+                paidAt: r.paidAt,
+                confirmedAt: r.confirmedAt,
+              }]
+            }
+          })
+
+          // 2. Generate minimal settlements directly in memory
+          const confirmedRecords = tripRows.filter(s => s.status === 'confirmed')
+          const tripExp = mergedExpenses.filter(e => e.tripId === trip.id)
+          const tripHot = mergedHotels.filter(h => h.tripId === trip.id)
+          const tripMem = mergedMembers.filter(m => m.tripId === trip.id)
+          const tripGrp = mergedGroups.filter(g => g.tripId === trip.id)
+          const tripSp  = mergedSponsorships.filter(sp => sp.tripId === trip.id)
+
+          const balances = applyConfirmedTransfers(
+            calculateBalances(tripExp, tripHot, tripMem),
+            confirmedRecords,
+            tripGrp,
+            tripSp
+          )
+          const routes = calculateSettlements(balances, tripMem, tripGrp, tripSp)
+
+          const prevDueByKey: Record<string, Settlement> = {}
+          tripRows.forEach(row => {
+            if (row.status !== 'confirmed') prevDueByKey[`${row.fromMemberId}→${row.toMemberId}`] = row
+          })
+
+          const remotePaid = settlementStatuses.filter(r => r.status === 'paid')
+          const dues: Settlement[] = routes.map(route => {
+            const prev = prevDueByKey[`${route.fromMemberId}→${route.toMemberId}`]
+            const samePayment = !!prev && prev.status === 'paid' && sameAmount(prev.amount, route.amount)
+            const remote = remotePaid.find(
+              r =>
+                (r.id === prev?.id || (r.fromMemberId === route.fromMemberId && r.toMemberId === route.toMemberId)) &&
+                sameAmount(r.amount, route.amount)
+            )
+            const isPaid = samePayment || !!remote
+            return {
+              id: prev?.id ?? generateId(),
+              tripId: trip.id,
+              fromMemberId: route.fromMemberId,
+              toMemberId: route.toMemberId,
+              amount: route.amount,
+              status: isPaid ? ('paid' as const) : ('pending' as const),
+              paidAt: isPaid ? (prev?.paidAt ?? remote?.paidAt) : undefined,
+              fromGroupIds: route.fromMemberIds && route.fromMemberIds.length > 1 ? route.fromMemberIds : undefined,
+              toGroupIds: route.toMemberIds && route.toMemberIds.length > 1 ? route.toMemberIds : undefined,
+            }
+          })
+
           return {
             synced,
             trips: s.trips.some(t => t.id === trip.id)
               ? s.trips.map(t => (t.id === trip.id ? mergedTrip : t))
               : [...s.trips, mergedTrip],
-            members: mergeById(s.members, members, m => m.tripId === trip.id),
-            expenses: mergeById(s.expenses, expenses, e => e.tripId === trip.id),
-            hotelExpenses: mergeById(s.hotelExpenses, hotelExpenses, h => h.tripId === trip.id),
-            settlementGroups: mergeById(s.settlementGroups, settlementGroups, g => g.tripId === trip.id),
-            sponsorships: mergeById(s.sponsorships, sponsorships, sp => sp.tripId === trip.id),
+            members: mergedMembers,
+            expenses: mergedExpenses,
+            hotelExpenses: mergedHotels,
+            settlementGroups: mergedGroups,
+            sponsorships: mergedSponsorships,
             attachments,
-            // relinkTripRecords may have re-pointed these onto the server id
-            settlements: s.settlements,
+            settlements: [...otherRows, ...confirmedRecords, ...dues],
             session: s.session,
           }
         })
-
-        // Overlay remote payment state, then recompute dues from merged data.
-        // The overlay is MONOTONIC: it only advances a status (pending→paid→
-        // confirmed), never rolls one back, so a stale remote row can never
-        // snap a freshly-confirmed payment back to "DUE".
-        //
-        // CONFIRMED payments are immutable transaction records (cash actually
-        // moved), so they are imported BEFORE regeneration — the settlement
-        // minimizer then runs on the residual balances.
-        const remoteConfirmed = settlementStatuses.filter(r => r.status === 'confirmed')
-        if (remoteConfirmed.length > 0) {
-          set(s => {
-            let tripRows = s.settlements.filter(x => x.tripId === trip.id)
-            const otherRows = s.settlements.filter(x => x.tripId !== trip.id)
-            remoteConfirmed.forEach(r => {
-              const match = tripRows.find(x => x.id === r.id) ?? tripRows.find(
-                x =>
-                  x.fromMemberId === r.fromMemberId &&
-                  x.toMemberId === r.toMemberId &&
-                  sameAmount(x.amount, r.amount)
-              )
-              if (match?.status === 'confirmed') return // already recorded
-              if (match) {
-                tripRows = tripRows.map(x =>
-                  x === match
-                    ? {
-                        ...x,
-                        amount: r.amount, // trust the amount that was actually paid
-                        status: 'confirmed' as const,
-                        paidAt: x.paidAt ?? r.paidAt,
-                        confirmedAt: x.confirmedAt ?? r.confirmedAt,
-                      }
-                    : x
-                )
-              } else {
-                tripRows = [...tripRows, {
-                  id: r.id,
-                  tripId: trip.id,
-                  fromMemberId: r.fromMemberId,
-                  toMemberId: r.toMemberId,
-                  amount: r.amount,
-                  status: 'confirmed' as const,
-                  paidAt: r.paidAt,
-                  confirmedAt: r.confirmedAt,
-                }]
-              }
-            })
-            return { settlements: [...otherRows, ...tripRows] }
-          })
-        }
-
-        get().generateSettlements(trip.id)
-
-        // Advance matching dues to "paid". Amount must match — a remote "paid"
-        // for an outdated amount refers to a payment that no longer exists.
-        const remotePaid = settlementStatuses.filter(r => r.status === 'paid')
-        if (remotePaid.length > 0) {
-          set(s => ({
-            settlements: s.settlements.map(x => {
-              if (x.tripId !== trip.id || x.status !== 'pending') return x
-              const remote = remotePaid.find(
-                r =>
-                  (r.id === x.id ||
-                    (r.fromMemberId === x.fromMemberId && r.toMemberId === x.toMemberId)) &&
-                  sameAmount(r.amount, x.amount)
-              )
-              if (!remote) return x
-              return { ...x, status: 'paid' as const, paidAt: x.paidAt ?? remote.paidAt }
-            }),
-          }))
-        }
       },
 
       // Up-sync: the missing half of cross-device linking. A trip created
