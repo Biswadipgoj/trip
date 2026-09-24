@@ -14,6 +14,9 @@ NOTICE:  PASS  T2 upsert of a valid object path is allowed
 NOTICE:  PASS  T2 moving an object to an invalid path is denied
 NOTICE:  PASS  T3 deleting a referenced bill image is denied
 NOTICE:  PASS  T3 deleting an orphaned image is allowed
+NOTICE:  PASS  ADV-1 row with a ../ storage path is denied
+NOTICE:  PASS  ADV-1 row pointing into another trip folder is denied
+NOTICE:  PASS  ADV-1 row with the app path is allowed
 NOTICE:  PASS  Closing a trip keeps its attachments rows
 NOTICE:  PASS  Closing a trip keeps its images
 ALL STORAGE POLICY CHECKS PASSED

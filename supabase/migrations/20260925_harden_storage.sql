@@ -13,7 +13,8 @@
 --       <trip uuid>/(bills|payments|payment_proofs)/<uuid>.(jpg|jpeg|png|webp)
 --     Deletes are limited to images no attachments row still points to
 --     (the apps delete the row first, then the image).
---  3. Closing a trip no longer deletes its bill photos and UPI screenshots.
+--  3. attachments rows must point at an image inside their own trip folder.
+--  4. Closing a trip no longer deletes its bill photos and UPI screenshots.
 --     Trips close automatically once everyone is settled, and those images are
 --     the record of who paid whom.
 --
@@ -78,7 +79,21 @@ CREATE POLICY "tripmate_media_delete_orphans" ON storage.objects
 -- tripmate_media_select is unchanged (the bucket is public; SELECT is also
 -- what signed URLs and upserts need).
 
--- --- 3. Keep images when a trip closes ----------------------------------------
+-- --- 3. attachments rows must point inside their own trip folder -----------
+-- Without this a row could say '<trip>/../<other trip>/payments/<id>.jpg'
+-- and show another trip's payment screenshot as proof. NOT VALID: enforced
+-- for every new or changed row without failing on rows that already exist.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'attachment_path_shape') THEN
+    ALTER TABLE public.attachments ADD CONSTRAINT attachment_path_shape CHECK (
+      storage_path ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(bills|payments|payment_proofs)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$'
+      AND split_part(storage_path, '/', 1) = trip_id::text
+    ) NOT VALID;
+  END IF;
+END $$;
+
+-- --- 4. Keep images when a trip closes ----------------------------------------
 -- The old trigger deleted every image (and attachments row) of a trip when it
 -- closed. Rows of a deleted trip are still removed by ON DELETE CASCADE.
 DROP TRIGGER IF EXISTS tr_trip_closed_or_deleted ON public.trips;
@@ -92,6 +107,7 @@ NOTIFY pgrst, 'reload schema';
 --   DROP POLICY IF EXISTS "tripmate_media_update" ON storage.objects;
 --
 -- ROLLBACK (restores the previous broad policies; not recommended):
+--   ALTER TABLE public.attachments DROP CONSTRAINT IF EXISTS attachment_path_shape;
 --   DROP POLICY IF EXISTS "tripmate_media_insert" ON storage.objects;
 --   DROP POLICY IF EXISTS "tripmate_media_update" ON storage.objects;
 --   DROP POLICY IF EXISTS "tripmate_media_delete_orphans" ON storage.objects;

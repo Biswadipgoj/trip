@@ -1,0 +1,173 @@
+{
+  "tool": "biswodip run-security-gates",
+  "generatedAt": "2026-09-24T22:16:08.935Z",
+  "root": "/home/user/trip",
+  "failOn": "high",
+  "gates": [
+    {
+      "gate": "G1 Secrets in repository",
+      "status": "FAILED",
+      "detail": "1 candidate(s), worst medium"
+    },
+    {
+      "gate": "G2 Code risk hints",
+      "status": "UNVERIFIED",
+      "detail": "10 hint(s) need manual review"
+    },
+    {
+      "gate": "G3 Dependency vulnerabilities",
+      "status": "FAILED",
+      "detail": "npm:RAN {\"info\":0,\"low\":0,\"moderate\":1,\"high\":1,\"critical\":0,\"total\":2}"
+    },
+    {
+      "gate": "G4 Build / lint / types / tests",
+      "status": "VERIFIED",
+      "detail": "npm run lint:VERIFIED · npm run typecheck:VERIFIED · npm run test:VERIFIED · npm run build:VERIFIED"
+    },
+    {
+      "gate": "G5 Strix authorized pentest",
+      "status": "SKIPPED",
+      "detail": "run with --strix --app-url http://127.0.0.1:<port>"
+    },
+    {
+      "gate": "G6 Manual gates (MASTER-PROMPT §5–§33)",
+      "status": "OPEN",
+      "detail": "threat model, authorization matrix, adversarial pass and evidence matrix are human/agent work — not automatable"
+    }
+  ],
+  "secrets": [
+    {
+      "rule": "generic-secret-assignment",
+      "severity": "medium",
+      "file": "src/lib/__tests__/adversarial.test.ts",
+      "line": 22,
+      "match": "SUPE…(35 chars)",
+      "tracked": true
+    }
+  ],
+  "risks": [
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "mobile/src/app/add-expense.tsx",
+      "line": 81,
+      "match": "pars…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "mobile/src/lib/remote.ts",
+      "line": 152,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "mobile/src/lib/remote.ts",
+      "line": 781,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "mobile/src/lib/remote.ts",
+      "line": 807,
+      "match": "Numb…(13 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "mobile/src/lib/remote.ts",
+      "line": 844,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "src/app/expenses/[tripId]/page.tsx",
+      "line": 90,
+      "match": "pars…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "src/lib/remote.ts",
+      "line": 119,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "src/lib/remote.ts",
+      "line": 664,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "src/lib/remote.ts",
+      "line": 690,
+      "match": "Numb…(13 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    },
+    {
+      "rule": "float-money",
+      "severity": "medium",
+      "file": "src/lib/remote.ts",
+      "line": 727,
+      "match": "Numb…(17 chars)",
+      "why": "floating-point money handling (SKILL §11)"
+    }
+  ],
+  "dependencies": [
+    {
+      "ecosystem": "npm",
+      "status": "RAN",
+      "detail": "npm audit --omit=dev",
+      "counts": {
+        "info": 0,
+        "low": 0,
+        "moderate": 1,
+        "high": 1,
+        "critical": 0,
+        "total": 2
+      }
+    }
+  ],
+  "projectChecks": [
+    {
+      "check": "npm run lint",
+      "status": "VERIFIED",
+      "detail": "exit 0 in 2.1s",
+      "tail": "> trip-expense-manager@0.1.0 lint\n> next lint\n\nAttention: Next.js now collects completely anonymous telemetry regarding usage.\nThis information is used to shape Next.js' roadmap and prioritize features.\nYou can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:\nhttps://nextjs.org/telemetry\n\n✔ No ESLint warnings or errors\n`next lint` is deprecated and will be removed in Next.js 16.\nFor new projects, use create-next-app to choose your preferred linter.\nFor existing projects, migrate to the ESLint CLI:\nnpx @next/codemod@canary next-lint-to-eslint-cli ."
+    },
+    {
+      "check": "npm run typecheck",
+      "status": "VERIFIED",
+      "detail": "exit 0 in 2.7s",
+      "tail": "> trip-expense-manager@0.1.0 typecheck\n> tsc --noEmit"
+    },
+    {
+      "check": "npm run test",
+      "status": "VERIFIED",
+      "detail": "exit 0 in 1.8s",
+      "tail": "> trip-expense-manager@0.1.0 test\n> vitest run\n\n\n RUN  v4.1.8 /home/user/trip\n\n\n Test Files  8 passed (8)\n      Tests  81 passed (81)\n   Start at  22:15:40\n   Duration  1.24s (transform 797ms, setup 138ms, import 1.26s, tests 314ms, environment 1ms)"
+    },
+    {
+      "check": "npm run build",
+      "status": "VERIFIED",
+      "detail": "exit 0 in 26.7s",
+      "tail": "├ ○ /login                               4.34 kB         239 kB\n├ ƒ /members/[tripId]                    8.21 kB         234 kB\n├ ƒ /payments/[tripId]                   9.48 kB         242 kB\n├ ƒ /report/[tripId]                     13.4 kB         340 kB\n└ ƒ /settlements/[tripId]                  400 B         103 kB\n+ First Load JS shared by all             103 kB\n  ├ chunks/1255-0046eeb68b7d2d4d.js      46.1 kB\n  ├ chunks/4bd1b696-100b9d70ed4e49c1.js  54.2 kB\n  └ other shared chunks (total)          2.19 kB\n\n\n○  (Static)   prerendered as static content\nƒ  (Dynamic)  server-rendered on demand\n\n[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Running in localStorage-only mode."
+    }
+  ],
+  "strix": null,
+  "note": "Automated gates are evidence inputs. Release status is decided only by MASTER-PROMPT §31–§35."
+}

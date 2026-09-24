@@ -80,6 +80,14 @@ SELECT pg_temp.expect('T3 deleting a referenced bill image is denied',
 SELECT pg_temp.expect('T3 deleting an orphaned image is allowed',
   $q$DELETE FROM storage.objects WHERE name = '11111111-1111-4111-8111-111111111111/bills/55555555-5555-4555-8555-555555555555.jpg'$q$, true);
 
+-- ADV-1: an attachments row cannot point outside its own trip folder
+SELECT pg_temp.expect('ADV-1 row with a ../ storage path is denied',
+  $q$INSERT INTO public.attachments (trip_id, kind, expense_id, storage_path) VALUES ('11111111-1111-4111-8111-111111111111', 'bill', '33333333-3333-4333-8333-333333333333', '11111111-1111-4111-8111-111111111111/../../android-app/tripmate-latest.apk.part1')$q$, false);
+SELECT pg_temp.expect('ADV-1 row pointing into another trip folder is denied',
+  $q$INSERT INTO public.attachments (trip_id, kind, expense_id, storage_path) VALUES ('11111111-1111-4111-8111-111111111111', 'bill', '33333333-3333-4333-8333-333333333333', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/bills/77777777-7777-4777-8777-777777777773.jpg')$q$, false);
+SELECT pg_temp.expect('ADV-1 row with the app path is allowed',
+  $q$INSERT INTO public.attachments (trip_id, kind, expense_id, storage_path) VALUES ('11111111-1111-4111-8111-111111111111', 'bill', '33333333-3333-4333-8333-333333333333', '11111111-1111-4111-8111-111111111111/bills/77777777-7777-4777-8777-777777777777.jpg')$q$, true);
+
 RESET ROLE;
 
 -- Closing a trip keeps its images and attachments rows
