@@ -1,5 +1,12 @@
 # TripMate — Supabase Media & Cloud Sync Setup Guide
 
+> **Run next (2026-09-25):** after `setup_media.sql`, run
+> [`migrations/20260925_harden_storage.sql`](./migrations/20260925_harden_storage.sql). It stops the
+> public anon key from replacing the release APK, limits uploads to the app's image paths, keeps bill
+> photos and payment screenshots when a trip closes, and blocks attachment rows that point outside
+> their trip. Safe to re-run; a rollback block is at the end of the file. Upload APKs with
+> `SUPABASE_SERVICE_ROLE_KEY` set (`npm run upload:apk`).
+
 TripMate mobile features **local-first image persistence**. Bill photos and UPI payment screenshots are saved instantly to the device's permanent storage (`tripmate-media`) and remain 100% visible, zoomable, and usable even when offline or before backend storage is configured.
 
 To enable multi-device cloud synchronization of photos and receipts across all trip members, run the pure ASCII migration script below in your Supabase project.

@@ -54,8 +54,8 @@ export default function Home() {
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
   const session = useStore(s => s.session)
-  const trips = useStore(s => s.trips) || []
-  const members = useStore(s => s.members) || []
+  const trips = useStore(s => s.trips)
+  const members = useStore(s => s.members)
   const [showLanguagePicker, setShowLanguagePicker] = useState(false)
 
   // Trips someone can log in to (members with mobile + PIN).
