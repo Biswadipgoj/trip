@@ -18,12 +18,10 @@ import { Inter_800ExtraBold } from '@expo-google-fonts/inter/800ExtraBold'
 import { SpaceGrotesk_500Medium } from '@expo-google-fonts/space-grotesk/500Medium'
 import { SpaceGrotesk_600SemiBold } from '@expo-google-fonts/space-grotesk/600SemiBold'
 import { SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk/700Bold'
-import { House, RotateCw, TriangleAlert, CloudOff } from 'lucide-react-native'
+import { House, RotateCw, TriangleAlert } from 'lucide-react-native'
 import { useStore } from '../lib/store'
 import { processUploads, recoverPendingPick } from '../lib/uploads'
 import { startNetworkMonitor } from '../lib/sync'
-import { isSupabaseConfigured } from '../lib/supabase'
-import { ALLOW_LOCAL_PREVIEW } from '../lib/config'
 import { ToastHost } from '../components/ui/Toast'
 import { KeyboardRoot } from '../components/ui/KeyboardScroll'
 import { Screen } from '../components/ui/Screen'
@@ -115,11 +113,14 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
               </View>
               <T variant="h2" center>Something went wrong</T>
               <T variant="body" color={ink(0.65)} center style={styles.errorText}>
-                Your trip data is safely stored in the cloud. Try again, or go back to home.
+                Your trip is saved. Try again, or go back to the home screen.
               </T>
-              <T variant="small" color={ink(0.5)} center numberOfLines={4} style={styles.errorDetail}>
-                {error.message}
-              </T>
+              {/* Technical details are for developers only. */}
+              {__DEV__ && (
+                <T variant="small" color={ink(0.5)} center numberOfLines={4} style={styles.errorDetail}>
+                  {error.message}
+                </T>
+              )}
               <View style={styles.errorActions}>
                 <Button title="Try again" icon={RotateCw} onPress={() => void retry()} full />
                 <Button title="Go to home" icon={House} variant="ghost" onPress={() => router.replace('/')} full />

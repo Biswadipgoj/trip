@@ -279,7 +279,7 @@ export default function PaymentModal() {
                 <View style={styles.warning}>
                   <TriangleAlert size={16} color={C.amber600} />
                   <T variant="small" color={C.amber700} style={styles.flex}>
-                    {toName.split(' ')[0]} hasn't added a UPI ID yet. Pay by cash, or ask them to add it in Members.
+                    {toName.split(' ')[0]} hasn’t added a UPI ID yet. Pay by cash, or ask them to add it in Members.
                   </T>
                 </View>
               )}

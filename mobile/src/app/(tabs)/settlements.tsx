@@ -4,15 +4,7 @@
 // (UPI app + QR + screenshot upload); UPI screenshots show on each payment.
 import { useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withSequence,
-  withTiming,
-} from 'react-native-reanimated'
+import Animated from 'react-native-reanimated'
 import { router } from 'expo-router'
 import {
   ArrowDownRight, ArrowRight, ArrowUpRight, CircleCheck, CreditCard, Paperclip, QrCode, Sparkles,
@@ -41,38 +33,8 @@ import { C, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 
 function MoneyFlowArrow() {
-  const reduced = useReducedMotion()
-  const tx = useSharedValue(-5)
-  const op = useSharedValue(0.5)
-
-  useEffect(() => {
-    if (!reduced) {
-      tx.value = withRepeat(
-        withSequence(
-          withTiming(5, { duration: 750, easing: Easing.inOut(Easing.ease) }),
-          withTiming(-5, { duration: 750, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-      op.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 750, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0.5, { duration: 750, easing: Easing.inOut(Easing.ease) })
-        ),
-        -1,
-        true
-      )
-    }
-  }, [reduced, tx, op])
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: tx.value }],
-    opacity: op.value,
-  }))
-
   return (
-    <Animated.View style={animStyle}>
+    <Animated.View>
       <ArrowRight size={16} color={C.brand500} />
     </Animated.View>
   )
@@ -258,7 +220,6 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
   onPay: () => void
   onConfirm: () => void
 }) {
-  const reduced = useReducedMotion()
   const { route, status, settlement } = due
   const iPay = me === route.fromMemberId
   return (

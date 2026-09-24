@@ -1,10 +1,10 @@
 // Animated progress indicators (web: motion.div width bars and the SVG ring
 // on the Report page). Both animate from zero on mount, then glide between
 // values when the data changes.
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
 import Animated, {
-  Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming,
+  Easing, useAnimatedProps, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming,
 } from 'react-native-reanimated'
 import Svg, { Circle } from 'react-native-svg'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -19,30 +19,22 @@ interface ProgressBarProps {
   pct: number
   colors?: readonly [string, string, ...string[]]
   height?: number
-  /** Delay before the first fill, ms. */
-  delay?: number
-  duration?: number
   trackColor?: string
   style?: StyleProp<ViewStyle>
 }
 
 export function ProgressBar({
-  pct, colors = G.settle, height = 8, delay = 300, duration = 1100, trackColor = ink(0.08), style,
+  pct, colors = G.settle, height = 8, trackColor = ink(0.08), style,
 }: ProgressBarProps) {
   const reduced = useReducedMotion()
   const target = clampPct(pct)
-  const width = useSharedValue(reduced ? target : 0)
-  const first = useRef(true)
+  // Shown at its real value when the screen opens; only a change while the
+  // screen is open animates (400 ms), so the number is readable at once.
+  const width = useSharedValue(target)
 
   useEffect(() => {
-    if (reduced) {
-      width.value = target
-    } else {
-      const anim = withTiming(target, { duration: first.current ? duration : 600, easing: EASE })
-      width.value = first.current ? withDelay(delay, anim) : anim
-    }
-    first.current = false
-  }, [target, reduced, delay, duration, width])
+    width.set(reduced ? target : withTiming(target, { duration: 400, easing: EASE }))
+  }, [target, reduced, width])
 
   const fill = useAnimatedStyle(() => ({ width: `${width.value}%` }))
   const r = height / 2
@@ -67,20 +59,19 @@ interface ProgressRingProps {
   color: string
   size?: number
   stroke?: number
-  delay?: number
   children?: ReactNode
 }
 
-export function ProgressRing({ pct, color, size = 56, stroke = 5, delay = 300, children }: ProgressRingProps) {
+export function ProgressRing({ pct, color, size = 56, stroke = 5, children }: ProgressRingProps) {
   const reduced = useReducedMotion()
   const r = (size - stroke) / 2
   const circ = 2 * Math.PI * r
   const target = clampPct(pct) / 100
-  const progress = useSharedValue(reduced ? target : 0)
+  const progress = useSharedValue(target)
 
   useEffect(() => {
-    progress.value = reduced ? target : withDelay(delay, withTiming(target, { duration: 1200, easing: EASE }))
-  }, [target, reduced, delay, progress])
+    progress.set(reduced ? target : withTiming(target, { duration: 400, easing: EASE }))
+  }, [target, reduced, progress])
 
   const animatedProps = useAnimatedProps(() => ({ strokeDashoffset: circ * (1 - progress.value) }))
 

@@ -199,7 +199,7 @@ function ExpenseCard({ expense, members, memberMap, bills, expanded, onToggle, o
       <GlassCard padding={0}>
         <PressScale onPress={onToggle} scaleTo={0.985} haptic="selection" style={styles.cardRow} accessibilityRole="button" accessibilityState={{ expanded }}>
           <LinearGradient colors={getCategoryGradientColors(expense.category)} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.catTile}>
-            <Sheen period={6} />
+            <Sheen />
             <T style={styles.emoji}>{getCategoryIcon(expense.category)}</T>
           </LinearGradient>
           <View style={styles.flex}>

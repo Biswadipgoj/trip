@@ -1,18 +1,17 @@
-// Thumbnails for bill photos / UPI screenshots with live upload state:
-// waiting (amber), uploading (spinner), failed (red, tap to retry), synced
-// (green check). Tap a thumbnail to open the full-screen viewer.
+// Thumbnails for bill photos / UPI screenshots with their upload state:
+// waiting (amber clock), uploading (spinner), failed (red, retry in the
+// viewer), uploaded (green check). Tap a thumbnail to open the viewer.
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native'
-import Animated, { ZoomIn, ZoomOut, useReducedMotion } from 'react-native-reanimated'
+import Animated, { FadeIn, FadeOut, useReducedMotion } from 'react-native-reanimated'
 import { Image } from 'expo-image'
 import { router } from 'expo-router'
-import { CircleCheck, CloudUpload, ImageOff, RotateCw, Smartphone, X } from 'lucide-react-native'
+import { CircleCheck, Clock, RotateCw, X } from 'lucide-react-native'
 import type { Attachment } from '../../types'
 import type { PreparedImage } from '../../lib/media'
-import { attachmentUri, retryUpload } from '../../lib/uploads'
 import { isRemoteEnabled } from '../../lib/remote'
 import { C, ink, violet } from '../../theme/colors'
-import { T } from '../ui/Text'
 import { tick } from '../animated/SpringPressable'
+import { AttachmentImage } from './AttachmentImage'
 
 interface AttachmentStripProps {
   attachments: Attachment[]
@@ -30,30 +29,28 @@ export function AttachmentStrip({ attachments, size = 64 }: AttachmentStripProps
   )
 }
 
+const STATE_LABEL: Record<Attachment['upload'], string> = {
+  pending: 'waiting to upload',
+  uploading: 'uploading',
+  uploaded: 'uploaded',
+  failed: 'upload failed, open to retry',
+}
+
 function Thumb({ attachment: a, size }: { attachment: Attachment; size: number }) {
-  const reduced = useReducedMotion()
-  const uri = attachmentUri(a)
   const cloud = isRemoteEnabled()
   const open = () => router.push({ pathname: '/viewer', params: { id: a.id } })
+  const label = a.kind === 'bill' ? 'Bill photo' : 'Payment screenshot'
 
   return (
-    <Animated.View entering={reduced ? undefined : ZoomIn.springify().damping(15)} exiting={reduced ? undefined : ZoomOut.duration(150)}>
-      <Pressable
-        onPress={open}
-        style={[styles.thumb, { width: size, height: size }]}
-        accessibilityRole="imagebutton"
-        accessibilityLabel={a.kind === 'bill' ? 'Bill photo' : 'Payment screenshot'}
-      >
-        {uri ? (
-          <Image source={{ uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={180} recyclingKey={a.id} cachePolicy="memory-disk" />
-        ) : (
-          <View style={styles.missing}>
-            <ImageOff size={18} color={ink(0.4)} />
-          </View>
-        )}
-        <StateBadge attachment={a} cloud={cloud} />
-      </Pressable>
-    </Animated.View>
+    <Pressable
+      onPress={open}
+      style={[styles.thumb, { width: size, height: size }]}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={cloud ? `${label}, ${STATE_LABEL[a.upload]}` : label}
+    >
+      <AttachmentImage attachment={a} alt={label} style={StyleSheet.absoluteFill} />
+      <StateBadge attachment={a} cloud={cloud} />
+    </Pressable>
   )
 }
 
@@ -80,7 +77,11 @@ function StateBadge({ attachment: a, cloud }: { attachment: Attachment; cloud: b
       </View>
     )
   }
-  return null
+  return (
+    <View style={[styles.badge, { backgroundColor: C.amber500 }]}>
+      <Clock size={10} color={C.white} strokeWidth={2.6} />
+    </View>
+  )
 }
 
 /** Images picked in a form before the expense exists (not yet attachments). */
@@ -92,11 +93,11 @@ export function DraftStrip({ images, onRemove, size = 64 }: { images: PreparedIm
       {images.map(img => (
         <Animated.View
           key={img.uri}
-          entering={reduced ? undefined : ZoomIn.springify().damping(15)}
-          exiting={reduced ? undefined : ZoomOut.duration(150)}
+          entering={reduced ? undefined : FadeIn.duration(150)}
+          exiting={reduced ? undefined : FadeOut.duration(120)}
           style={[styles.thumb, { width: size, height: size }]}
         >
-          <Image source={{ uri: img.uri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+          <Image source={{ uri: img.uri }} alt="Bill photo to attach" style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
           <Pressable
             onPress={() => {
               tick('light')
@@ -124,7 +125,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: ink(0.1),
   },
-  missing: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   badge: {
     position: 'absolute',
     right: 4,
@@ -144,7 +144,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 2,
   },
-  failed: { backgroundColor: 'rgba(220,38,38,0.55)' },
   remove: {
     position: 'absolute',
     top: 4,

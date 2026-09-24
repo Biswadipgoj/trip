@@ -405,7 +405,7 @@ export default function AddExpenseScreen() {
           <Animated.View layout={SMOOTH_LAYOUT}>
             <GlassCard contentStyle={styles.gap12}>
               <View style={styles.between}>
-                <T variant="smallMedium" color={ink(0.6)}>Who's sharing this?</T>
+                <T variant="smallMedium" color={ink(0.6)}>Who’s sharing this?</T>
                 <View style={styles.row}>
                   <T variant="smallMedium" color={C.brand500} onPress={() => setParticipants(members.map(m => m.id))} suppressHighlighting>All</T>
                   <T variant="smallMedium" color={ink(0.6)} onPress={() => setParticipants([])} suppressHighlighting>None</T>

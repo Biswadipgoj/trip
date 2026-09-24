@@ -1,11 +1,9 @@
 // Gradient stat tile (web StatCard / KPI tiles — "Cred/PhonePe-style"): vivid
 // gradient, glassy icon badge, uppercase label, counting value, a trend line
-// and a light sheen sweeping across every few seconds.
-import { useEffect, useState, type ReactNode } from 'react'
+// and a soft corner glow.
+import type { ReactNode } from 'react'
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, {
-  Easing, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSequence, withTiming,
-} from 'react-native-reanimated'
+import Animated from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
 import { TrendingDown, TrendingUp } from 'lucide-react-native'
 import { C, G, shadow, whiteA } from '../../theme/colors'
@@ -79,52 +77,17 @@ export function StatCard({
   )
 }
 
-/** The web's .liquid-sheen: a static corner glow + a diagonal light sweep. */
-export function Sheen({ period = 5 }: { period?: number }) {
-  const reduced = useReducedMotion()
-  const [w, setW] = useState(0)
-  const sweepProgress = useSharedValue(0)
-
-  useEffect(() => {
-    if (reduced || w <= 0) return
-    sweepProgress.value = 0
-    sweepProgress.value = withRepeat(
-      withSequence(
-        withTiming(0, { duration: period * 600 }),
-        withTiming(1, { duration: period * 400, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      false
-    )
-  }, [w, reduced, period, sweepProgress])
-
-  const sweepStyle = useAnimatedStyle(() => {
-    if (reduced || w <= 0) return { opacity: 0 }
-    const tx = interpolate(sweepProgress.value, [0, 1], [-w * 0.9, w * 1.6])
-    return {
-      transform: [{ translateX: tx }, { rotate: '20deg' }],
-    }
-  })
-
+/** The web's .liquid-sheen corner glow. Static: a light sweep looping forever
+ *  on every card and button kept the UI thread busy for pure decoration. */
+export function Sheen() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none" onLayout={e => setW(e.nativeEvent.layout.width)}>
-      <LinearGradient
-        colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
-        start={{ x: 1, y: 0 }}
-        end={{ x: 0.35, y: 0.75 }}
-        style={StyleSheet.absoluteFill}
-      />
-      {w > 0 && !reduced && (
-        <Animated.View style={[styles.sweep, { width: w * 0.6 }, sweepStyle]}>
-          <LinearGradient
-            colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-      )}
-    </View>
+    <LinearGradient
+      pointerEvents="none"
+      colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0)']}
+      start={{ x: 1, y: 0 }}
+      end={{ x: 0.35, y: 0.75 }}
+      style={StyleSheet.absoluteFill}
+    />
   )
 }
 
@@ -147,5 +110,4 @@ const styles = StyleSheet.create({
   label: { marginBottom: 2 },
   trend: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
   trendText: { flexShrink: 1 },
-  sweep: { position: 'absolute', top: '-60%', height: '220%', left: 0 },
 })

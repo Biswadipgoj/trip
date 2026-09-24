@@ -20,7 +20,7 @@ export function Logo({ size = 96, glow = true, style }: LogoProps) {
       accessibilityLabel="TripMate"
     >
       <View style={[styles.clip, { borderRadius: radius }]}>
-        <Image source={LOGO} style={styles.image} contentFit="cover" transition={0} />
+        <Image source={LOGO} alt="" style={styles.image} contentFit="cover" transition={0} />
       </View>
     </View>
   )

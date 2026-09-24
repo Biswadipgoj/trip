@@ -24,7 +24,7 @@ import { toast } from '../../lib/toast'
 import { useTranslation } from '../../lib/i18n'
 import { TRAVEL_DESTINATIONS } from '../../constants/travelImages'
 import { GlassCard } from '../../components/ui/GlassCard'
-import { GradientText, T } from '../../components/ui/Text'
+import { T } from '../../components/ui/Text'
 import { Button } from '../../components/ui/Button'
 import { Field } from '../../components/ui/Field'
 import { Avatar } from '../../components/ui/Avatar'
@@ -163,8 +163,12 @@ export default function DashboardScreen() {
         {/* Scenic Trip Cover Card */}
         <FadeIn>
           <View style={styles.scenicCard}>
+            {/* Brand gradient underneath: the cover photo is remote, and without
+                a connection the card would otherwise be a grey block. */}
+            <LinearGradient colors={G.indigoPurple} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
             <Image
               source={{ uri: TRAVEL_DESTINATIONS[0].image }}
+              alt=""
               style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={300}
@@ -176,10 +180,6 @@ export default function DashboardScreen() {
             />
             <View style={styles.scenicContent}>
               <View style={styles.scenicTop}>
-                <View style={styles.cloudBadge}>
-                  <View style={styles.livePulse} />
-                  <T variant="tiny" color={C.emerald400}>{t('cloudSync')}</T>
-                </View>
                 <StatusBadge status={trip.status} />
               </View>
               <View style={styles.scenicBottom}>
@@ -342,7 +342,7 @@ export default function DashboardScreen() {
                   {formatCompactINR(totalSpent)} / {formatCompactINR(budget)}
                 </T>
               </View>
-              <ProgressBar pct={budgetUsedPct} colors={overBudget ? G.budgetOver : G.budgetOk} height={12} delay={400} duration={1200} />
+              <ProgressBar pct={budgetUsedPct} colors={overBudget ? G.budgetOver : G.budgetOk} height={12} />
               {overBudget && (
                 <T variant="smallMedium" color={C.red500} style={styles.note}>
                   Over budget by {formatCurrency(totalSpent - budget)} — time to go easy on the shopping? 😅
@@ -363,7 +363,7 @@ export default function DashboardScreen() {
                 </View>
                 <T variant="small" color={ink(0.6)}>{settledCount} of {totalSettlements} confirmed</T>
               </View>
-              <ProgressBar pct={(settledCount / totalSettlements) * 100} colors={G.settle} height={8} delay={500} />
+              <ProgressBar pct={(settledCount / totalSettlements) * 100} colors={G.settle} height={8} />
               {isFullySettled && (
                 <View style={[styles.row, styles.note]}>
                   <CircleCheck size={14} color={C.emerald400} />
@@ -490,7 +490,7 @@ function TripClosedOverlay({ visible, onDismiss, tripName }: { visible: boolean;
           <T variant="title">{tripName}</T> is fully settled!
         </T>
         <T variant="small" color={ink(0.6)} center style={styles.closedText}>
-          Everyone's accounts are balanced. Great trip! 🎉
+          Everyone’s accounts are balanced. Great trip! 🎉
         </T>
         <View style={styles.confirmedPill}>
           <CircleCheck size={16} color={C.emerald400} />
@@ -536,7 +536,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.7)',
-    backgroundColor: C.surface2,
+    backgroundColor: C.brand600,
   },
   scenicContent: {
     flex: 1,
@@ -546,22 +546,7 @@ const styles = StyleSheet.create({
   scenicTop: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  cloudBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    backgroundColor: 'rgba(29, 165, 120, 0.25)',
-  },
-  livePulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: C.emerald400,
+    justifyContent: 'flex-end',
   },
   scenicBottom: {
     flexDirection: 'row',

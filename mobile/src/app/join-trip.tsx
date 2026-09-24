@@ -338,7 +338,7 @@ export default function JoinTripScreen() {
               )}
               {!isRemoteEnabled() && (
                 <Notice tone="amber" icon>
-                  Make sure you're connected to the internet to join trips created on other devices.
+                  Make sure you’re connected to the internet to join trips created on other devices.
                 </Notice>
               )}
               {invite && (
@@ -471,7 +471,7 @@ export default function JoinTripScreen() {
             <GlassCard radius={24} padding={24} contentStyle={styles.card}>
               <View>
                 <T variant="h1">Set Your PIN</T>
-                <T variant="body" color={ink(0.65)}>You'll use this to log in</T>
+                <T variant="body" color={ink(0.65)}>You’ll use this to log in</T>
               </View>
               <Field
                 label="4-Digit PIN"

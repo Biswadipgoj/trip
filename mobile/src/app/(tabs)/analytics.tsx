@@ -268,8 +268,6 @@ export default function ReportScreen() {
                   pct={Math.min(budgetUsedPct, 100)}
                   colors={budgetUsedPct > 100 ? G.budgetOver : budgetUsedPct > 75 ? G.budgetWarn : G.budgetOk}
                   height={12}
-                  delay={300}
-                  duration={1200}
                 />
                 <View style={[styles.between, styles.mt8]}>
                   <T variant="small" color={ink(0.6)}>Spent: <T variant="smallSemibold">{formatCurrency(totalSpend)}</T></T>
@@ -359,8 +357,6 @@ export default function ReportScreen() {
                                 pct={cat.total > 0 ? (sub.value / cat.total) * 100 : 0}
                                 colors={getCategoryGradientColors(cat.category)}
                                 height={6}
-                                delay={500}
-                                duration={900}
                                 style={styles.allocBar}
                               />
                               <T variant="smallSemibold" style={styles.allocValue}>{formatCompactINR(sub.value)}</T>
@@ -414,8 +410,6 @@ export default function ReportScreen() {
                             pct={(cat.value / categoryData[0].value) * 100}
                             colors={getCategoryGradientColors(cat.name)}
                             height={6}
-                            delay={500 + i * 60}
-                            duration={900}
                           />
                         </View>
                       </View>

@@ -630,6 +630,17 @@ export function mediaPublicUrl(path: string | undefined): string | null {
   return supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path).data.publicUrl
 }
 
+/** Time-limited URL — works even when the bucket is not public. */
+export async function mediaSignedUrl(path: string | undefined, expiresInSeconds = 3600): Promise<string | null> {
+  if (!supabase || !path) return null
+  try {
+    const { data, error } = await supabase.storage.from(MEDIA_BUCKET).createSignedUrl(path, expiresInSeconds)
+    return error ? null : data?.signedUrl ?? null
+  } catch {
+    return null
+  }
+}
+
 export async function remoteUploadMedia(path: string, body: ArrayBuffer, contentType: string): Promise<void> {
   if (!supabase) throw new MediaError('Cloud sync is not configured in this build.', 'setup')
   const { error } = await supabase.storage.from(MEDIA_BUCKET).upload(path, body, {

@@ -175,7 +175,6 @@ export function HBarChart({ data, format }: { data: HBarDatum[]; format: (n: num
             pct={(d.value / max) * 100}
             colors={[toHex(d.color), toHex(d.color)]}
             height={14}
-            delay={250 + Math.min(i * 70, 420)}
             trackColor={violet(0.06)}
             style={styles.hbarTrack}
           />
