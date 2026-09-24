@@ -6,7 +6,6 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   Download,
-  ShieldCheck,
   Smartphone,
   AlertTriangle,
   ArrowLeft,
@@ -65,7 +64,7 @@ export function DownloadPageClient() {
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-bold text-violet-700 hover:text-violet-900 bg-white/90 px-3.5 py-1.5 rounded-full border border-violet-200/80 shadow-sm transition-all"
+          className="inline-flex items-center gap-2 text-sm font-bold text-violet-700 hover:text-violet-900 bg-pure-white/90 px-3.5 py-1.5 rounded-full border border-violet-200/80 shadow-sm transition-all"
         >
           <ArrowLeft className="h-4 w-4 text-violet-700" />
           <span>Back to TripMate</span>
@@ -79,18 +78,18 @@ export function DownloadPageClient() {
             <Globe className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-xs font-bold text-amber-950">
-                You are currently browsing from a non-Android device
+                You&apos;re not on an Android phone
               </p>
               <p className="text-xs text-amber-800 mt-0.5">
-                The TripMate native app is specifically built for Android phones. You can continue using TripMate right in your browser with full features.
+                The app is for Android. Everything also works here in the browser.
               </p>
             </div>
           </div>
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-pure-white font-bold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all"
           >
-            <span>Continue to Web App</span>
+            <span>Open TripMate in the browser</span>
           </Link>
         </div>
       )}
@@ -100,14 +99,14 @@ export function DownloadPageClient() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative overflow-hidden rounded-[32px] border border-violet-200/90 bg-white p-6 sm:p-10 shadow-2xl text-slate-950"
+        className="relative overflow-hidden rounded-[32px] border border-violet-200/90 bg-pure-white p-6 sm:p-10 shadow-2xl text-slate-950"
         style={{
           backgroundColor: '#ffffff',
           boxShadow: '0 25px 60px -12px rgba(108, 62, 200, 0.22), 0 0 0 1px rgba(139, 92, 246, 0.12)',
         }}
       >
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
-          <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-3xl shadow-xl ring-2 ring-violet-200 bg-white">
+          <div className="relative h-28 w-28 flex-shrink-0 overflow-hidden rounded-3xl shadow-xl ring-2 ring-violet-200 bg-pure-white">
             <Image
               src="/logo.png"
               alt="TripMate App"
@@ -121,7 +120,7 @@ export function DownloadPageClient() {
           <div className="flex-1">
             <div className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3.5 py-1 text-xs font-bold text-violet-800 mb-3">
               <Sparkles className="h-3.5 w-3.5 text-violet-600" />
-              <span>Official TripMate Android Release</span>
+              <span>Android app</span>
             </div>
 
             <h1
@@ -132,8 +131,7 @@ export function DownloadPageClient() {
             </h1>
 
             <p className="mt-2 text-sm sm:text-base font-medium text-slate-700 max-w-xl leading-relaxed">
-              Split trip expenses effortlessly, snap bill receipts with the camera, and settle debts with UPI.
-              Runs 100% offline and syncs automatically with friends when online.
+              Split trip costs with friends, snap bills with the camera and settle up over UPI.
             </p>
 
             {/* Version Meta Badges */}
@@ -147,9 +145,6 @@ export function DownloadPageClient() {
               <span className="rounded-lg bg-slate-100 px-3 py-1 text-slate-800 border border-slate-200">
                 {APP_RELEASE.minimumAndroidVersion}
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1 font-bold text-emerald-900 border border-emerald-200">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" /> Verified APK
-              </span>
             </div>
 
             {/* Action Download Buttons */}
@@ -159,7 +154,7 @@ export function DownloadPageClient() {
                 id="btn-download-page-apk"
                 onClick={handleDownload}
                 disabled={isDownloading}
-                className="relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-4 rounded-2xl text-sm font-bold text-white shadow-xl active:scale-95 transition-all overflow-hidden"
+                className="relative flex items-center justify-center gap-2.5 w-full sm:w-auto px-8 py-4 rounded-2xl text-sm font-bold text-pure-white shadow-xl active:scale-95 transition-all overflow-hidden"
                 style={{
                   background: 'linear-gradient(135deg, hsl(262, 85%, 58%) 0%, hsl(310, 80%, 54%) 100%)',
                   boxShadow: '0 10px 25px -4px rgba(139, 92, 246, 0.45)',
@@ -167,16 +162,16 @@ export function DownloadPageClient() {
               >
                 {isDownloading && (
                   <div
-                    className="absolute inset-0 bg-white/25 transition-all duration-300 pointer-events-none"
+                    className="absolute inset-0 bg-pure-white/25 transition-all duration-300 pointer-events-none"
                     style={{ width: `${downloadProgress}%` }}
                   />
                 )}
-                <Download className={`h-5 w-5 relative z-10 text-white ${isDownloading ? 'animate-bounce' : ''}`} />
-                <span className="relative z-10 text-white drop-shadow-sm">
+                <Download className={`h-5 w-5 relative z-10 text-pure-white ${isDownloading ? 'animate-bounce' : ''}`} />
+                <span className="relative z-10 text-pure-white drop-shadow-sm">
                   {isDownloading
-                    ? `Downloading APK (${downloadProgress}%)...`
+                    ? `Downloading… ${downloadProgress}%`
                     : isAndroid === false
-                    ? 'Download APK (for Android transfer)'
+                    ? 'Download the APK to copy to your phone'
                     : 'Download Android App (APK)'}
                 </span>
               </button>
@@ -192,7 +187,7 @@ export function DownloadPageClient() {
             </div>
 
             <p className="mt-3 text-xs font-medium text-slate-600">
-              Safe direct download from TripMate official storage. No Google Play account required.
+              Downloads straight from TripMate&apos;s server. No Google Play account needed.
             </p>
           </div>
         </div>
@@ -201,41 +196,41 @@ export function DownloadPageClient() {
       {/* Feature Highlights Grid */}
       <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div
-          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          className="rounded-2xl border border-violet-200/80 bg-pure-white p-5 shadow-md"
           style={{ backgroundColor: '#ffffff' }}
         >
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <WifiOff className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-950">Offline-First Engine</h3>
+          <h3 className="text-sm font-bold text-slate-950">Check your trip without signal</h3>
           <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
-            Record expenses in remote spots or on flights. All data stays safe locally and syncs automatically when online.
+            Your trip, balances and bill photos stay on the phone, so you can see who owes what anywhere. New expenses save once you&apos;re online.
           </p>
         </div>
 
         <div
-          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          className="rounded-2xl border border-violet-200/80 bg-pure-white p-5 shadow-md"
           style={{ backgroundColor: '#ffffff' }}
         >
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <Camera className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-950">Receipt & Bill Photos</h3>
+          <h3 className="text-sm font-bold text-slate-950">Bill and receipt photos</h3>
           <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
-            Snap dinner bills and hotel folios with client-side image compression. Synced safely to Supabase Storage.
+            Snap dinner bills and hotel receipts. Photos are shrunk on the phone and shared with everyone in the trip.
           </p>
         </div>
 
         <div
-          className="rounded-2xl border border-violet-200/80 bg-white p-5 shadow-md"
+          className="rounded-2xl border border-violet-200/80 bg-pure-white p-5 shadow-md"
           style={{ backgroundColor: '#ffffff' }}
         >
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <QrCode className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-950">One-Tap UPI Settle</h3>
+          <h3 className="text-sm font-bold text-slate-950">Settle up over UPI</h3>
           <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
-            Launch GPay, PhonePe, or Paytm with auto-filled amounts and payee UPI IDs. Attach payment screenshots easily.
+            Opens GPay, PhonePe or Paytm with the amount and UPI ID filled in. Attach the payment screenshot as proof.
           </p>
         </div>
       </div>
@@ -245,7 +240,7 @@ export function DownloadPageClient() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15, duration: 0.5 }}
-        className="mt-8 rounded-3xl border border-violet-200/90 bg-white p-6 sm:p-8 shadow-lg text-slate-950"
+        className="mt-8 rounded-3xl border border-violet-200/90 bg-pure-white p-6 sm:p-8 shadow-lg text-slate-950"
         style={{ backgroundColor: '#ffffff' }}
       >
         <h2
@@ -261,7 +256,7 @@ export function DownloadPageClient() {
 
         <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-pure-white shadow-sm">
               1
             </span>
             <div>
@@ -273,7 +268,7 @@ export function DownloadPageClient() {
           </div>
 
           <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-pure-white shadow-sm">
               2
             </span>
             <div>
@@ -285,7 +280,7 @@ export function DownloadPageClient() {
           </div>
 
           <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-pure-white shadow-sm">
               3
             </span>
             <div>
@@ -297,7 +292,7 @@ export function DownloadPageClient() {
           </div>
 
           <div className="flex items-start gap-3.5 rounded-2xl bg-violet-50/70 p-4 border border-violet-100">
-            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-white shadow-sm">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-xl bg-violet-700 text-xs font-bold text-pure-white shadow-sm">
               4
             </span>
             <div>
@@ -313,9 +308,9 @@ export function DownloadPageClient() {
         <div className="mt-6 flex items-start gap-3 rounded-2xl bg-amber-50 p-4 border border-amber-200 text-xs text-amber-950">
           <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
           <div className="leading-relaxed">
-            <strong className="font-bold text-amber-950">Notice regarding Google Play Protect:</strong>
+            <strong className="font-bold text-amber-950">If Play Protect asks before installing</strong>
             <p className="mt-0.5 font-medium text-amber-900">
-              Because this release APK is hosted directly on TripMate&apos;s official infrastructure rather than Google Play Store, Play Protect may display a prompt asking if you want to install. Tap <strong>Install anyway</strong> to proceed. The package is signed with TripMate&apos;s verified release credentials.
+              The app comes from TripMate&apos;s own server, not the Play Store, so Android checks with you first. Tap <strong>Install anyway</strong> to continue.
             </p>
           </div>
         </div>
@@ -323,7 +318,7 @@ export function DownloadPageClient() {
 
       {/* Package Specs Table */}
       <div
-        className="mt-8 rounded-3xl border border-violet-200/90 bg-white p-6 shadow-md text-xs text-slate-900"
+        className="mt-8 rounded-3xl border border-violet-200/90 bg-pure-white p-6 shadow-md text-xs text-slate-900"
         style={{ backgroundColor: '#ffffff' }}
       >
         <h3 className="font-bold text-slate-950 text-sm mb-3">Release Specification</h3>
@@ -341,8 +336,8 @@ export function DownloadPageClient() {
             <dd className="font-bold text-slate-950 mt-0.5">arm64-v8a, armeabi-v7a, x86_64</dd>
           </div>
           <div>
-            <dt className="text-slate-600 font-medium">Distribution Engine</dt>
-            <dd className="font-bold text-slate-950 mt-0.5">TripMate Cloud ({APP_RELEASE.bucketName})</dd>
+            <dt className="text-slate-600 font-medium">Downloaded from</dt>
+            <dd className="font-bold text-slate-950 mt-0.5">TripMate server</dd>
           </div>
         </dl>
       </div>

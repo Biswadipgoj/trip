@@ -36,11 +36,10 @@ export const APP_RELEASE: AppReleaseMetadata = {
   packageName: 'com.biswodip.tripmate',
   appName: 'TripMate',
   features: [
-    'Offline-first: full functionality even without cell reception',
-    'Automatic 5-minute background sync when online',
-    'Instant receipt & bill photo capture with camera compression',
-    'Direct UPI settlement payment proof screenshots',
-    'Smart debt minimization algorithm with zero ads',
+    'Trip, balances and bill photos stay viewable without signal',
+    'Bill photos are compressed on the phone and upload when online',
+    'Pay over UPI and attach the payment screenshot',
+    'Settles up with the fewest payments',
   ],
 }
 

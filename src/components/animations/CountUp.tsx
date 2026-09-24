@@ -9,46 +9,46 @@ interface CountUpProps {
   suffix?: string
   decimals?: number
   className?: string
-  start?: number
-  /** Indian digit grouping (₹1,25,000 style) while counting */
+  /** Indian digit grouping (₹1,25,000 style); default true */
   indian?: boolean
 }
 
+/**
+ * Shows a number with Indian digit grouping (₹1,25,000). The real value is
+ * shown as soon as the page opens — a count from zero delays reading money on
+ * a screen people open many times a day — and a later change (a new expense,
+ * a sync) tweens briefly from the old value so it is noticed.
+ */
 export function CountUp({
   end,
-  duration = 1.2,
+  duration = 0.3,
   prefix = '',
   suffix = '',
   decimals = 0,
   className,
-  start = 0,
-  indian = false,
+  indian = true,
 }: CountUpProps) {
-  const [value, setValue] = useState(start)
+  const [value, setValue] = useState(end)
   const frameRef = useRef<number>(0)
-  const startTimeRef = useRef<number>(0)
-  const prevEndRef = useRef<number>(start)
+  const prevEndRef = useRef<number>(end)
 
   useEffect(() => {
     const startVal = prevEndRef.current
     prevEndRef.current = end
+    const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (startVal === end || reduced) {
+      setValue(end)
+      return
+    }
 
     const startTime = performance.now()
-    startTimeRef.current = startTime
+    const ms = Math.min(duration, 0.4) * 1000
 
     const animate = (now: number) => {
-      const elapsed = now - startTime
-      const progress = Math.min(elapsed / (duration * 1000), 1)
-
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3)
-      const current = startVal + (end - startVal) * eased
-
-      setValue(current)
-
-      if (progress < 1) {
-        frameRef.current = requestAnimationFrame(animate)
-      }
+      const progress = Math.min((now - startTime) / ms, 1)
+      const eased = 1 - Math.pow(1 - progress, 3) // ease-out cubic
+      setValue(startVal + (end - startVal) * eased)
+      if (progress < 1) frameRef.current = requestAnimationFrame(animate)
     }
 
     frameRef.current = requestAnimationFrame(animate)

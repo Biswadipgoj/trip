@@ -39,6 +39,7 @@
     background: var(--surface-0);
     color: var(--ink);
     min-height: 100vh;
+    min-height: 100dvh; /* tracks the phone's URL bar; 100vh overflows under it */
     overflow-x: hidden;
     position: relative;
   }
@@ -309,5 +310,27 @@
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
     pointer-events: none;
     border-radius: inherit;
+  }
+}
+
+/* ── Phone behaviour ─────────────────────────────────────────────────────────
+   Unlayered so it applies after Tailwind utilities. */
+html {
+  -webkit-tap-highlight-color: transparent; /* no grey flash over tapped controls */
+  -webkit-text-size-adjust: 100%;           /* no font inflation in landscape */
+}
+button, a, [role="button"], label {
+  touch-action: manipulation; /* no double-tap-zoom wait before a tap registers */
+}
+button, [role="button"] {
+  -webkit-user-select: none; /* long-press shouldn't select a button's label */
+  user-select: none;
+}
+@media (pointer: coarse) {
+  /* iOS zooms into inputs under 16px and doesn't zoom back out. */
+  .input-glass:not(.text-lg):not(.text-xl):not(.text-2xl),
+  select:not([class*="text-lg"]),
+  textarea:not([class*="text-lg"]) {
+    font-size: 16px;
   }
 }

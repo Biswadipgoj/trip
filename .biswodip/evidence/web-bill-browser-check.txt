@@ -1,0 +1,9 @@
+AC4 — web bill photo preparation in a real browser (Chromium 1194, 390x844 touch)
+Script: scratchpad bill-check.mjs (Playwright) against `next dev` on :3000, seeded trip.
+
+Input:   bill-12mp.jpg  4000x3000 JPEG, 7,251,728 bytes (over the 5 MB bucket limit)
+Result:  prepared 1600x1200 JPEG, "273 KB · uploads when you save" — before any network call
+Reject:  notes.pdf (application/pdf) -> alert "Please choose a photo (JPG, PNG or WebP)."
+Screenshot: screens/after-web-bill-prepared.jpg
+
+Not verified here: the upload itself (no Supabase credentials in this environment).

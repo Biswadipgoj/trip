@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   calculateBalances, calculateSettlements, calculateNetBalances,
   applyConfirmedTransfers, resolveExpenseSplits, roundMoney,
-  createInviteToken, parseInviteToken, inviteSignature,
+  createInviteToken, parseInviteToken, inviteSignature, formatCurrency,
 } from '@/lib/utils'
 import type { Expense, Member, Settlement, Trip } from '@/types'
 
@@ -157,5 +157,15 @@ describe('invite tokens', () => {
   it('rejects garbage tokens', () => {
     expect(parseInviteToken('not-a-token').ok).toBe(false)
     expect(parseInviteToken(null).ok).toBe(false)
+  })
+})
+
+describe('formatCurrency', () => {
+  it('shows whole rupees without decimals and paise with exactly two', () => {
+    expect(formatCurrency(100)).toBe('₹100')
+    expect(formatCurrency(125000)).toBe('₹1,25,000')
+    expect(formatCurrency(6682.5)).toBe('₹6,682.50')
+    expect(formatCurrency(4028.333)).toBe('₹4,028.33')
+    expect(formatCurrency(-3178.33)).toBe('-₹3,178.33')
   })
 })

@@ -208,9 +208,9 @@ function ExpenseCard({ expense, members, memberMap, bills, expanded, onToggle, o
               {multiPayer ? (
                 <T variant="small" color={ink(0.6)}>{expense.payers!.length} payers</T>
               ) : payer ? (
-                <View style={styles.inline}>
+                <View style={[styles.inline, styles.payer]}>
                   <Avatar name={payer.name} color={payer.avatarColor} size="xs" glow={false} />
-                  <T variant="small" color={ink(0.6)} numberOfLines={1}>{payer.name}</T>
+                  <T variant="small" color={ink(0.6)} numberOfLines={1} style={styles.shrink}>{payer.name}</T>
                 </View>
               ) : null}
               {sub ? <Chip label={sub} /> : null}
@@ -292,9 +292,9 @@ function HotelCard({ hotel, members, memberMap, bills, expanded, onToggle, onDel
             <T variant="title" numberOfLines={1}>{hotel.title}</T>
             <View style={styles.meta}>
               {payer && (
-                <View style={styles.inline}>
+                <View style={[styles.inline, styles.payer]}>
                   <Avatar name={payer.name} color={payer.avatarColor} size="xs" glow={false} />
-                  <T variant="small" color={ink(0.6)} numberOfLines={1}>{payer.name}</T>
+                  <T variant="small" color={ink(0.6)} numberOfLines={1} style={styles.shrink}>{payer.name}</T>
                 </View>
               )}
               <View style={styles.inline}>
@@ -385,7 +385,9 @@ function DeleteLink({ onPress }: { onPress: () => void }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   flex: { flex: 1, minWidth: 0 },
-  list: { padding: SCREEN_PADDING, paddingTop: 20, paddingBottom: 110 },
+  // Clears the floating tab bar and the add button, so the last card's
+  // amount is never hidden behind them.
+  list: { padding: SCREEN_PADDING, paddingTop: 20, paddingBottom: 190 },
   header: { marginBottom: 18 },
   separator: { height: 12 },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
@@ -393,7 +395,10 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 19, lineHeight: 24 },
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 4, marginTop: 3 },
   inline: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  amount: { alignItems: 'flex-end' },
+  // A long name truncates instead of running under the amount.
+  payer: { flexShrink: 1, maxWidth: '100%' },
+  shrink: { flexShrink: 1 },
+  amount: { alignItems: 'flex-end', flexShrink: 0 },
   details: {
     borderTopWidth: 1,
     borderTopColor: ink(0.08),
