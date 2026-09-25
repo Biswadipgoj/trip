@@ -21,7 +21,7 @@ interface MembersPageProps {
 
 export default function MembersPage({ params }: MembersPageProps) {
   const { tripId } = React.use(params)
-  const trip = useStore(s => s.trips.find(t => t.id === tripId))
+  const allTrips = useStore(s => s.trips)
   const allMembers = useStore(s => s.members)
   const allExpenses = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
@@ -33,6 +33,8 @@ export default function MembersPage({ params }: MembersPageProps) {
   const addMember = useStore(s => s.addMember)
   const updateMemberUpi = useStore(s => s.updateMemberUpi)
   const session = useStore(s => s.session)
+
+  const trip = useMemo(() => allTrips.find(t => t.id === tripId), [allTrips, tripId])
 
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])

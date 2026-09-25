@@ -72,7 +72,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const { tripId } = React.use(params)
 
   // Use raw store state + filter in useMemo to avoid React 19 getSnapshot infinite loop
-  const trip = useStore(s => s.trips.find(t => t.id === tripId))
+  const allTrips = useStore(s => s.trips)
   const allMembers = useStore(s => s.members)
   const allExpenses = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
@@ -84,6 +84,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
   const setTripBudget = useStore(s => s.setTripBudget)
   const generateSettlements = useStore(s => s.generateSettlements)
 
+  const trip = useMemo(() => allTrips.find(t => t.id === tripId), [allTrips, tripId])
   const members = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = useMemo(() =>
     allExpenses

@@ -57,13 +57,15 @@ function ProgressRing({ pct, color, size = 56 }: { pct: number; color: string; s
 export default function ReportPage({ params }: ReportPageProps) {
   const { tripId } = React.use(params)
 
-  const trip          = useStore(s => s.trips.find(t => t.id === tripId))
+  const allTrips         = useStore(s => s.trips)
   const allMembers       = useStore(s => s.members)
   const allExpenses      = useStore(s => s.expenses)
   const allHotelExpenses = useStore(s => s.hotelExpenses)
   const allGroups        = useStore(s => s.settlementGroups)
   const allSponsorships  = useStore(s => s.sponsorships)
   const allSettlements   = useStore(s => s.settlements)
+
+  const trip          = useMemo(() => allTrips.find(t => t.id === tripId), [allTrips, tripId])
 
   const members       = useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses      = useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
