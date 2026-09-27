@@ -4,7 +4,8 @@
 > [`migrations/20260929_protect_member_pins.sql`](./migrations/20260929_protect_member_pins.sql) in the
 > Supabase SQL editor. It moves every member PIN into a hashed table the public key cannot read,
 > blanks `members.pin`, checks PINs only on the server, and locks a member for 15 minutes after 5
-> wrong PINs. The new web login needs it. Safe to re-run. Test locally with
+> wrong PINs. The new web login needs it. Safe to re-run. Copy it with GitHub's **Copy raw file** button
+> (not by selecting text on the page), paste into a new SQL editor query, and run it whole. Test locally with
 > `bash supabase/tests/run-member-pin-test.sh`.
 
 > **Run next (2026-09-25):** after `setup_media.sql`, run
