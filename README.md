@@ -55,7 +55,7 @@ Open [http://localhost:3000](http://localhost:3000)
 ### Supabase Setup (Required for cross-device join & sync)
 
 1. Create a new project at [supabase.com](https://supabase.com)
-2. Go to **SQL Editor** → paste the contents of [`supabase/schema.sql`](./supabase/schema.sql) → Run
+2. Go to **SQL Editor** → paste the contents of [`supabase/migrations/20260928_production_security_hardening.sql`](./supabase/migrations/20260928_production_security_hardening.sql) → Run
 3. Copy your project URL and anon key
 4. Create `.env.local` (and set the same variables in Vercel → Project → Settings → Environment Variables):
 
