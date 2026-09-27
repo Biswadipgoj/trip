@@ -164,19 +164,44 @@ CREATE POLICY "android_app_select" ON storage.objects
 -- 4. HARDENED ROW LEVEL SECURITY (RLS) ON ALL TABLES
 -- ============================================================================
 
--- Drop insecure "allow_all" policies
+-- Clean up any previous policies (both legacy allow_all and tripmate policies)
 DROP POLICY IF EXISTS "allow_all_trips" ON public.trips;
+DROP POLICY IF EXISTS "tripmate_trips_select" ON public.trips;
+DROP POLICY IF EXISTS "tripmate_trips_insert" ON public.trips;
+DROP POLICY IF EXISTS "tripmate_trips_update" ON public.trips;
+
 DROP POLICY IF EXISTS "allow_all_members" ON public.members;
+DROP POLICY IF EXISTS "tripmate_members_all" ON public.members;
+
 DROP POLICY IF EXISTS "allow_all_expenses" ON public.expenses;
+DROP POLICY IF EXISTS "tripmate_expenses_all" ON public.expenses;
+
 DROP POLICY IF EXISTS "allow_all_expense_participants" ON public.expense_participants;
+DROP POLICY IF EXISTS "tripmate_expense_participants_all" ON public.expense_participants;
+
 DROP POLICY IF EXISTS "allow_all_hotel_expenses" ON public.hotel_expenses;
+DROP POLICY IF EXISTS "tripmate_hotel_expenses_all" ON public.hotel_expenses;
+
 DROP POLICY IF EXISTS "allow_all_rooms" ON public.rooms;
+DROP POLICY IF EXISTS "tripmate_rooms_all" ON public.rooms;
+
 DROP POLICY IF EXISTS "allow_all_room_occupants" ON public.room_occupants;
+DROP POLICY IF EXISTS "tripmate_room_occupants_all" ON public.room_occupants;
+
 DROP POLICY IF EXISTS "allow_all_settlement_groups" ON public.settlement_groups;
+DROP POLICY IF EXISTS "tripmate_settlement_groups_all" ON public.settlement_groups;
+
 DROP POLICY IF EXISTS "allow_all_settlement_group_members" ON public.settlement_group_members;
+DROP POLICY IF EXISTS "tripmate_settlement_group_members_all" ON public.settlement_group_members;
+
 DROP POLICY IF EXISTS "allow_all_sponsorships" ON public.sponsorships;
+DROP POLICY IF EXISTS "tripmate_sponsorships_all" ON public.sponsorships;
+
 DROP POLICY IF EXISTS "allow_all_settlements" ON public.settlements;
+DROP POLICY IF EXISTS "tripmate_settlements_all" ON public.settlements;
+
 DROP POLICY IF EXISTS "allow_all_attachments" ON public.attachments;
+DROP POLICY IF EXISTS "tripmate_attachments_all" ON public.attachments;
 
 -- Ensure RLS is active on all tables
 ALTER TABLE public.trips                   ENABLE ROW LEVEL SECURITY;
