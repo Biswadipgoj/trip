@@ -8,10 +8,9 @@ if (!SUPABASE_URL) {
   console.error('Error: set NEXT_PUBLIC_SUPABASE_URL in your environment.');
   process.exit(1);
 }
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!SUPABASE_KEY) {
-  console.error('Error: set SUPABASE_SERVICE_ROLE_KEY (Supabase Dashboard -> Project Settings -> API) to upload a release.');
-  console.error('Keep it out of the repo and out of any NEXT_PUBLIC_/EXPO_PUBLIC_ variable.');
+  console.error('Error: set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment.');
   process.exit(1);
 }
 

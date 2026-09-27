@@ -242,13 +242,16 @@ export default function Home() {
 
             {/* Interactive Settlement Simulator */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('settlements')}</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
+                  <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('settlements')}</p>
+                </div>
                 {/* Toggle tab */}
-                <div className="flex items-center p-0.5 rounded-xl bg-surface-2 border border-brand-500/15 text-[11px] font-bold">
+                <div className="inline-flex items-center p-0.5 rounded-xl bg-surface-2 border border-brand-500/15 text-[11px] font-bold shrink-0 self-start sm:self-auto shadow-xs">
                   <button
                     onClick={() => setActiveTab('minimal')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                    className={`px-3 py-1 rounded-lg transition-all ${
                       activeTab === 'minimal'
                         ? 'bg-pure-white text-brand-700 shadow-sm'
                         : 'text-slate-500 hover:text-slate-800'
@@ -258,7 +261,7 @@ export default function Home() {
                   </button>
                   <button
                     onClick={() => setActiveTab('messy')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                    className={`px-3 py-1 rounded-lg transition-all ${
                       activeTab === 'messy'
                         ? 'bg-pure-white text-amber-700 shadow-sm'
                         : 'text-slate-500 hover:text-slate-800'
@@ -289,23 +292,23 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-pure-white/90 border border-emerald-500/20 shadow-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-brand-600 text-pure-white flex items-center justify-center font-bold text-xs">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-pure-white/90 border border-emerald-500/20 shadow-sm gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-brand-600 text-pure-white flex items-center justify-center font-bold text-xs shrink-0">
                           B
                         </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">Biswodip</p>
-                          <p className="text-[10px] text-slate-500">pays via Google Pay UPI</p>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">Biswodip</p>
+                          <p className="text-[10px] text-slate-500 truncate">pays via Google Pay UPI</p>
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-emerald-600" />
-                      <div className="flex items-center gap-2 text-right">
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">Alex</p>
+                      <ArrowRight className="w-4 h-4 text-emerald-600 shrink-0 mx-1" />
+                      <div className="flex items-center gap-2 text-right min-w-0">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate">Alex</p>
                           <p className="text-xs font-extrabold text-emerald-600">₹1,250</p>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-indigo-600 text-pure-white flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-indigo-600 text-pure-white flex items-center justify-center font-bold text-xs shrink-0">
                           A
                         </div>
                       </div>

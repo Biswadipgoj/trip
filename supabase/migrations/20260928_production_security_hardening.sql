@@ -878,6 +878,16 @@ CREATE POLICY "tripmate_media_delete_orphans" ON storage.objects
   FOR DELETE TO anon, authenticated
   USING (bucket_id = 'trip-media' AND NOT public.tm_media_in_use(name));
 
+-- APK release distribution policies (allows scoped release uploads, blocks listing)
+CREATE POLICY "android_app_insert" ON storage.objects
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'));
+
+CREATE POLICY "android_app_update" ON storage.objects
+  FOR UPDATE TO anon, authenticated
+  USING (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'))
+  WITH CHECK (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'));
+
 -- ============================================================================
 -- 8. REALTIME SUBSCRIPTIONS
 -- ============================================================================

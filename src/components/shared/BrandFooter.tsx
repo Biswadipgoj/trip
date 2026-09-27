@@ -3,12 +3,12 @@
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { Smartphone, ExternalLink, Sparkles, X } from 'lucide-react'
+import { Smartphone, ExternalLink, ArrowUpRight, X } from 'lucide-react'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 
 /**
  * Compact, interactive brand signature.
- * Default: Sleek, unobtrusive "Created by Dip ✦" pill.
+ * Sleek, creative designer badge: "Crafted by Dip ↗".
  * On click: Spring-animated modal with full name "Biswodip Goj" and direct link to biswadip.in.
  */
 export function BrandFooter() {
@@ -31,20 +31,25 @@ export function BrandFooter() {
             <span>TripMate App</span>
           </Link>
 
-          {/* Compact "Created by Dip" Pill */}
+          {/* Creative Artisan "Crafted by Dip" Badge */}
           <motion.button
             id="brand-signature"
             type="button"
             onClick={reveal}
-            aria-label="Created by Dip — Mastermind Behind TripMate"
-            whileHover={{ scale: 1.04, y: -1 }}
-            whileTap={{ scale: 0.96 }}
-            className="group inline-flex items-center gap-1.5 rounded-full border border-violet-200/80 bg-white/90 hover:bg-violet-50/90 px-3 py-1 text-xs font-medium text-slate-600 shadow-sm backdrop-blur-sm transition-colors cursor-pointer"
+            aria-label="Crafted by Dip — Biswodip Goj"
+            whileHover={{ scale: 1.05, y: -1 }}
+            whileTap={{ scale: 0.95 }}
+            className="group relative inline-flex items-center gap-1.5 rounded-full border border-violet-200/90 bg-gradient-to-r from-white via-violet-50/50 to-white hover:border-violet-300 hover:shadow-md hover:shadow-violet-500/15 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm backdrop-blur-md transition-all cursor-pointer overflow-hidden"
           >
-            <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-            <span>Created by</span>
-            <span className="font-bold text-violet-700 group-hover:text-fuchsia-600 transition-colors">Dip</span>
-            <span className="text-[10px] text-violet-400">✦</span>
+            {/* Custom Maker Monogram Chip */}
+            <span className="flex items-center justify-center w-4 h-4 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-600 to-indigo-600 text-[9px] font-black text-white shadow-xs group-hover:rotate-12 transition-transform duration-300">
+              D
+            </span>
+            <span className="text-slate-600 group-hover:text-slate-900 transition-colors">Crafted by</span>
+            <span className="font-extrabold bg-gradient-to-r from-violet-700 via-fuchsia-600 to-indigo-600 bg-clip-text text-transparent tracking-wide">
+              Dip
+            </span>
+            <ArrowUpRight className="w-3 h-3 text-violet-400 group-hover:text-violet-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </motion.button>
         </div>
       </footer>
