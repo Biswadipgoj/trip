@@ -1,5 +1,12 @@
 # TripMate — Supabase Media & Cloud Sync Setup Guide
 
+> **Run next (2026-09-29):** run
+> [`migrations/20260929_protect_member_pins.sql`](./migrations/20260929_protect_member_pins.sql) in the
+> Supabase SQL editor. It moves every member PIN into a hashed table the public key cannot read,
+> blanks `members.pin`, checks PINs only on the server, and locks a member for 15 minutes after 5
+> wrong PINs. The new web login needs it. Safe to re-run. Test locally with
+> `bash supabase/tests/run-member-pin-test.sh`.
+
 > **Run next (2026-09-25):** after `setup_media.sql`, run
 > [`migrations/20260925_harden_storage.sql`](./migrations/20260925_harden_storage.sql). It stops the
 > public anon key from replacing the release APK, limits uploads to the app's image paths, keeps bill

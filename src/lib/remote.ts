@@ -245,56 +245,82 @@ export async function remoteGetMembers(tripId: string): Promise<Member[]> {
   return data.map(memberFromRow)
 }
 
+const OFFLINE_MESSAGE = 'Could not reach the server. Check your connection and try again.'
+export const PIN_LOCKED_MESSAGE = 'Too many wrong PINs. This member is locked for 15 minutes; try again later.'
+
 /**
  * Every trip a mobile number belongs to, for the mobile-number login.
- * Never downloads PINs: members without a PIN (added manually by the organiser)
- * are filtered out on the server, since they cannot log in.
+ * Runs as a database function: only members who have a PIN are returned, and
+ * no PIN data ever leaves the server.
  */
 export async function remoteFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
   if (!supabase) return []
-  const { data: rows, error } = await supabase
-    .from('members')
-    .select('id, trip_id, name')
-    .eq('mobile', mobile)
-    .neq('pin', '')
-  if (error) throw new Error('Could not reach the server. Check your connection and try again.')
-  if (!rows || rows.length === 0) return []
+  const { data, error } = await supabase.rpc('tm_find_trips_by_mobile', { p_mobile: mobile })
+  if (isMissingFunction(error)) return legacyFindTripsByMobile(mobile)
+  if (error) throw new Error(OFFLINE_MESSAGE)
+  return ((data ?? []) as any[]).map(r => ({
+    tripId: r.trip_id,
+    tripCode: r.trip_code,
+    name: r.trip_name,
+    status: r.status === 'closed' ? 'closed' : 'active',
+    createdAt: r.created_at,
+    memberId: r.member_id,
+    memberName: r.member_name,
+    memberCount: r.member_count ?? 0,
+  }))
+}
 
+/**
+ * True when `pin` is this member's PIN. Checked by a database function against
+ * a bcrypt hash; after 5 wrong tries the member is locked for 15 minutes.
+ */
+export async function remoteVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('tm_verify_member_pin', { p_member_id: memberId, p_pin: pin })
+  if (isMissingFunction(error)) return legacyVerifyMemberPin(memberId, pin)
+  if (error) throw new Error(/PIN_LOCKED/.test(error.message) ? PIN_LOCKED_MESSAGE : OFFLINE_MESSAGE)
+  return data === true
+}
+
+// Fallbacks for a database where 20260929_protect_member_pins.sql has not run
+// yet, so deploying the app before the migration does not break login. Once it
+// has run, members.pin is always '' and these paths are never taken.
+const isMissingFunction = (e: PgError | null | undefined) =>
+  e?.code === 'PGRST202' || e?.code === '42883' || /could not find the function/i.test(e?.message ?? '')
+
+async function legacyFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
+  if (!supabase) return []
+  const { data: rows, error } = await supabase
+    .from('members').select('id, trip_id, name').eq('mobile', mobile).neq('pin', '')
+  if (error) throw new Error(OFFLINE_MESSAGE)
+  if (!rows?.length) return []
   const tripIds = rows.map(r => r.trip_id as string)
   const [{ data: trips, error: tripErr }, { data: counts }] = await Promise.all([
     supabase.from('trips').select('id, trip_code, name, status, created_at').in('id', tripIds),
     supabase.from('members').select('trip_id').in('trip_id', tripIds),
   ])
-  if (tripErr) throw new Error('Could not reach the server. Check your connection and try again.')
-
-  const choices: TripChoice[] = []
-  for (const r of rows) {
+  if (tripErr) throw new Error(OFFLINE_MESSAGE)
+  return rows.flatMap(r => {
     const t = trips?.find(x => x.id === r.trip_id)
-    if (!t) continue
-    choices.push({
+    if (!t) return []
+    return [{
       tripId: t.id,
       tripCode: t.trip_code,
       name: t.name,
-      status: t.status === 'closed' ? 'closed' : 'active',
+      status: t.status === 'closed' ? 'closed' as const : 'active' as const,
       createdAt: t.created_at,
       memberId: r.id,
       memberName: r.name,
       memberCount: counts?.filter(c => c.trip_id === t.id).length ?? 0,
-    })
-  }
-  return choices
+    }]
+  })
 }
 
-/** True when `pin` is this member's PIN. The comparison runs in the query, so the PIN is never downloaded. */
-export async function remoteVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
-  if (!supabase) return false
+async function legacyVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
+  if (!supabase || !/^\d{4}$/.test(pin)) return false
   const { data, error } = await supabase
-    .from('members')
-    .select('id')
-    .eq('id', memberId)
-    .eq('pin', pin)
-    .maybeSingle()
-  if (error) throw new Error('Could not reach the server. Check your connection and try again.')
+    .from('members').select('id').eq('id', memberId).eq('pin', pin).maybeSingle()
+  if (error) throw new Error(OFFLINE_MESSAGE)
   return data !== null
 }
 
@@ -317,6 +343,12 @@ export async function remoteJoinTrip(
     .maybeSingle()
 
   if (existing) {
+    // Rejoining with a number that is already in the trip: prove it is the same
+    // person, or anyone with the trip password could take over that member.
+    if (!(await remoteVerifyMemberPin(existing.id, details.pin))) {
+      joinLog('join.duplicatePinMismatch', { tripId: trip.id, tripCode: trip.tripCode })
+      throw new Error('This mobile number has already joined the trip. Enter the PIN you chose then, or use Log in.')
+    }
     joinLog('join.duplicatePrevented', { tripId: trip.id, tripCode: trip.tripCode, mobile: details.mobile })
     return { member: memberFromRow(existing), alreadyMember: true }
   }

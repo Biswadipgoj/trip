@@ -354,7 +354,7 @@ export const useStore = create<AppState>()(
         if (!trip || trip.password !== password) return null
 
         const existing = state.members.find(m => m.tripId === trip.id && m.mobile === mobile)
-        if (existing) return existing
+        if (existing) return existing.pin && existing.pin !== pin ? null : existing
 
         const count = state.members.filter(m => m.tripId === trip.id).length
         const member: Member = {

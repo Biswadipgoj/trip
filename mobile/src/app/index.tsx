@@ -58,13 +58,13 @@ export default function Home() {
   const members = useStore(s => s.members)
   const [showLanguagePicker, setShowLanguagePicker] = useState(false)
 
-  // Trips someone can log in to (members with mobile + PIN).
+  // Trips someone can log in to (members with a mobile number; the server checks the PIN).
   const localTrips = useMemo(
     () =>
       (trips || [])
         .filter(t => t && t.id)
         .map(t => ({ trip: t, people: (members || []).filter(m => m && m.tripId === t.id) }))
-        .filter(x => x.people.some(m => !!m.mobile && !!m.pin))
+        .filter(x => x.people.some(m => !!m.mobile && !m.mobile.startsWith('manual-')))
         .sort((a, b) => (b.trip?.createdAt || '').localeCompare(a.trip?.createdAt || ''))
         .slice(0, 5),
     [trips, members]

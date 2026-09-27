@@ -764,6 +764,8 @@ GRANT EXECUTE ON FUNCTION create_trip_with_member(TEXT, TEXT, TEXT, TEXT, TEXT, 
 -- After this file, also run supabase/migrations/20260923_mobile_media.sql —
 -- it adds the `attachments` table, the `trip-media` storage bucket + policies
 -- and the idempotent tm_push_* functions. It is safe to run more than once.
+-- Then run supabase/migrations/20260929_protect_member_pins.sql, which moves
+-- PINs out of `members` into a hashed table only server functions can read.
 -- ============================================================================
 
 -- ============================================================================
