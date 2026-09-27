@@ -888,6 +888,14 @@ CREATE POLICY "android_app_update" ON storage.objects
   USING (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'))
   WITH CHECK (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'));
 
+CREATE POLICY "android_app_select" ON storage.objects
+  FOR SELECT TO anon, authenticated
+  USING (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'));
+
+CREATE POLICY "android_app_delete" ON storage.objects
+  FOR DELETE TO anon, authenticated
+  USING (bucket_id = 'android-app' AND (name LIKE 'tripmate-latest.apk%' OR name = 'release.json'));
+
 -- ============================================================================
 -- 8. REALTIME SUBSCRIPTIONS
 -- ============================================================================
