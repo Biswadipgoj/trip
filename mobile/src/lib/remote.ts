@@ -279,6 +279,30 @@ export async function remoteGetMembers(tripId: string): Promise<Member[]> {
   return data.map(memberFromRow)
 }
 
+export const PIN_LOCKED_MESSAGE = 'Too many wrong PINs. This member is locked for 15 minutes; try again later.'
+
+/**
+ * True when `pin` is this member's PIN. PINs are stored only as hashes on the
+ * server and checked by a database function; after 5 wrong tries the member is
+ * locked for 15 minutes.
+ */
+export async function remoteVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase.rpc('tm_verify_member_pin', { p_member_id: memberId, p_pin: pin })
+  // Database without 20260929_protect_member_pins.sql yet: PINs are still in members.
+  if (error?.code === 'PGRST202' || /could not find the function/i.test(error?.message ?? '')) {
+    if (!/^\d{4}$/.test(pin)) return false
+    const { data: row } = await supabase.from('members').select('id').eq('id', memberId).eq('pin', pin).maybeSingle()
+    return row !== null
+  }
+  if (error) {
+    throw new Error(/PIN_LOCKED/.test(error.message)
+      ? PIN_LOCKED_MESSAGE
+      : 'Could not reach the server. Check your connection and try again.')
+  }
+  return data === true
+}
+
 /**
  * Attaches a member to an EXISTING trip. Duplicate-safe: if a member with the
  * same mobile already exists on the trip, that member is returned instead of
@@ -302,6 +326,12 @@ export async function remoteJoinTrip(
   }
 
   if (existing) {
+    // Rejoining with a number that is already in the trip: prove it is the same
+    // person, or anyone with the trip password could take over that member.
+    if (!(await remoteVerifyMemberPin(existing.id, details.pin))) {
+      joinLog('join.duplicatePinMismatch', { tripId: trip.id, tripCode: trip.tripCode })
+      throw new Error('This mobile number has already joined the trip. Enter the PIN you chose then, or use Log in.')
+    }
     joinLog('join.duplicatePrevented', { tripId: trip.id, tripCode: trip.tripCode })
     return { member: memberFromRow(existing), alreadyMember: true }
   }

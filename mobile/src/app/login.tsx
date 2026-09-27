@@ -8,7 +8,7 @@ import Animated, {
 import { router, useLocalSearchParams } from 'expo-router'
 import { ArrowRight, Hash, Phone, Shield } from 'lucide-react-native'
 import { useStore } from '../lib/store'
-import { describeError, isRemoteEnabled, remoteFetchTripBundle, remoteFindTripByCode, remoteGetMembers } from '../lib/remote'
+import { describeError, isRemoteEnabled, remoteFetchTripBundle, remoteFindTripByCode, remoteGetMembers, remoteVerifyMemberPin } from '../lib/remote'
 import { useSyncStatus } from '../lib/synclog'
 import { enterTrip } from '../lib/nav'
 import { toast } from '../lib/toast'
@@ -106,9 +106,18 @@ export default function LoginScreen() {
           fail(describeError(err))
           return
         }
-        const remoteMember = remoteTrip
-          ? (await remoteGetMembers(remoteTrip.id)).find(m => m.mobile === mobile.trim() && m.pin === pin)
+        // PINs never leave the server: find the member by mobile, then ask the server to check the PIN.
+        let remoteMember = remoteTrip
+          ? (await remoteGetMembers(remoteTrip.id)).find(m => m.mobile === mobile.trim())
           : undefined
+        if (remoteMember) {
+          try {
+            if (!(await remoteVerifyMemberPin(remoteMember.id, pin))) remoteMember = undefined
+          } catch (err) {
+            fail(describeError(err))
+            return
+          }
+        }
         if (!remoteTrip || !remoteMember) {
           fail('Invalid trip code, mobile, or PIN. Please check and try again.')
           return
