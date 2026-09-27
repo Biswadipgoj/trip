@@ -549,7 +549,17 @@ export async function mediaSignedUrl(path: string | undefined, expiresInSeconds 
 
 /** Whether an image is stored at `path`; null when that can't be determined. */
 export async function remoteMediaExists(path: string): Promise<boolean | null> {
-  if (!supabase) return null
+  if (!supabase || !isSafeMediaPath(path)) return null
+  const url = mediaPublicUrl(path)
+  if (url && typeof fetch !== 'undefined') {
+    try {
+      const res = await fetch(url, { method: 'HEAD' })
+      if (res.ok) return true
+      if (res.status === 404) return false
+    } catch {
+      // Fall through to list check
+    }
+  }
   const slash = path.lastIndexOf('/')
   const folder = path.slice(0, slash)
   const name = path.slice(slash + 1)

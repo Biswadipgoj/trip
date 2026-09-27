@@ -231,12 +231,16 @@ CREATE INDEX idx_settlements_status      ON settlements (status);
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 CREATE TRIGGER trg_settlements_updated_at
   BEFORE UPDATE ON settlements
@@ -249,7 +253,7 @@ CREATE TRIGGER trg_settlements_updated_at
 -- For custom/percentage/quantity splits, use expense_participants.resolved_amount.
 -- ============================================================================
 
-CREATE OR REPLACE VIEW member_balances AS
+CREATE OR REPLACE VIEW member_balances WITH (security_invoker = true) AS
 WITH
   -- Amount each member paid across all expenses
   paid AS (
@@ -305,7 +309,7 @@ LEFT JOIN hotel_owed   ho  ON ho.member_id  = m.id AND ho.trip_id  = m.trip_id;
 -- High-level stats per trip (pre-aggregated CTEs prevent cartesian multiplication & sum deduplication bugs)
 -- ============================================================================
 
-CREATE OR REPLACE VIEW trip_summary AS
+CREATE OR REPLACE VIEW trip_summary WITH (security_invoker = true) AS
 WITH
   exp_stats AS (
     SELECT
@@ -526,7 +530,12 @@ CREATE INDEX IF NOT EXISTS idx_trips_status                    ON trips (status)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION get_trip_bundle(p_trip_code TEXT)
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
 DECLARE
   v_trip trips%ROWTYPE;
   v_result JSONB;
@@ -601,7 +610,7 @@ BEGIN
 
   RETURN v_result;
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$;
 
 -- ============================================================================
 -- ATOMIC EXPENSE TRANSACTION: create_expense_with_participants
@@ -618,7 +627,11 @@ CREATE OR REPLACE FUNCTION create_expense_with_participants(
   p_notes TEXT,
   p_participants JSONB
 )
-RETURNS UUID AS $$
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
 DECLARE
   v_expense_id UUID;
   v_elem JSONB;
@@ -642,7 +655,7 @@ BEGIN
 
   RETURN v_expense_id;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- ============================================================================
 -- ATOMIC HOTEL TRANSACTION: create_hotel_expense_with_rooms
@@ -656,7 +669,11 @@ CREATE OR REPLACE FUNCTION create_hotel_expense_with_rooms(
   p_paid_by UUID,
   p_rooms JSONB
 )
-RETURNS UUID AS $$
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
 DECLARE
   v_hotel_id UUID;
   v_room_elem JSONB;
@@ -692,7 +709,7 @@ BEGIN
 
   RETURN v_hotel_id;
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- ============================================================================
 -- ATOMIC TRIP CREATION: create_trip_with_member
@@ -710,7 +727,11 @@ CREATE OR REPLACE FUNCTION create_trip_with_member(
   p_upi_id TEXT DEFAULT NULL,
   p_upi_name TEXT DEFAULT NULL
 )
-RETURNS JSONB AS $$
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public
+AS $$
 DECLARE
   v_trip_id UUID;
   v_member_id UUID;
@@ -730,7 +751,7 @@ BEGIN
     'member_id', v_member_id
   );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- Grant execution to anon/authenticated roles
 GRANT EXECUTE ON FUNCTION get_trip_bundle(TEXT) TO anon, authenticated;
