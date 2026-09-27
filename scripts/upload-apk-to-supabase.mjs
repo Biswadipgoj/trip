@@ -3,10 +3,11 @@ import path from 'path';
 import crypto from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co';
-// Releases are written with the service-role key only. The public anon key
-// cannot write to the android-app bucket (supabase/migrations/20260925_harden_storage.sql),
-// so nobody holding the web bundle's key can replace the APK.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+if (!SUPABASE_URL) {
+  console.error('Error: set NEXT_PUBLIC_SUPABASE_URL in your environment.');
+  process.exit(1);
+}
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_KEY) {
   console.error('Error: set SUPABASE_SERVICE_ROLE_KEY (Supabase Dashboard -> Project Settings -> API) to upload a release.');

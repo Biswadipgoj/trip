@@ -11,7 +11,8 @@ export const runtime = 'nodejs'
 // and Android then reports "App not installed".
 
 function getPartUrls(): string[] {
-  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://qufmbheewymzyzkfaivr.supabase.co').replace(/\/+$/, '')
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '')
+  if (!supabaseUrl) return []
   return [1, 2, 3].map(n => `${supabaseUrl}/storage/v1/object/public/android-app/tripmate-latest.apk.part${n}`)
 }
 
