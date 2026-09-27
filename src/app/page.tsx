@@ -13,36 +13,22 @@ import {
   Smartphone,
   ShieldCheck,
   Zap,
-  TrendingDown,
-  ArrowUpRight,
-  Download,
   Check,
+  WifiOff,
+  Download,
+  QrCode,
+  Camera,
 } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-
-const features = [
-  {
-    icon: Users,
-    title: 'Instant Group Trips',
-    desc: 'Share a simple 6-letter trip code with friends. No app install required for web guests.',
-  },
-  {
-    icon: Receipt,
-    title: 'Reliable Bill & UPI Snaps',
-    desc: 'Attach bill photos and UPI payment screenshots. Saved offline and synced to the cloud.',
-  },
-  {
-    icon: CheckCircle2,
-    title: 'Minimal Debt Transfers',
-    desc: 'Our engine compresses complex debts into the fewest direct UPI transfers.',
-  },
-]
+import { useTranslation } from '@/lib/i18n'
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
 
 export default function Home() {
   const router = useRouter()
   const session = useStore(s => s.session)
   const [activeTab, setActiveTab] = useState<'minimal' | 'messy'>('minimal')
+  const { t } = useTranslation()
 
   useEffect(() => {
     if (session?.tripId) {
@@ -50,8 +36,66 @@ export default function Home() {
     }
   }, [session, router])
 
+  const features = [
+    {
+      icon: Users,
+      title: t('feat1Title'),
+      desc: t('feat1Desc'),
+    },
+    {
+      icon: Receipt,
+      title: t('feat2Title'),
+      desc: t('feat2Desc'),
+    },
+    {
+      icon: CheckCircle2,
+      title: t('feat3Title'),
+      desc: t('feat3Desc'),
+    },
+    {
+      icon: WifiOff,
+      title: t('feat4Title'),
+      desc: t('feat4Desc'),
+    },
+  ]
+
   return (
-    <main className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-12 py-12 lg:py-20 max-w-7xl mx-auto overflow-hidden">
+    <main className="min-h-screen flex flex-col justify-center px-4 sm:px-6 lg:px-12 py-8 lg:py-16 max-w-7xl mx-auto overflow-hidden">
+      {/* Top Bar with Language Selector and Navigation */}
+      <div className="flex items-center justify-between mb-8 sm:mb-12 pb-4 border-b border-brand-500/10">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl overflow-hidden shadow-md ring-2 ring-brand-500/30">
+            <Image
+              src="/logo.png"
+              alt="TripMate"
+              width={40}
+              height={40}
+              priority
+              className="w-full h-full object-cover"
+            />
+          </div>
+          <span
+            className="text-xl font-extrabold tracking-tight text-slate-950"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            TripMate
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2.5">
+          {/* 20-Language Selector Dropdown / Modal */}
+          <LanguageSelector />
+
+          <Link
+            href="/download"
+            className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-700 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 transition-all"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>{t('getAndroidApp')}</span>
+          </Link>
+        </div>
+      </div>
+
       {/* Hero Section: Responsive Split on Desktop, Focused Stack on Mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
         {/* Left Column: Headline & Action Triggers */}
@@ -61,33 +105,17 @@ export default function Home() {
           transition={{ duration: 0.65, ease: [0.21, 0.47, 0.32, 0.98] }}
           className="text-center lg:text-left lg:col-span-6 xl:col-span-7"
         >
-          {/* Logo with playful hover bounce */}
-          <motion.div
-            initial={{ scale: 0, rotate: -20 }}
-            animate={{ scale: 1, rotate: 0 }}
-            whileHover={{ scale: 1.08, rotate: [0, -8, 8, -4, 0] }}
-            transition={{ type: 'spring', stiffness: 350, damping: 22 }}
-            className="inline-block mb-6 w-20 h-20 sm:w-24 sm:h-24 rounded-3xl overflow-hidden shadow-glow-brand ring-2 ring-brand-500/30 cursor-pointer"
-          >
-            <Image
-              src="/logo.png"
-              alt="TripMate"
-              width={96}
-              height={96}
-              priority
-              className="w-full h-full object-cover"
-            />
-          </motion.div>
-
-          {/* Super-title Pill */}
+          {/* Friendly Tagline Pill */}
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-600/10 px-3.5 py-1.5 mb-4 shadow-sm backdrop-blur-md">
               <Sparkles className="w-4 h-4 text-brand-500 animate-spin" style={{ animationDuration: '8s' }} />
-              <span className="text-xs font-bold tracking-wide text-brand-700">TripMate 4.0 · Smart Group Expense Manager</span>
+              <span className="text-xs font-bold tracking-wide text-brand-700">
+                TripMate · {t('tagline')}
+              </span>
             </div>
           </div>
 
-          {/* Main Headline */}
+          {/* Main Headline — De-AI-fied, Human & Relatable */}
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
@@ -95,8 +123,8 @@ export default function Home() {
             className="text-4xl sm:text-5xl xl:text-6xl font-extrabold tracking-tight text-slate-950 mb-5 leading-[1.12]"
             style={{ fontFamily: "'Space Grotesk', sans-serif" }}
           >
-            Split trips,{' '}
-            <span className="text-gradient-brand">not friendships</span>
+            {t('splitHero')}{' '}
+            <span className="text-gradient-brand">{t('splitSub')}</span>
           </motion.h1>
 
           <motion.p
@@ -105,7 +133,7 @@ export default function Home() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="text-slate-600 text-base sm:text-lg mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed font-normal"
           >
-            Track every rupee, attach bill photos & UPI screenshots, and settle group expenses automatically with the fewest direct payments.
+            {t('heroLead')}
           </motion.p>
 
           {/* CTA Action Buttons */}
@@ -120,7 +148,7 @@ export default function Home() {
               id="create-trip-btn"
               className="btn-brand inline-flex items-center justify-center gap-2.5 px-6 py-3.5 text-sm font-bold shadow-glow-sm hover:shadow-glow-brand hover:scale-105 active:scale-95 transition-all"
             >
-              <span>Create a Trip</span>
+              <span>{t('createTrip')}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </Link>
 
@@ -129,7 +157,7 @@ export default function Home() {
               id="join-trip-btn"
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold text-slate-800 bg-pure-white/90 hover:bg-pure-white border border-brand-500/20 shadow-card hover:shadow-card-hover hover:scale-105 active:scale-95 transition-all"
             >
-              <span>Join Existing Trip</span>
+              <span>{t('joinTrip')}</span>
             </Link>
 
             <Link
@@ -138,7 +166,7 @@ export default function Home() {
               className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-brand-700 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 hover:scale-105 active:scale-95 transition-all"
             >
               <Smartphone className="w-4 h-4 text-brand-600" />
-              <span>Get Android App</span>
+              <span>{t('getAndroidApp')}</span>
             </Link>
           </motion.div>
 
@@ -150,25 +178,25 @@ export default function Home() {
             className="mt-8 pt-6 border-t border-brand-500/15 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-semibold text-slate-500"
           >
             <span className="inline-flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5 text-amber-500" /> 100% Free & No Ads
+              <Zap className="w-3.5 h-3.5 text-amber-500" /> {t('freeNoAds')}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Local-First + Supabase Sync
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> {t('localFirstSync')}
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-brand-500" /> Instant UPI Direct Settle
+              <CheckCircle2 className="w-3.5 h-3.5 text-brand-500" /> {t('upiSettle')}
             </span>
           </motion.div>
         </motion.div>
 
-        {/* Right Column: Playful Animated Desktop Showcase Card */}
+        {/* Right Column: Interactive Friendly Showcase Card */}
         <motion.div
           initial={{ opacity: 0, scale: 0.92, y: 32 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ duration: 0.75, delay: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
           className="lg:col-span-6 xl:col-span-5 relative"
         >
-          {/* Playful Floating Expense Stickers with spring physics */}
+          {/* Floating Expense Stickers */}
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 4.5, repeat: Infinity, ease: 'easeInOut' }}
@@ -195,7 +223,6 @@ export default function Home() {
 
           {/* Interactive Showcase Card */}
           <div className="relative rounded-3xl p-6 sm:p-7 bg-pure-white/85 backdrop-blur-2xl border border-brand-500/20 shadow-elevated overflow-hidden">
-            {/* Ambient card aura */}
             <div className="absolute top-0 right-0 w-48 h-48 bg-brand-500/10 rounded-full blur-2xl pointer-events-none" />
 
             {/* Card Header */}
@@ -203,33 +230,41 @@ export default function Home() {
               <div className="flex items-center gap-2.5">
                 <span className="text-2xl">🌴</span>
                 <div>
-                  <h2 className="text-sm font-bold text-slate-900 leading-tight">Goa Getaway 2026</h2>
-                  <p className="text-[11px] font-semibold text-slate-500">4 members · ₹28,600 spent</p>
+                  <h2 className="text-sm font-bold text-slate-900 leading-tight">Goa Trip 2026</h2>
+                  <p className="text-[11px] font-semibold text-slate-500">4 friends · ₹28,600 spent</p>
                 </div>
               </div>
               <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-700 text-[11px] font-extrabold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live Demo
+                {t('demoTitle')}
               </span>
             </div>
 
-            {/* Playful Interactive Settlement Engine Simulator */}
+            {/* Interactive Settlement Simulator */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">Smart Settlement Engine</p>
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-500">{t('settlements')}</p>
                 {/* Toggle tab */}
                 <div className="flex items-center p-0.5 rounded-xl bg-surface-2 border border-brand-500/15 text-[11px] font-bold">
                   <button
                     onClick={() => setActiveTab('minimal')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${activeTab === 'minimal' ? 'bg-pure-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      activeTab === 'minimal'
+                        ? 'bg-pure-white text-brand-700 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
                   >
-                    TripMate (1 Pay)
+                    {t('minimalTransfers')}
                   </button>
                   <button
                     onClick={() => setActiveTab('messy')}
-                    className={`px-2.5 py-1 rounded-lg transition-all ${activeTab === 'messy' ? 'bg-pure-white text-amber-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                    className={`px-2.5 py-1 rounded-lg transition-all ${
+                      activeTab === 'messy'
+                        ? 'bg-pure-white text-amber-700 shadow-sm'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
                   >
-                    Standard (6 Pays)
+                    {t('messyTransfers')}
                   </button>
                 </div>
               </div>
@@ -247,10 +282,10 @@ export default function Home() {
                     <div className="flex items-center justify-between mb-3">
                       <span className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
                         <Check className="w-4 h-4 text-emerald-600" />
-                        Optimal Path: 1 Single Transfer
+                        {t('optimalPath')}
                       </span>
                       <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500 text-pure-white">
-                        83% Less Friction
+                        {t('frictionFree')}
                       </span>
                     </div>
 
@@ -286,10 +321,10 @@ export default function Home() {
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-amber-800">
-                        Without TripMate: 6 Confusing Transfers
+                        {t('messyPath')}
                       </span>
                       <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-500 text-pure-white">
-                        High Confusion
+                        Too Many Payments
                       </span>
                     </div>
                     <div className="space-y-1.5 text-[11px] text-slate-600 font-medium">
@@ -305,12 +340,12 @@ export default function Home() {
               {/* Quick Trip Features Glances */}
               <div className="grid grid-cols-2 gap-2.5 pt-2">
                 <div className="p-3 rounded-xl bg-surface-1/80 border border-brand-500/10 text-center">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">Bill Receipts</p>
-                  <p className="text-xs font-extrabold text-slate-900 mt-0.5">📸 Full Size Zooms</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">{t('addBill')}</p>
+                  <p className="text-xs font-extrabold text-slate-900 mt-0.5">📸 Bill & UPI Photos</p>
                 </div>
                 <div className="p-3 rounded-xl bg-surface-1/80 border border-brand-500/10 text-center">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">Offline Ready</p>
-                  <p className="text-xs font-extrabold text-slate-900 mt-0.5">⚡ Instant Local State</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-500">{t('offlineBadge')}</p>
+                  <p className="text-xs font-extrabold text-slate-900 mt-0.5">⚡ Auto Cloud Sync</p>
                 </div>
               </div>
             </div>
@@ -318,14 +353,65 @@ export default function Home() {
         </motion.div>
       </div>
 
-      {/* Feature Grid Below */}
+      {/* Dedicated Offline Support App Showcase Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 28 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.6 }}
+        className="mt-16 sm:mt-24 rounded-[32px] p-6 sm:p-10 border border-brand-500/25 bg-gradient-to-br from-violet-600/10 via-purple-500/5 to-emerald-500/10 backdrop-blur-xl shadow-xl"
+      >
+        <div className="flex flex-col lg:flex-row items-center justify-between gap-8">
+          <div className="flex-1 text-center lg:text-left">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1 text-xs font-bold text-emerald-800 mb-3">
+              <WifiOff className="w-3.5 h-3.5 text-emerald-600" />
+              <span>{t('offlineApp')}</span>
+            </div>
+            <h2
+              className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950 mb-3"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              Works 100% Offline, Everywhere You Travel
+            </h2>
+            <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl font-normal">
+              {t('offlineAppDesc')}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+              <Link
+                href="/download"
+                className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold shadow-md hover:scale-105 transition-all"
+              >
+                <Download className="w-4 h-4" />
+                <span>{t('downloadApk')}</span>
+              </Link>
+              <span className="text-xs font-semibold text-slate-500">
+                Direct safe APK download · No Play Store account needed
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">
+            <div className="p-4 rounded-2xl bg-pure-white/90 border border-brand-500/15 text-center shadow-sm">
+              <Camera className="w-6 h-6 text-brand-600 mx-auto mb-1.5" />
+              <p className="text-xs font-bold text-slate-900">Receipt Snap</p>
+              <p className="text-[10px] text-slate-500">Compressed & offline</p>
+            </div>
+            <div className="p-4 rounded-2xl bg-pure-white/90 border border-brand-500/15 text-center shadow-sm">
+              <QrCode className="w-6 h-6 text-emerald-600 mx-auto mb-1.5" />
+              <p className="text-xs font-bold text-slate-900">UPI Settle</p>
+              <p className="text-[10px] text-slate-500">GPay, PhonePe, Paytm</p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Feature Grid Below — Translated to all 20 Languages */}
       <motion.div
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.6 }}
-        className="mt-20 lg:mt-24 grid grid-cols-1 sm:grid-cols-3 gap-5 w-full"
+        className="mt-12 sm:mt-16 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full"
       >
-        {features.map((feat, i) => (
+        {features.map((feat) => (
           <motion.div
             key={feat.title}
             whileHover={{ y: -6, scale: 1.02 }}

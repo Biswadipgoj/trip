@@ -671,7 +671,10 @@ export const useStore = create<AppState>()(
         // Members first — expenses/settlements reference them via foreign keys
         const newMembers = s.members.filter(m => m.tripId === tripId && !onServer(memberIds, m.id))
         for (const m of newMembers) {
-          try { await remoteAddManualMember(m) } catch { /* retried next sync */ }
+          try {
+            const ok = await remoteAddManualMember(m)
+            if (ok) set(st => ({ synced: { ...st.synced, [m.id]: true } }))
+          } catch { /* retried next sync */ }
         }
 
         // A healed trip row starts with creator_id NULL — restore the admin.
@@ -682,20 +685,30 @@ export const useStore = create<AppState>()(
         const jobs: Promise<unknown>[] = []
         s.expenses.filter(e => e.tripId === tripId && !queuedDeletes.has(e.id)).forEach(e => {
           const r = remoteExpenses.get(e.id)
-          if (!r && !s.synced[e.id]) jobs.push(remotePushExpense(e))
-          else if (r && r.participants.length === 0 && e.participants.length > 0) {
+          if (!r && !s.synced[e.id]) {
+            jobs.push(remotePushExpense(e).then(ok => {
+              if (ok) set(st => ({ synced: { ...st.synced, [e.id]: true } }))
+            }))
+          } else if (r && r.participants.length === 0 && e.participants.length > 0) {
             jobs.push(remoteHealExpenseParticipants(e))
           }
         })
         s.hotelExpenses.filter(h => h.tripId === tripId && !queuedDeletes.has(h.id)).forEach(h => {
           const r = remoteHotels.get(h.id)
-          if (!r && !s.synced[h.id]) jobs.push(remotePushHotelExpense(h))
-          else if (r && r.rooms.length === 0 && h.rooms.length > 0) jobs.push(remoteHealHotelRooms(h))
+          if (!r && !s.synced[h.id]) {
+            jobs.push(remotePushHotelExpense(h).then(ok => {
+              if (ok) set(st => ({ synced: { ...st.synced, [h.id]: true } }))
+            }))
+          } else if (r && r.rooms.length === 0 && h.rooms.length > 0) {
+            jobs.push(remoteHealHotelRooms(h))
+          }
         })
         s.settlementGroups.filter(g => g.tripId === tripId && !queuedDeletes.has(g.id)).forEach(g => {
           const r = remoteGroups.get(g.id)
           if ((!r && !s.synced[g.id]) || (r && r.memberIds.length === 0 && g.memberIds.length > 0)) {
-            jobs.push(remotePushSettlementGroup(g))
+            jobs.push(remotePushSettlementGroup(g).then(ok => {
+              if (ok) set(st => ({ synced: { ...st.synced, [g.id]: true } }))
+            }))
           }
         })
         s.sponsorships
@@ -955,12 +968,17 @@ export const useStore = create<AppState>()(
 
         const updatedTripSettlements = [...confirmedRecords, ...dues]
 
-        set(s => ({
-          settlements: [
-            ...s.settlements.filter(x => x.tripId !== tripId),
-            ...updatedTripSettlements,
-          ],
-        }))
+        // Only commit state if settlements actually changed
+        const prevKey = prevSettlements.map(x => `${x.id}:${x.status}:${x.amount}:${x.fromMemberId}:${x.toMemberId}`).sort().join('|')
+        const nextKey = updatedTripSettlements.map(x => `${x.id}:${x.status}:${x.amount}:${x.fromMemberId}:${x.toMemberId}`).sort().join('|')
+        if (prevKey !== nextKey) {
+          set(s => ({
+            settlements: [
+              ...s.settlements.filter(x => x.tripId !== tripId),
+              ...updatedTripSettlements,
+            ],
+          }))
+        }
 
         // Clean stale settlement rows on Supabase
         const validIds = updatedTripSettlements.map(x => x.id)

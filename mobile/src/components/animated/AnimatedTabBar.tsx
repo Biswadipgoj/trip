@@ -27,11 +27,10 @@ const ICONS: Record<string, IconType> = {
   analytics: ChartColumn,
 }
 
-const PILL_SPRING = { damping: 20, stiffness: 240, mass: 0.8 }
+const PILL_SPRING = { damping: 18, stiffness: 280, mass: 0.7 }
 
 export function TabBar({ state, descriptors, navigation, badges = {} }: TabBarProps & { badges?: Record<string, number> }) {
   const insets = useSafeAreaInsets()
-  const reduced = useReducedMotion()
   const [width, setWidth] = useState(0)
   const [keyboard, setKeyboard] = useState(false)
   const count = state.routes.length
@@ -40,8 +39,8 @@ export function TabBar({ state, descriptors, navigation, badges = {} }: TabBarPr
 
   useEffect(() => {
     if (!itemW) return
-    x.value = reduced ? state.index * itemW : withSpring(state.index * itemW, PILL_SPRING)
-  }, [state.index, itemW, reduced, x])
+    x.value = withSpring(state.index * itemW, PILL_SPRING)
+  }, [state.index, itemW, x])
 
   useEffect(() => {
     if (Platform.OS === 'web') return
@@ -106,13 +105,15 @@ export function TabBar({ state, descriptors, navigation, badges = {} }: TabBarPr
 }
 
 function TabIcon({ Icon, focused, badge }: { Icon: IconType; focused: boolean; badge: number }) {
-  const reduced = useReducedMotion()
   const scale = useSharedValue(1)
   useEffect(() => {
-    if (focused && !reduced) {
-      scale.value = withSequence(withSpring(1.2, { damping: 8, stiffness: 400 }), withSpring(1, { damping: 12, stiffness: 300 }))
+    if (focused) {
+      scale.value = withSequence(
+        withSpring(1.22, { damping: 9, stiffness: 450 }),
+        withSpring(1, { damping: 13, stiffness: 320 })
+      )
     }
-  }, [focused, reduced, scale])
+  }, [focused, scale])
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))
   return (
     <Animated.View style={style}>

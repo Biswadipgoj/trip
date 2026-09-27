@@ -15,10 +15,12 @@ import { TripTopBar } from '../../components/ui/AnimatedHeader'
 import { LiquidBackground } from '../../components/ui/Screen'
 import { TabBar } from '../../components/animated/AnimatedTabBar'
 import { C, amber } from '../../theme/colors'
+import { useTranslation } from '../../lib/i18n'
 
 export const unstable_settings = { initialRouteName: 'dashboard' }
 
 export default function TripTabsLayout() {
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const trip = useStore(s => (s.session ? s.trips.find(t => t.id === s.session!.tripId) : undefined))
   const me = useStore(s => (s.session ? s.members.find(m => m.id === s.session!.memberId) : undefined))
@@ -66,33 +68,31 @@ export default function TripTabsLayout() {
           sceneStyle: { backgroundColor: 'transparent' },
         }}
       >
-        <Tabs.Screen name="dashboard" options={{ title: 'Dashboard' }} />
-        <Tabs.Screen name="members" options={{ title: 'Members' }} />
-        <Tabs.Screen name="expenses" options={{ title: 'Expenses' }} />
-        <Tabs.Screen name="settlements" options={{ title: 'Payments' }} />
-        <Tabs.Screen name="analytics" options={{ title: 'Report' }} />
+        <Tabs.Screen name="dashboard" options={{ title: t('dashboard') }} />
+        <Tabs.Screen name="members" options={{ title: t('members') }} />
+        <Tabs.Screen name="expenses" options={{ title: t('expenses') }} />
+        <Tabs.Screen name="settlements" options={{ title: t('payments') }} />
+        <Tabs.Screen name="analytics" options={{ title: t('report') }} />
       </Tabs>
     </View>
   )
 }
 
-/** Offline banner. Changes are saved to the cloud before they show as done
- *  (lib/cloud.ts), so offline the trip is read-only — except bill photos,
- *  which wait on the phone and upload by themselves. */
+/** Offline banner: confirms offline support and automatic sync on reconnect. */
 function OfflineBanner() {
   const online = useSyncStatus(s => s.online)
-  const reduced = useReducedMotion()
+  const { t } = useTranslation()
   if (online) return null
   return (
     <Animated.View
-      entering={reduced ? undefined : FadeInUp.duration(260)}
-      exiting={reduced ? undefined : FadeOutUp.duration(200)}
+      entering={FadeInUp.duration(280)}
+      exiting={FadeOutUp.duration(220)}
       style={styles.offline}
       accessibilityRole="alert"
     >
       <WifiOff size={16} color={C.amber700} strokeWidth={2.3} />
       <T variant="smallMedium" color={C.amber700} style={styles.flex}>
-        You’re offline. You can view your trip; connect to add or change anything. Bill photos upload when you’re back online.
+        {t('offlineNotice')}
       </T>
     </Animated.View>
   )

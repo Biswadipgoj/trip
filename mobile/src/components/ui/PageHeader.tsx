@@ -12,6 +12,7 @@ import { FadeIn } from '../animated/FadeInView'
 import { BrandFooter } from './BrandFooter'
 import { GradientText, T } from './Text'
 import type { IconType } from './Button'
+import { useTranslation } from '../../lib/i18n'
 
 interface PageHeaderProps {
   icon: IconType
@@ -94,16 +95,18 @@ export function PageScroll({ children, onRefresh, bottomPadding = 110, gap = 18 
 
 /** "← Back" link at the top of the create / join / login flows. */
 export function BackLink({ label = 'Back', onPress }: { label?: string; onPress?: () => void }) {
+  const { t } = useTranslation()
+  const displayLabel = label === 'Back' ? t('back') : label
   return (
     <Pressable
       onPress={onPress ?? (() => (router.canGoBack() ? router.back() : router.replace('/')))}
       hitSlop={10}
       style={styles.back}
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={displayLabel}
     >
       <ArrowLeft size={16} color={ink(0.65)} strokeWidth={2.2} />
-      <T variant="bodyMedium" color={ink(0.65)}>{label}</T>
+      <T variant="bodyMedium" color={ink(0.65)}>{displayLabel}</T>
     </Pressable>
   )
 }

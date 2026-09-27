@@ -8,6 +8,7 @@ import { createInviteLink } from '@/lib/utils'
 import { ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2, IndianRupee } from 'lucide-react'
 import type { Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
 
 type Step = 'details' | 'pin' | 'success'
@@ -95,13 +96,14 @@ export default function CreateTripPage() {
       <ConfettiBlast trigger={confetti} type="burst" />
 
       <div className="w-full max-w-md">
-        {/* Back link */}
+        {/* Back link & Language selector */}
         {step !== 'success' && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-            <Link href="/" className="inline-flex items-center gap-2 text-white/65 hover:text-white text-sm mb-8 transition-colors">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-semibold transition-colors">
               <ArrowLeft className="w-4 h-4" />
-              Back
+              <span>Back</span>
             </Link>
+            <LanguageSelector />
           </motion.div>
         )}
 
@@ -366,7 +368,7 @@ export default function CreateTripPage() {
                 >
                   <p className="text-xs text-white/60 mb-2 font-medium flex items-center gap-1.5">
                     <Link2 className="w-3.5 h-3.5" />
-                    SHARE JOIN LINK (works on any device)
+                    SHORT INVITE LINK (easy to share)
                   </p>
                   <p className="text-[11px] text-white/50 font-mono break-all mb-3 leading-relaxed">
                     {shareUrl}

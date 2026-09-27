@@ -13,6 +13,7 @@ import {
 import { useStore } from '../../lib/store'
 import { useTripData } from '../../lib/hooks'
 import { syncTrip } from '../../lib/sync'
+import { useTranslation } from '../../lib/i18n'
 import { toast } from '../../lib/toast'
 import {
   formatCompactINR, formatCurrency, formatDate, formatDayShort, getCategoryColor, getCategoryGradientColors,
@@ -36,6 +37,7 @@ import { tick } from '../../components/animated/SpringPressable'
 const rankMedal = (i: number) => (i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`)
 
 export default function ReportScreen() {
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const tripId = session?.tripId
   const { trip, members, expenses, hotelExpenses, settlements, balances, routes, memberMap, totalSpent: totalSpend } = useTripData(tripId)
@@ -234,7 +236,7 @@ export default function ReportScreen() {
     <PageScroll onRefresh={() => syncTrip(tripId)}>
       <PageHeader
         icon={ChartColumn}
-        title="Trip Analytics"
+        title={t('report')}
         subtitle={trip?.name}
         vivid
         right={<Button title="PDF" icon={Download} variant="ghost" size="sm" loading={exporting} disabled={!trip || totalSpend === 0} onPress={() => void handleExport()} accessibilityLabel="Export PDF" />}

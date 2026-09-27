@@ -3,7 +3,7 @@
 // Haptics are opt-in per control: a tick on every tap trains people to turn
 // them off, so they are kept for selections and committed actions.
 import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from 'react-native'
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated'
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated'
 import * as Haptics from 'expo-haptics'
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
@@ -42,21 +42,22 @@ export interface PressScaleProps extends Omit<PressableProps, 'style'> {
 }
 
 export function PressScale({
-  style, scaleTo = 0.97, haptic = false, onPressIn, onPressOut, onPress, children, ...rest
+  style, scaleTo = 0.96, haptic = false, onPressIn, onPressOut, onPress, children, ...rest
 }: PressScaleProps) {
   const scale = useSharedValue(1)
-  const reduced = useReducedMotion()
-  const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }))
+  const animated = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }))
 
   return (
     <AnimatedPressable
       {...rest}
       onPressIn={e => {
-        if (!reduced) scale.set(withTiming(scaleTo, PRESS_IN))
+        scale.value = withSpring(scaleTo, { damping: 14, stiffness: 360 })
         onPressIn?.(e)
       }}
       onPressOut={e => {
-        scale.set(withTiming(1, PRESS_OUT))
+        scale.value = withSpring(1, { damping: 12, stiffness: 300 })
         onPressOut?.(e)
       }}
       onPress={e => {

@@ -12,6 +12,7 @@ import {
 import { useStore } from '../../lib/store'
 import { proofsFor, useTripData, type Due } from '../../lib/hooks'
 import { syncTrip } from '../../lib/sync'
+import { useTranslation } from '../../lib/i18n'
 import { cloudDeleteSettlement, cloudSetPaymentStatus, withCloud } from '../../lib/cloud'
 import { confirmAction } from '../../lib/dialogs'
 import { toast } from '../../lib/toast'
@@ -37,6 +38,7 @@ function MoneyFlowArrow() {
 }
 
 export default function PaymentsScreen() {
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const tripId = session?.tripId
   const { balances, routes, dues, confirmed, settlements, memberMap, attachments } = useTripData(tripId)
@@ -113,12 +115,12 @@ export default function PaymentsScreen() {
       <PageScroll onRefresh={async () => { await syncTrip(tripId); if (tripId) generateSettlements(tripId) }}>
         <PageHeader
           icon={CreditCard}
-          title="Payments"
+          title={t('payments')}
           subtitle={
             routes.length === 0
               ? confirmedCount > 0
-                ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
-                : 'All balances are clear'
+                ? `${t('allSettled')} · ${confirmedCount} confirmed`
+                : t('allSettled')
               : `${routes.length} payment${routes.length !== 1 ? 's' : ''} to settle${confirmedCount > 0 ? ` · ${confirmedCount} confirmed` : ''}`
           }
         />

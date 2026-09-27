@@ -79,11 +79,24 @@ export default function LoginScreen() {
     }
     setLoading(true)
     try {
-      // Cloud-only: credentials are checked against Supabase and the whole trip
-      // is loaded from it, so every phone sees the same, current data.
+      // 1. Check local device credentials first (instant login & works 100% offline)
+      const localMember = login(code, mobile.trim(), pin)
+      const localTripObj = localMember ? getTripByCode(code) : undefined
+      if (localMember && localTripObj) {
+        setSession({ tripId: localTripObj.id, memberId: localMember.id, tripCode: localTripObj.tripCode })
+        welcome(localMember.id)
+        if (isRemoteEnabled() && useSyncStatus.getState().online) {
+          void remoteFetchTripBundle(localTripObj.id).then(bundle => {
+            if (bundle) mergeRemoteTrip(bundle)
+          }).catch(() => {})
+        }
+        return
+      }
+
+      // 2. Not found locally: authenticate against Supabase cloud if online
       if (isRemoteEnabled()) {
         if (!useSyncStatus.getState().online) {
-          fail("You're offline. Connect to the internet to log in.")
+          fail("Trip not found on this device while offline. Connect to the internet to log in.")
           return
         }
         let remoteTrip: Awaited<ReturnType<typeof remoteFindTripByCode>> = null
@@ -111,14 +124,6 @@ export default function LoginScreen() {
         return
       }
 
-      // Developer preview without the cloud: this phone's data only.
-      const member = login(code, mobile.trim(), pin)
-      const trip = member ? getTripByCode(code) : undefined
-      if (member && trip) {
-        setSession({ tripId: trip.id, memberId: member.id, tripCode: trip.tripCode })
-        welcome(member.id)
-        return
-      }
       fail('Invalid trip code, mobile, or PIN. Please check and try again.')
     } finally {
       setLoading(false)

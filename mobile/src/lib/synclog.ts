@@ -39,10 +39,16 @@ export const useSyncStatus = create<SyncStatusState>()(set => ({
   events: [],
 
   log: (level, tag, detail) =>
-    set(s => ({
-      events: [{ at: new Date().toISOString(), level, tag, detail }, ...s.events].slice(0, MAX_EVENTS),
-      ...(level === 'error' ? { lastError: `${tag}${detail ? `: ${detail}` : ''}` } : {}),
-    })),
+    set(s => {
+      const first = s.events[0]
+      if (first && first.level === level && first.tag === tag && first.detail === detail) {
+        return s
+      }
+      return {
+        events: [{ at: new Date().toISOString(), level, tag, detail }, ...s.events].slice(0, MAX_EVENTS),
+        ...(level === 'error' ? { lastError: `${tag}${detail ? `: ${detail}` : ''}` } : {}),
+      }
+    }),
 
   markSync: (ok, error) =>
     set(s => ({

@@ -148,7 +148,16 @@ export function createInviteToken(trip: Trip): string {
   return toBase64Url(JSON.stringify(payload))
 }
 
+/** Creates a concise, clean short link for sharing a trip across devices. */
 export function createInviteLink(trip: Trip, origin: string): string {
+  if (trip.tripCode) {
+    return `${origin}/s/${trip.tripCode}`
+  }
+  return `${origin}/join-trip?invite=${createInviteToken(trip)}`
+}
+
+/** Legacy full-payload token link when raw base64 embed is explicitly required. */
+export function createLongInviteLink(trip: Trip, origin: string): string {
   return `${origin}/join-trip?invite=${createInviteToken(trip)}`
 }
 

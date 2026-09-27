@@ -20,6 +20,8 @@ import { APP_RELEASE, getApkDownloadUrl } from '@/config/appRelease'
 import { triggerApkDownload } from '@/lib/downloadApk'
 import { isAndroidDevice } from '@/hooks/useAndroidAppPrompt'
 
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
+
 export function DownloadPageClient() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
@@ -60,8 +62,8 @@ export function DownloadPageClient() {
       className="min-h-screen py-10 px-4 sm:px-6 lg:px-8 max-w-4xl mx-auto text-slate-900"
       style={{ colorScheme: 'light' }}
     >
-      {/* Top Breadcrumb Navigation */}
-      <div className="mb-6">
+      {/* Top Breadcrumb Navigation & Language Selector */}
+      <div className="mb-6 flex items-center justify-between">
         <Link
           href="/"
           className="inline-flex items-center gap-2 text-sm font-bold text-violet-700 hover:text-violet-900 bg-pure-white/90 px-3.5 py-1.5 rounded-full border border-violet-200/80 shadow-sm transition-all"
@@ -69,6 +71,7 @@ export function DownloadPageClient() {
           <ArrowLeft className="h-4 w-4 text-violet-700" />
           <span>Back to TripMate</span>
         </Link>
+        <LanguageSelector />
       </div>
 
       {/* Non-Android Device Notice */}
@@ -202,9 +205,9 @@ export function DownloadPageClient() {
           <div className="h-10 w-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700 mb-3">
             <WifiOff className="h-5 w-5" />
           </div>
-          <h3 className="text-sm font-bold text-slate-950">Check your trip without signal</h3>
+          <h3 className="text-sm font-bold text-slate-950">Works 100% offline &amp; auto-syncs</h3>
           <p className="mt-1 text-xs font-medium text-slate-700 leading-relaxed">
-            Your trip, balances and bill photos stay on the phone, so you can see who owes what anywhere. New expenses save once you&apos;re online.
+            Add expenses, stays, members, and payments with zero signal. Everything saves instantly and automatically syncs to cloud when back online.
           </p>
         </div>
 

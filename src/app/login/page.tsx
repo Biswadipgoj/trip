@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { isRemoteEnabled, remoteFindTripByCode, remoteGetMembers, remoteFetchTripBundle } from '@/lib/remote'
-import { ArrowRight, Phone, Hash, Shield } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Phone, Hash, Shield } from 'lucide-react'
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -67,13 +68,22 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
+        {/* Back Link & Language Selector */}
+        <div className="flex items-center justify-between mb-6">
+          <Link href="/" className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back</span>
+          </Link>
+          <LanguageSelector />
+        </div>
+
         {/* Logo */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <div className="mx-auto mb-4 w-16 h-16 rounded-2xl overflow-hidden shadow-glow-brand ring-1 ring-white/40">
+          <div className="mx-auto mb-4 w-16 h-16 rounded-2xl overflow-hidden shadow-glow-brand ring-1 ring-brand-500/30">
             <Image src="/logo.png" alt="TripMate" width={64} height={64} priority className="w-full h-full object-cover" />
           </div>
           <h1 className="text-2xl font-bold text-white mb-1">Welcome back</h1>

@@ -22,22 +22,14 @@ import {
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { useTripSync } from '@/hooks/useTripSync'
+import { useTranslation } from '@/lib/i18n'
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
 
 interface NavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
   badgeKey?: 'expenses' | 'members'
-}
-
-function getNavItems(tripId: string): NavItem[] {
-  return [
-    { href: `/dashboard/${tripId}`, label: 'Dashboard', icon: LayoutDashboard },
-    { href: `/members/${tripId}`,   label: 'Members',   icon: Users, badgeKey: 'members' },
-    { href: `/expenses/${tripId}`,  label: 'Expenses',  icon: Receipt, badgeKey: 'expenses' },
-    { href: `/payments/${tripId}`,  label: 'Payments',  icon: CreditCard },
-    { href: `/report/${tripId}`,    label: 'Report',    icon: BarChart3 },
-  ]
 }
 
 interface AppNavProps {
@@ -47,6 +39,7 @@ interface AppNavProps {
 export function AppNav({ tripId }: AppNavProps) {
   const pathname = usePathname()
   const router = useRouter()
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const allTrips = useStore(s => s.trips)
   const allMembers = useStore(s => s.members)
@@ -59,7 +52,14 @@ export function AppNav({ tripId }: AppNavProps) {
   const members = React.useMemo(() => allMembers.filter(m => m.tripId === tripId), [allMembers, tripId])
   const expenses = React.useMemo(() => allExpenses.filter(e => e.tripId === tripId), [allExpenses, tripId])
   const settlements = React.useMemo(() => allSettlements.filter(st => st.tripId === tripId), [allSettlements, tripId])
-  const navItems = React.useMemo(() => getNavItems(tripId), [tripId])
+
+  const navItems: NavItem[] = React.useMemo(() => [
+    { href: `/dashboard/${tripId}`, label: t('dashboard'), icon: LayoutDashboard },
+    { href: `/members/${tripId}`,   label: t('members'),   icon: Users, badgeKey: 'members' },
+    { href: `/expenses/${tripId}`,  label: t('expenses'),  icon: Receipt, badgeKey: 'expenses' },
+    { href: `/payments/${tripId}`,  label: t('payments'),  icon: CreditCard },
+    { href: `/report/${tripId}`,    label: t('report'),    icon: BarChart3 },
+  ], [tripId, t])
 
   const [copiedCode, setCopiedCode] = useState(false)
 
@@ -106,15 +106,18 @@ export function AppNav({ tripId }: AppNavProps) {
             </p>
           </div>
 
-          <button
-            id="logout-btn-mobile"
-            onClick={handleLogout}
-            aria-label="Log out"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-transform"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Logout
-          </button>
+          <div className="flex items-center gap-2">
+            <LanguageSelector />
+            <button
+              id="logout-btn-mobile"
+              onClick={handleLogout}
+              aria-label="Log out"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-transform"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>{t('logout')}</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -205,7 +208,7 @@ export function AppNav({ tripId }: AppNavProps) {
           className="mb-4 w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bold text-xs text-pure-white bg-gradient-brand shadow-glow-sm hover:shadow-glow-brand hover:scale-[1.02] active:scale-95 transition-all"
         >
           <Plus className="w-4 h-4 text-pure-white stroke-[2.5]" />
-          <span>Add Expense</span>
+          <span>{t('addExpense')}</span>
         </Link>
 
         {/* Main Desktop Navigation Items with Spring Hover & Active Glances */}
@@ -277,13 +280,18 @@ export function AppNav({ tripId }: AppNavProps) {
             </div>
           </div>
 
+          {/* Language Selector in Desktop Sidebar */}
+          <div className="pt-1">
+            <LanguageSelector className="w-full" />
+          </div>
+
           <button
             id="logout-btn"
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all active:scale-95"
           >
             <LogOut className="w-4 h-4" />
-            <span>Sign Out</span>
+            <span>{t('logout')}</span>
           </button>
         </div>
       </aside>

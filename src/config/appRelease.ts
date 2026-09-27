@@ -36,8 +36,9 @@ export const APP_RELEASE: AppReleaseMetadata = {
   packageName: 'com.tripmate.app',
   appName: 'TripMate',
   features: [
-    'Trip, balances and bill photos stay viewable without signal',
-    'Bill photos are compressed on the phone and upload when online',
+    'Works 100% offline: Add expenses, stays, members and payments with zero connection',
+    'Automatic cloud sync once reconnected to internet',
+    'Bill photos are compressed on the phone and uploaded smoothly',
     'Pay over UPI and attach the payment screenshot',
     'Settles up with the fewest payments',
   ],

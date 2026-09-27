@@ -29,9 +29,7 @@ interface FadeInProps {
   style?: StyleProp<ViewStyle>
 }
 
-export function FadeIn({ children, delay = 0, duration = 480, direction = 'up', style }: FadeInProps) {
-  const reduced = useReducedMotion()
-  if (reduced) return <Animated.View style={style}>{children}</Animated.View>
+export function FadeIn({ children, delay = 0, duration = 440, direction = 'up', style }: FadeInProps) {
   // Reanimated names the side the element starts on: FadeInDown rises from below.
   const base =
     direction === 'up' ? FadeInDown
@@ -61,17 +59,15 @@ interface RiseOptions {
 /** Mount animation driven by shared values (fade + rise + scale). Unlike a
  *  Keyframe layout animation it never changes positioning, so it behaves the
  *  same on Android and in the web preview. */
-export function useRiseIn({ delay = 0, distance = 24, fromScale = 1, duration = 500, spring }: RiseOptions = {}) {
-  const reduced = useReducedMotion()
-  const p = useSharedValue(reduced ? 1 : 0)
+export function useRiseIn({ delay = 0, distance = 24, fromScale = 1, duration = 480, spring }: RiseOptions = {}) {
+  const p = useSharedValue(0)
   useEffect(() => {
-    if (reduced) return
     const to = spring ? withSpring(1, spring) : withTiming(1, { duration, easing: EASE_OUT })
     p.value = withDelay(Math.min(delay, MAX_DELAY), to)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   return useAnimatedStyle(() => ({
-    opacity: Math.min(1, p.value),
+    opacity: Math.min(1, Math.max(0, p.value)),
     transform: [{ translateY: (1 - p.value) * distance }, { scale: fromScale + (1 - fromScale) * p.value }],
   }))
 }

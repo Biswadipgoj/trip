@@ -23,8 +23,8 @@ import type { Attachment } from '../types'
 
 const BASE_BACKOFF_MS = 5_000
 const MAX_BACKOFF_MS = 10 * 60_000
-/** Server not set up for media (bucket/table missing): retry in 15 seconds. */
-const SETUP_BACKOFF_MS = 15_000
+/** Server not set up for media (bucket/table missing): retry in 60 seconds or when user manually retries. */
+const SETUP_BACKOFF_MS = 60_000
 const NEVER = Number.MAX_SAFE_INTEGER
 
 // File-existence checks are synchronous native calls; thumbnails ask often.

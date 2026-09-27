@@ -11,6 +11,7 @@ import {
 } from '@/lib/remote'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
+import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
 import type { Trip, InvitePayload } from '@/types'
 
@@ -263,10 +264,13 @@ function JoinTripContent() {
 
       <div className="w-full max-w-md">
         {step !== 'success' && (
-          <Link href="/" className="inline-flex items-center gap-2 text-white/65 hover:text-white text-sm mb-8 transition-colors">
-            <ArrowLeft className="w-4 h-4" />
-            Back
-          </Link>
+          <div className="flex items-center justify-between mb-8">
+            <Link href="/" className="inline-flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm font-semibold transition-colors">
+              <ArrowLeft className="w-4 h-4" />
+              <span>Back</span>
+            </Link>
+            <LanguageSelector />
+          </div>
         )}
 
         <AnimatePresence mode="wait">

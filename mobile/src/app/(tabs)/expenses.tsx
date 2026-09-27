@@ -16,6 +16,7 @@ import type { Expense, HotelExpense, Member, Attachment } from '../../types'
 import { useStore } from '../../lib/store'
 import { useTripData } from '../../lib/hooks'
 import { syncTrip } from '../../lib/sync'
+import { useTranslation } from '../../lib/i18n'
 import { cloudDeleteItem, withCloud } from '../../lib/cloud'
 import { attachImage } from '../../lib/uploads'
 import { confirmAction } from '../../lib/dialogs'
@@ -61,6 +62,7 @@ const DELETE_MESSAGE =
   'This removes it for everyone in the trip, along with its bill photos, and recalculates who owes whom.'
 
 export default function ExpensesScreen() {
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const tripId = session?.tripId
   const { expenses, hotelExpenses, members, memberMap, totalSpent, billsByParent } = useTripData(tripId)
@@ -125,18 +127,18 @@ export default function ExpensesScreen() {
           <View style={styles.header}>
             <PageHeader
               icon={Receipt}
-              title="Expenses"
+              title={t('expenses')}
               subtitle={`${itemCount} item${itemCount !== 1 ? 's' : ''} · ${formatCurrency(totalSpent)}`}
-              right={<Button title="Add" icon={Plus} size="sm" onPress={() => router.push('/add-expense')} testID="open-add-expense-btn" />}
+              right={<Button title={t('addExpense')} icon={Plus} size="sm" onPress={() => router.push('/add-expense')} testID="open-add-expense-btn" />}
             />
           </View>
         }
         ListEmptyComponent={
           <EmptyState
             icon={Receipt}
-            title="No expenses yet"
-            subtitle="Add your first expense to get started"
-            action={<Button title="Add expense" icon={Plus} onPress={() => router.push('/add-expense')} />}
+            title={t('allExpenses')}
+            subtitle="Add meals, stays & rides to track spending"
+            action={<Button title={t('addExpense')} icon={Plus} onPress={() => router.push('/add-expense')} />}
           />
         }
         ListFooterComponent={<BrandFooter bottomPadding={0} />}

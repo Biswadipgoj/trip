@@ -34,11 +34,13 @@ function applyNetworkState(state: Network.NetworkState) {
   logSync('info', online ? 'network.online' : 'network.offline')
   if (online) {
     reconnectListeners.forEach(fn => fn())
-    // Auto-sync active trip immediately when internet returns
+    // Auto-sync active trip and any other local trips immediately when internet returns
     const activeTripId = useStore.getState().session?.tripId
     if (activeTripId) {
       void syncTrip(activeTripId)
     }
+    const otherTrips = useStore.getState().trips.filter(t => t.id !== activeTripId)
+    otherTrips.forEach(t => void syncTrip(t.id))
     void processUploads()
   }
 }

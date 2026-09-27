@@ -12,6 +12,7 @@ import {
 import { useStore } from '../../lib/store'
 import { useTripData } from '../../lib/hooks'
 import { syncTrip } from '../../lib/sync'
+import { useTranslation } from '../../lib/i18n'
 import { cloudAddGroup, cloudAddMember, cloudRemoveGroup, cloudUpdateUpi, withCloud } from '../../lib/cloud'
 import { isRemoteEnabled } from '../../lib/remote'
 import { WEB_URL } from '../../lib/config'
@@ -35,6 +36,7 @@ import { C, amber, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 
 export default function MembersScreen() {
+  const { t } = useTranslation()
   const session = useStore(s => s.session)
   const tripId = session?.tripId
   const { trip, members, groups: units, balances, totalSpent, isAdmin } = useTripData(tripId)
@@ -118,7 +120,7 @@ export default function MembersScreen() {
     <PageScroll onRefresh={() => syncTrip(tripId)}>
       <PageHeader
         icon={Users}
-        title="Members"
+        title={t('members')}
         subtitle={`${members.length} people · ${formatCurrency(totalSpent)} total spent`}
       />
 

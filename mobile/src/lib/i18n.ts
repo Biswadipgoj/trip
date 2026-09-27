@@ -69,6 +69,18 @@ export type TranslationKey =
   | 'offlineNotice'
   | 'cloudSync'
   | 'changeLanguage'
+  | 'logout'
+  | 'back'
+  | 'cancel'
+  | 'save'
+  | 'delete'
+  | 'allExpenses'
+  | 'recentExpenses'
+  | 'tripMembers'
+  | 'addMember'
+  | 'whoPaysWhom'
+  | 'pending'
+  | 'settled'
 
 const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
   en: {
@@ -107,6 +119,18 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     offlineNotice: "You're offline — reconnect to sync changes",
     cloudSync: 'Live Cloud Sync',
     changeLanguage: 'Choose Language',
+    logout: 'Log out',
+    back: 'Back',
+    cancel: 'Cancel',
+    save: 'Save',
+    delete: 'Delete',
+    allExpenses: 'All Expenses',
+    recentExpenses: 'Recent Expenses',
+    tripMembers: 'Trip Members',
+    addMember: 'Add Member',
+    whoPaysWhom: 'Who Pays Whom',
+    pending: 'Pending',
+    settled: 'Settled',
   },
   hi: {
     appName: 'TripMate',
@@ -144,6 +168,18 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     offlineNotice: 'आप ऑफलाइन हैं — सिंक करने के लिए इंटरनेट जोड़ें',
     cloudSync: 'लाइव क्लाउड सिंक',
     changeLanguage: 'भाषा चुनें',
+    logout: 'लॉग आउट',
+    back: 'वापस',
+    cancel: 'रद्द करें',
+    save: 'सहेजें',
+    delete: 'हटाएं',
+    allExpenses: 'सारे खर्चे',
+    recentExpenses: 'हाल के खर्चे',
+    tripMembers: 'ग्रुप के दोस्त',
+    addMember: 'नया दोस्त जोड़ें',
+    whoPaysWhom: 'किसे किसे देना है',
+    pending: 'बाकी',
+    settled: 'चुकता',
   },
   bn: {
     appName: 'TripMate',
@@ -181,6 +217,18 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     offlineNotice: 'আপনি অফলাইনে আছেন — ইন্টারনেটে যুক্ত হন',
     cloudSync: 'লাইভ ক্লাউড সিঙ্ক',
     changeLanguage: 'ভাষা বদলান',
+    logout: 'লগআউট',
+    back: 'পেছনে',
+    cancel: 'বাতিল',
+    save: 'সেভ করুন',
+    delete: 'মুছুন',
+    allExpenses: 'সমস্ত খরচ',
+    recentExpenses: 'সাম্প্রতিক খরচ',
+    tripMembers: 'গ্রুপের সদস্যরা',
+    addMember: 'সদস্য যোগ করুন',
+    whoPaysWhom: 'কে কাকে দেবে',
+    pending: 'বাকি আছে',
+    settled: 'মিটে গেছে',
   },
   hinglish: {
     appName: 'TripMate',
@@ -218,6 +266,18 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     offlineNotice: 'Internet nahi hai bro — reconnect karo',
     cloudSync: 'Cloud Pe Live',
     changeLanguage: 'Language Badlo',
+    logout: 'Logout Karo',
+    back: 'Wapas',
+    cancel: 'Cancel',
+    save: 'Save Karo',
+    delete: 'Delete',
+    allExpenses: 'Sara Kharcha',
+    recentExpenses: 'Recent Kharcha',
+    tripMembers: 'Trip Ke Dost',
+    addMember: 'Dost Add Karo',
+    whoPaysWhom: 'Kaun Kisko Dega',
+    pending: 'Pending',
+    settled: 'Sorted',
   },
   mr: {
     appName: 'TripMate',

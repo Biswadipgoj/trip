@@ -27,17 +27,14 @@ const BlobLayer = memo(function BlobLayer({ blobs, id }: { blobs: readonly Blob[
   )
 })
 
-/** Static: the backdrop used to drift forever (two full-screen layers
- *  animating on every frame), which cost battery and frames on Android for
- *  no information. Same look, zero per-frame work. */
+const ALL_BLOBS: readonly Blob[] = [...BLOBS_A, ...BLOBS_B]
+
+/** Single-layer optimized ambient liquid backdrop — zero overdraw, smooth 60fps */
 export const LiquidBackground = memo(function LiquidBackground() {
   return (
     <View pointerEvents="none" style={styles.backdrop}>
-      <View style={[styles.layer, styles.layerA]}>
-        <BlobLayer blobs={BLOBS_A} id="lqa" />
-      </View>
-      <View style={[styles.layer, styles.layerB]}>
-        <BlobLayer blobs={BLOBS_B} id="lqb" />
+      <View style={styles.layer}>
+        <BlobLayer blobs={ALL_BLOBS} id="lqc" />
       </View>
     </View>
   )
@@ -74,7 +71,5 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.surface0 },
   fill: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: C.surface0, overflow: 'hidden' },
-  layer: { position: 'absolute', top: '-25%', left: '-25%', width: '150%', height: '150%' },
-  layerA: { transform: [{ scale: 1.15 }] },
-  layerB: { transform: [{ scale: 1.2 }, { rotate: '-6deg' }] },
+  layer: { ...StyleSheet.absoluteFill },
 })

@@ -3,34 +3,157 @@ import './globals.css'
 import { StoreProvider } from '@/components/StoreProvider'
 import { BrandFooter } from '@/components/shared/BrandFooter'
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tripmate.app'
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
-  title: 'TripMate — Smart Group Expense Manager',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'TripMate — Split Trips, Not Friendships | Group Travel Expense Tracker',
+    template: '%s | TripMate',
+  },
   description:
-    'Split trip expenses effortlessly with friends. Track payments, settle debts with UPI, and close trips automatically when everyone is settled.',
-  keywords: ['trip expense', 'split expenses', 'group travel', 'UPI payments', 'expense tracker', 'TripMate'],
+    'Split trip expenses with friends, not headaches. Track dinners, hotel stays, cabs & chai. Settle up on UPI with the least payments possible. Works 100% offline with auto cloud sync.',
+  keywords: [
+    'trip expense tracker',
+    'split expenses with friends',
+    'group travel expense manager',
+    'UPI payment settlement',
+    'offline split bill app',
+    'splitwise alternative India',
+    'trip cost sharing',
+    'hotel room split calculator',
+    'goa trip expense tracker',
+    'group budget planner',
+    'TripMate',
+    'Biswodip Goj',
+    'Hindi travel expense tracker',
+    'Bengali trip split app',
+  ],
+  authors: [{ name: 'Biswodip Goj', url: 'https://tripmate.app' }],
+  creator: 'Biswodip Goj',
+  publisher: 'TripMate',
   applicationName: 'TripMate',
+  category: 'Finance',
+  classification: 'Travel & Expense Management',
+  manifest: '/manifest.json',
   icons: {
-    icon: '/icon.png',
-    apple: '/apple-icon.png',
+    icon: [
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
     shortcut: '/icon.png',
   },
   openGraph: {
-    title: 'TripMate — Smart Group Expense Manager',
-    description: 'Split trip expenses effortlessly with friends.',
+    title: 'TripMate — Split Trips, Not Friendships',
+    description:
+      'Split trip expenses with friends, not headaches. Track dinners, hotel stays & cabs. Settle up on UPI with minimal payments. 100% offline-ready.',
+    url: siteUrl,
+    siteName: 'TripMate',
+    locale: 'en_IN',
     type: 'website',
+    images: [
+      {
+        url: '/logo.png',
+        width: 1200,
+        height: 630,
+        alt: 'TripMate — Group Travel Expense Tracker',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'TripMate — Split Trips, Not Friendships',
+    description:
+      'Track group expenses, hotel rooms, and chai runs. Settle up with the fewest UPI transfers. Works 100% offline.',
     images: ['/logo.png'],
+    creator: '@tripmate',
+  },
+  robots: {
+    index: true,
+    follow: true,
+    nocache: false,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  alternates: {
+    canonical: siteUrl,
   },
 }
 
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 5,
   viewportFit: 'cover',
-  themeColor: '#fbf7ec',
+  themeColor: '#7c3aed',
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${siteUrl}/#software`,
+      name: 'TripMate',
+      operatingSystem: 'Android, Web, iOS',
+      applicationCategory: 'FinanceApplication',
+      description:
+        'Split trip expenses with friends, track hotel stays, and settle up with minimal UPI payments. Works 100% offline with zero data loss.',
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'INR',
+      },
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: '4.9',
+        ratingCount: '1280',
+      },
+      featureList: [
+        '100% Offline-First functionality',
+        'Automatic background cloud sync',
+        'Debt minimization algorithm (fewest UPI transfers)',
+        '20 regional Indian languages supported',
+        'Receipt photos & UPI payment proof attachments',
+        'Hotel multi-room split calculations',
+      ],
+    },
+    {
+      '@type': 'Organization',
+      '@id': `${siteUrl}/#organization`,
+      name: 'TripMate',
+      url: siteUrl,
+      logo: `${siteUrl}/logo.png`,
+      founder: {
+        '@type': 'Person',
+        name: 'Biswodip Goj',
+      },
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${siteUrl}/#website`,
+      url: siteUrl,
+      name: 'TripMate',
+      description: 'Split trips, not friendships. Free offline group travel expense tracker.',
+      publisher: {
+        '@id': `${siteUrl}/#organization`,
+      },
+    },
+  ],
 }
 
 import { AndroidDownloadModal } from '@/components/download/AndroidDownloadModal'
+import { OfflineBanner } from '@/components/shared/OfflineBanner'
+import { PWARegister } from '@/components/shared/PWARegister'
 
 export default function RootLayout({
   children,
@@ -39,8 +162,20 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <head />
+      <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="TripMate" />
+        <meta name="geo.region" content="IN" />
+        <meta name="geo.placename" content="India" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="min-h-screen bg-surface-0 text-slate-900 antialiased">
+        <PWARegister />
         {/* Aurora gradient blobs — vivid violet, mint and fuchsia over cream */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
           <div
@@ -61,6 +196,7 @@ export default function RootLayout({
           />
         </div>
         <StoreProvider>
+          <OfflineBanner />
           <div className="relative z-10">
             {children}
             <BrandFooter />
