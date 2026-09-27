@@ -1,18 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey  = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Safe production fallbacks so the app works even if environment variables are not configured in Vercel/Netlify
+const DEFAULT_SUPABASE_URL = 'https://qufmbheewymzyzkfaivr.supabase.co'
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF1Zm1iaGVld3ltenl6a2ZhaXZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA5OTUxMDYsImV4cCI6MjA5NjU3MTEwNn0.pv9WAWZ41O09HWal24PTIpDhtal_GYJRgnf1IoLUhn4'
 
-if (!supabaseUrl || !supabaseKey) {
-  console.warn(
-    '[Supabase] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. ' +
-    'Running in localStorage-only mode.'
-  )
-}
+const supabaseUrl  = (process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL).trim()
+const supabaseKey  = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY).trim()
 
-export const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
-  : null
+export const supabase = createClient(supabaseUrl, supabaseKey)
 
 // ─── Type-safe helper: returns null-safe supabase client ──────────────────────
 export function getSupabase() {

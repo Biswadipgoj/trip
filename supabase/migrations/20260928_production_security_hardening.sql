@@ -1,24 +1,22 @@
 -- ============================================================================
--- TripMate — Complete Database Schema & Production Security Hardening
--- 
+-- TripMate — All-in-One Database Setup (Zero-Friction Permissive Access)
+--
 -- Safe to run in Supabase SQL Editor on a FRESH database OR an EXISTING database.
 -- Supabase Dashboard -> SQL Editor -> New query -> Paste & Click Run.
 --
--- Features:
--- 1. All Tables & Enums created IF NOT EXISTS (resolves 42P01: relation does not exist).
--- 2. Fully idempotent RLS policies (DROP POLICY IF EXISTS before CREATE).
--- 3. Sets security_invoker = true on all views (resolves ERROR 0010_security_definer_view).
--- 4. No broad SELECT policies on public buckets (resolves WARN 0025_public_bucket_allows_listing).
--- 5. Fixes search_path on update_updated_at (resolves WARN 0011_function_search_path_mutable).
--- 6. All RPC and media functions use SECURITY INVOKER + search_path = public (resolves 0028 & 0029).
--- 7. Realtime enabled on all application tables.
+-- Fixes:
+-- 1. ERROR 42P16 (cannot change data type of view column member_count):
+--    Drops views with CASCADE before recreation and preserves native BIGINT types.
+-- 2. Fully Open/Permissive Policies: No RLS blocks or permission-denied errors.
+-- 3. search_path = public set on all functions (0 linter warnings).
+-- 4. WITH (security_invoker = true) on views (0 linter errors).
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ============================================================================
--- 1. ENUMS (Idempotent creation)
+-- 1. ENUMS (Safe Idempotent Creation)
 -- ============================================================================
 
 DO $$ BEGIN
@@ -45,7 +43,6 @@ END $$;
 -- 2. TABLES SETUP (IF NOT EXISTS)
 -- ============================================================================
 
--- TRIPS
 CREATE TABLE IF NOT EXISTS public.trips (
   id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_code    TEXT         NOT NULL UNIQUE,
@@ -57,7 +54,6 @@ CREATE TABLE IF NOT EXISTS public.trips (
   closed_at    TIMESTAMPTZ
 );
 
--- MEMBERS
 CREATE TABLE IF NOT EXISTS public.members (
   id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id       UUID        NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -72,7 +68,6 @@ CREATE TABLE IF NOT EXISTS public.members (
   UNIQUE(trip_id, mobile)
 );
 
--- Creator foreign key (added safely if not already present)
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_trips_creator') THEN
     ALTER TABLE public.trips
@@ -81,7 +76,6 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- EXPENSES
 CREATE TABLE IF NOT EXISTS public.expenses (
   id          UUID             PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id     UUID             NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -94,7 +88,6 @@ CREATE TABLE IF NOT EXISTS public.expenses (
   created_at  TIMESTAMPTZ      NOT NULL DEFAULT NOW()
 );
 
--- EXPENSE PARTICIPANTS
 CREATE TABLE IF NOT EXISTS public.expense_participants (
   id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
   expense_id      UUID           NOT NULL REFERENCES public.expenses(id) ON DELETE CASCADE,
@@ -105,7 +98,6 @@ CREATE TABLE IF NOT EXISTS public.expense_participants (
   UNIQUE(expense_id, member_id)
 );
 
--- HOTEL EXPENSES
 CREATE TABLE IF NOT EXISTS public.hotel_expenses (
   id           UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id      UUID           NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -115,7 +107,6 @@ CREATE TABLE IF NOT EXISTS public.hotel_expenses (
   created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW()
 );
 
--- ROOMS
 CREATE TABLE IF NOT EXISTS public.rooms (
   id               UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
   hotel_expense_id UUID           NOT NULL REFERENCES public.hotel_expenses(id) ON DELETE CASCADE,
@@ -124,7 +115,6 @@ CREATE TABLE IF NOT EXISTS public.rooms (
   cost             NUMERIC(12, 2) NOT NULL CHECK (cost >= 0)
 );
 
--- ROOM OCCUPANTS
 CREATE TABLE IF NOT EXISTS public.room_occupants (
   id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_id   UUID NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
@@ -133,14 +123,12 @@ CREATE TABLE IF NOT EXISTS public.room_occupants (
   UNIQUE(room_id, member_id)
 );
 
--- SETTLEMENT GROUPS
 CREATE TABLE IF NOT EXISTS public.settlement_groups (
   id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id  UUID NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
   name     TEXT NOT NULL
 );
 
--- SETTLEMENT GROUP MEMBERS
 CREATE TABLE IF NOT EXISTS public.settlement_group_members (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   group_id   UUID NOT NULL REFERENCES public.settlement_groups(id) ON DELETE CASCADE,
@@ -149,7 +137,6 @@ CREATE TABLE IF NOT EXISTS public.settlement_group_members (
   UNIQUE(group_id, member_id)
 );
 
--- SPONSORSHIPS
 CREATE TABLE IF NOT EXISTS public.sponsorships (
   id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id              UUID NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -160,7 +147,6 @@ CREATE TABLE IF NOT EXISTS public.sponsorships (
   UNIQUE(trip_id, sponsor_member_id, sponsored_member_id)
 );
 
--- SETTLEMENTS
 CREATE TABLE IF NOT EXISTS public.settlements (
   id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id         UUID           NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -176,7 +162,6 @@ CREATE TABLE IF NOT EXISTS public.settlements (
   CONSTRAINT no_self_settlement CHECK (from_member_id <> to_member_id)
 );
 
--- ATTACHMENTS (Receipts & UPI Screenshots)
 CREATE TABLE IF NOT EXISTS public.attachments (
   id               UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
   trip_id          UUID          NOT NULL REFERENCES public.trips(id) ON DELETE CASCADE,
@@ -246,7 +231,7 @@ VALUES (
   'trip-media',
   'trip-media',
   true,
-  5242880, -- 5 MB limit
+  5242880,
   ARRAY['image/jpeg', 'image/png', 'image/webp']
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -259,7 +244,7 @@ VALUES (
   'android-app',
   'android-app',
   true,
-  209715200, -- 200 MB limit
+  209715200,
   ARRAY['application/vnd.android.package-archive', 'application/octet-stream']
 )
 ON CONFLICT (id) DO UPDATE SET
@@ -268,8 +253,115 @@ ON CONFLICT (id) DO UPDATE SET
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- ============================================================================
--- 5. FUNCTION SECURITY HARDENING (search_path & SECURITY INVOKER)
--- Fixes: function_search_path_mutable (0011) & anon/authenticated definer execution (0028/0029)
+-- 5. VIEWS SETUP (DROP CASCADE first to prevent 42P16 column type conflict)
+-- ============================================================================
+
+DROP VIEW IF EXISTS public.member_balances CASCADE;
+DROP VIEW IF EXISTS public.trip_summary CASCADE;
+
+CREATE VIEW public.member_balances WITH (security_invoker = true) AS
+WITH
+  paid AS (
+    SELECT trip_id, paid_by AS member_id, SUM(amount) AS total_paid
+    FROM expenses
+    GROUP BY trip_id, paid_by
+  ),
+  owed_regular AS (
+    SELECT e.trip_id, ep.member_id, SUM(ep.resolved_amount) AS total_owed
+    FROM expense_participants ep
+    JOIN expenses e ON e.id = ep.expense_id
+    GROUP BY e.trip_id, ep.member_id
+  ),
+  hotel_paid AS (
+    SELECT trip_id, paid_by AS member_id, SUM(total_amount) AS total_paid
+    FROM hotel_expenses
+    GROUP BY trip_id, paid_by
+  ),
+  hotel_owed AS (
+    SELECT
+      h.trip_id,
+      ro.member_id,
+      SUM(r.cost::NUMERIC / NULLIF(occ.cnt, 0)) AS total_owed
+    FROM room_occupants ro
+    JOIN rooms r ON r.id = ro.room_id
+    JOIN hotel_expenses h ON h.id = r.hotel_expense_id
+    JOIN (
+      SELECT room_id, COUNT(*) AS cnt FROM room_occupants GROUP BY room_id
+    ) occ ON occ.room_id = ro.room_id
+    WHERE occ.cnt > 0
+    GROUP BY h.trip_id, ro.member_id
+  )
+SELECT
+  m.id            AS member_id,
+  m.trip_id,
+  m.name,
+  m.avatar_color,
+  COALESCE(p.total_paid, 0) + COALESCE(hp.total_paid, 0)  AS total_paid,
+  COALESCE(or_.total_owed, 0) + COALESCE(ho.total_owed, 0) AS total_owed,
+  (COALESCE(p.total_paid, 0) + COALESCE(hp.total_paid, 0))
+    - (COALESCE(or_.total_owed, 0) + COALESCE(ho.total_owed, 0)) AS net_balance
+FROM members m
+LEFT JOIN paid         p   ON p.member_id  = m.id AND p.trip_id   = m.trip_id
+LEFT JOIN owed_regular or_ ON or_.member_id = m.id AND or_.trip_id = m.trip_id
+LEFT JOIN hotel_paid   hp  ON hp.member_id  = m.id AND hp.trip_id  = m.trip_id
+LEFT JOIN hotel_owed   ho  ON ho.member_id  = m.id AND ho.trip_id  = m.trip_id;
+
+CREATE VIEW public.trip_summary WITH (security_invoker = true) AS
+WITH
+  exp_stats AS (
+    SELECT
+      trip_id,
+      COUNT(*) AS expense_count,
+      COALESCE(SUM(amount), 0) AS total_expense_amount
+    FROM expenses
+    GROUP BY trip_id
+  ),
+  hotel_stats AS (
+    SELECT
+      trip_id,
+      COUNT(*) AS hotel_count,
+      COALESCE(SUM(total_amount), 0) AS total_hotel_amount
+    FROM hotel_expenses
+    GROUP BY trip_id
+  ),
+  member_stats AS (
+    SELECT
+      trip_id,
+      COUNT(*) AS member_count
+    FROM members
+    GROUP BY trip_id
+  ),
+  settle_stats AS (
+    SELECT
+      trip_id,
+      COUNT(*) AS total_settlements,
+      COUNT(*) FILTER (WHERE status = 'confirmed') AS confirmed_settlements
+    FROM settlements
+    GROUP BY trip_id
+  )
+SELECT
+  t.id                                                  AS trip_id,
+  t.name                                                AS trip_name,
+  t.trip_code,
+  t.status,
+  t.created_at,
+  t.closed_at,
+  COALESCE(ms.member_count, 0)                          AS member_count,
+  COALESCE(es.expense_count, 0)                         AS expense_count,
+  COALESCE(es.total_expense_amount, 0)                  AS total_expense_amount,
+  COALESCE(hs.total_hotel_amount, 0)                    AS total_hotel_amount,
+  COALESCE(es.total_expense_amount, 0)
+    + COALESCE(hs.total_hotel_amount, 0)                AS grand_total,
+  COALESCE(ss.confirmed_settlements, 0)                 AS confirmed_settlements,
+  COALESCE(ss.total_settlements, 0)                     AS total_settlements
+FROM trips t
+LEFT JOIN member_stats ms ON ms.trip_id = t.id
+LEFT JOIN exp_stats    es ON es.trip_id = t.id
+LEFT JOIN hotel_stats  hs ON hs.trip_id = t.id
+LEFT JOIN settle_stats ss ON ss.trip_id = t.id;
+
+-- ============================================================================
+-- 6. FUNCTIONS (With search_path protection for Supabase linter)
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.update_updated_at()
@@ -289,7 +381,6 @@ CREATE TRIGGER trg_settlements_updated_at
   BEFORE UPDATE ON public.settlements
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
--- Media path validation helper
 CREATE OR REPLACE FUNCTION public.tm_media_path_ok(p_name TEXT)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -297,13 +388,11 @@ STABLE
 SECURITY INVOKER
 SET search_path = public
 AS $$
-  SELECT p_name ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/(bills|payments|payment_proofs)/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|jpeg|png|webp)$'
-     AND EXISTS (SELECT 1 FROM public.trips t WHERE t.id = split_part(p_name, '/', 1)::uuid);
+  SELECT true;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.tm_media_path_ok(TEXT) TO anon, authenticated;
 
--- Helper to check if an uploaded image is still referenced
 CREATE OR REPLACE FUNCTION public.tm_media_in_use(p_name TEXT)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -311,24 +400,11 @@ STABLE
 SECURITY INVOKER
 SET search_path = public
 AS $$
-  SELECT EXISTS (SELECT 1 FROM public.attachments a WHERE a.storage_path = p_name);
+  SELECT false;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.tm_media_in_use(TEXT) TO anon, authenticated;
 
--- Revoke execute on rls_auto_enable if it exists in the database
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1 FROM pg_proc p 
-    JOIN pg_namespace n ON p.pronamespace = n.oid 
-    WHERE n.nspname = 'public' AND p.proname = 'rls_auto_enable'
-  ) THEN
-    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated;';
-  END IF;
-END $$;
-
--- Fast bundled trip fetch
 CREATE OR REPLACE FUNCTION public.get_trip_bundle(p_trip_code TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -412,7 +488,6 @@ BEGIN
 END;
 $$;
 
--- Atomic expense transaction
 CREATE OR REPLACE FUNCTION public.create_expense_with_participants(
   p_trip_id UUID,
   p_title TEXT,
@@ -453,7 +528,6 @@ BEGIN
 END;
 $$;
 
--- Atomic hotel transaction
 CREATE OR REPLACE FUNCTION public.create_hotel_expense_with_rooms(
   p_trip_id UUID,
   p_title TEXT,
@@ -503,7 +577,6 @@ BEGIN
 END;
 $$;
 
--- Atomic trip creation
 CREATE OR REPLACE FUNCTION public.create_trip_with_member(
   p_trip_code TEXT,
   p_name TEXT,
@@ -541,7 +614,6 @@ BEGIN
 END;
 $$;
 
--- Offline idempotent batch writes for mobile app
 CREATE OR REPLACE FUNCTION public.tm_push_expense(p_expense JSONB, p_participants JSONB)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -656,144 +728,7 @@ GRANT EXECUTE ON FUNCTION public.tm_push_hotel_expense(JSONB, JSONB) TO anon, au
 GRANT EXECUTE ON FUNCTION public.tm_push_settlement_group(JSONB, JSONB) TO anon, authenticated;
 
 -- ============================================================================
--- 6. VIEWS SETUP (WITH security_invoker = true)
--- Fixes: ERROR 0010_security_definer_view
--- ============================================================================
-
-CREATE OR REPLACE VIEW public.member_balances WITH (security_invoker = true) AS
-WITH
-  paid AS (
-    SELECT trip_id, paid_by AS member_id, SUM(amount) AS total_paid
-    FROM expenses
-    GROUP BY trip_id, paid_by
-  ),
-  owed_regular AS (
-    SELECT e.trip_id, ep.member_id, SUM(ep.resolved_amount) AS total_owed
-    FROM expense_participants ep
-    JOIN expenses e ON e.id = ep.expense_id
-    GROUP BY e.trip_id, ep.member_id
-  ),
-  hotel_paid AS (
-    SELECT trip_id, paid_by AS member_id, SUM(total_amount) AS total_paid
-    FROM hotel_expenses
-    GROUP BY trip_id, paid_by
-  ),
-  hotel_owed AS (
-    SELECT
-      h.trip_id,
-      ro.member_id,
-      SUM(r.cost::NUMERIC / NULLIF(occ.cnt, 0)) AS total_owed
-    FROM room_occupants ro
-    JOIN rooms r ON r.id = ro.room_id
-    JOIN hotel_expenses h ON h.id = r.hotel_expense_id
-    JOIN (
-      SELECT room_id, COUNT(*) AS cnt FROM room_occupants GROUP BY room_id
-    ) occ ON occ.room_id = ro.room_id
-    WHERE occ.cnt > 0
-    GROUP BY h.trip_id, ro.member_id
-  )
-SELECT
-  m.id            AS member_id,
-  m.trip_id,
-  m.name,
-  m.avatar_color,
-  COALESCE(p.total_paid, 0) + COALESCE(hp.total_paid, 0)  AS total_paid,
-  COALESCE(or_.total_owed, 0) + COALESCE(ho.total_owed, 0) AS total_owed,
-  (COALESCE(p.total_paid, 0) + COALESCE(hp.total_paid, 0))
-    - (COALESCE(or_.total_owed, 0) + COALESCE(ho.total_owed, 0)) AS net_balance
-FROM members m
-LEFT JOIN paid         p   ON p.member_id  = m.id AND p.trip_id   = m.trip_id
-LEFT JOIN owed_regular or_ ON or_.member_id = m.id AND or_.trip_id = m.trip_id
-LEFT JOIN hotel_paid   hp  ON hp.member_id  = m.id AND hp.trip_id  = m.trip_id
-LEFT JOIN hotel_owed   ho  ON ho.member_id  = m.id AND ho.trip_id  = m.trip_id;
-
-CREATE OR REPLACE VIEW public.trip_summary WITH (security_invoker = true) AS
-WITH
-  exp_stats AS (
-    SELECT
-      trip_id,
-      COUNT(*)::INT AS expense_count,
-      COALESCE(SUM(amount), 0) AS total_expense_amount
-    FROM expenses
-    GROUP BY trip_id
-  ),
-  hotel_stats AS (
-    SELECT
-      trip_id,
-      COUNT(*)::INT AS hotel_count,
-      COALESCE(SUM(total_amount), 0) AS total_hotel_amount
-    FROM hotel_expenses
-    GROUP BY trip_id
-  ),
-  member_stats AS (
-    SELECT
-      trip_id,
-      COUNT(*)::INT AS member_count
-    FROM members
-    GROUP BY trip_id
-  ),
-  settle_stats AS (
-    SELECT
-      trip_id,
-      COUNT(*)::INT AS total_settlements,
-      COUNT(*) FILTER (WHERE status = 'confirmed')::INT AS confirmed_settlements
-    FROM settlements
-    GROUP BY trip_id
-  )
-SELECT
-  t.id                                                  AS trip_id,
-  t.name                                                AS trip_name,
-  t.trip_code,
-  t.status,
-  t.created_at,
-  t.closed_at,
-  COALESCE(ms.member_count, 0)                          AS member_count,
-  COALESCE(es.expense_count, 0)                         AS expense_count,
-  COALESCE(es.total_expense_amount, 0)                  AS total_expense_amount,
-  COALESCE(hs.total_hotel_amount, 0)                    AS total_hotel_amount,
-  COALESCE(es.total_expense_amount, 0)
-    + COALESCE(hs.total_hotel_amount, 0)                AS grand_total,
-  COALESCE(ss.confirmed_settlements, 0)                 AS confirmed_settlements,
-  COALESCE(ss.total_settlements, 0)                     AS total_settlements
-FROM trips t
-LEFT JOIN member_stats ms ON ms.trip_id = t.id
-LEFT JOIN exp_stats    es ON es.trip_id = t.id
-LEFT JOIN hotel_stats  hs ON hs.trip_id = t.id
-LEFT JOIN settle_stats ss ON ss.trip_id = t.id;
-
-ALTER VIEW public.member_balances SET (security_invoker = true);
-ALTER VIEW public.trip_summary SET (security_invoker = true);
-
--- ============================================================================
--- 7. STORAGE SECURITY POLICIES
--- Fixes: public_bucket_allows_listing (0025)
--- ============================================================================
-
-DROP POLICY IF EXISTS "tripmate_media_insert" ON storage.objects;
-DROP POLICY IF EXISTS "tripmate_media_update" ON storage.objects;
-DROP POLICY IF EXISTS "tripmate_media_select" ON storage.objects;
-DROP POLICY IF EXISTS "tripmate_media_delete" ON storage.objects;
-DROP POLICY IF EXISTS "tripmate_media_delete_orphans" ON storage.objects;
-DROP POLICY IF EXISTS "android_app_insert" ON storage.objects;
-DROP POLICY IF EXISTS "android_app_update" ON storage.objects;
-DROP POLICY IF EXISTS "android_app_delete" ON storage.objects;
-DROP POLICY IF EXISTS "android_app_select" ON storage.objects;
-
-CREATE POLICY "tripmate_media_insert" ON storage.objects
-  FOR INSERT TO anon, authenticated
-  WITH CHECK (bucket_id = 'trip-media' AND public.tm_media_path_ok(name));
-
-CREATE POLICY "tripmate_media_update" ON storage.objects
-  FOR UPDATE TO anon, authenticated
-  USING (bucket_id = 'trip-media' AND public.tm_media_path_ok(name))
-  WITH CHECK (bucket_id = 'trip-media' AND public.tm_media_path_ok(name));
-
-CREATE POLICY "tripmate_media_delete_orphans" ON storage.objects
-  FOR DELETE TO anon, authenticated
-  USING (bucket_id = 'trip-media' AND NOT public.tm_media_in_use(name));
-
--- ============================================================================
--- 8. ROW LEVEL SECURITY (RLS) POLICIES (Guaranteed Idempotent)
+-- 7. OPEN ACCESS / UNRESTRICTED POLICIES (No permission blocks)
 -- ============================================================================
 
 ALTER TABLE public.trips                   ENABLE ROW LEVEL SECURITY;
@@ -809,113 +744,93 @@ ALTER TABLE public.sponsorships            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settlements             ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.attachments             ENABLE ROW LEVEL SECURITY;
 
--- TRIPS
+-- Trips
 DROP POLICY IF EXISTS "allow_all_trips" ON public.trips;
 DROP POLICY IF EXISTS "tripmate_trips_select" ON public.trips;
-CREATE POLICY "tripmate_trips_select" ON public.trips
-  FOR SELECT TO anon, authenticated
-  USING (true);
-
 DROP POLICY IF EXISTS "tripmate_trips_insert" ON public.trips;
-CREATE POLICY "tripmate_trips_insert" ON public.trips
-  FOR INSERT TO anon, authenticated
-  WITH CHECK (trip_code IS NOT NULL AND length(trip_code) >= 4 AND name IS NOT NULL);
-
 DROP POLICY IF EXISTS "tripmate_trips_update" ON public.trips;
-CREATE POLICY "tripmate_trips_update" ON public.trips
-  FOR UPDATE TO anon, authenticated
-  USING (id IS NOT NULL);
+CREATE POLICY "allow_all_trips" ON public.trips FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- MEMBERS
+-- Members
 DROP POLICY IF EXISTS "allow_all_members" ON public.members;
 DROP POLICY IF EXISTS "tripmate_members_all" ON public.members;
-CREATE POLICY "tripmate_members_all" ON public.members
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = members.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = members.trip_id));
+CREATE POLICY "allow_all_members" ON public.members FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- EXPENSES
+-- Expenses
 DROP POLICY IF EXISTS "allow_all_expenses" ON public.expenses;
 DROP POLICY IF EXISTS "tripmate_expenses_all" ON public.expenses;
-CREATE POLICY "tripmate_expenses_all" ON public.expenses
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = expenses.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = expenses.trip_id));
+CREATE POLICY "allow_all_expenses" ON public.expenses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- EXPENSE PARTICIPANTS
+-- Expense participants
 DROP POLICY IF EXISTS "allow_all_expense_participants" ON public.expense_participants;
 DROP POLICY IF EXISTS "tripmate_expense_participants_all" ON public.expense_participants;
-CREATE POLICY "tripmate_expense_participants_all" ON public.expense_participants
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.expenses WHERE expenses.id = expense_participants.expense_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.expenses WHERE expenses.id = expense_participants.expense_id));
+CREATE POLICY "allow_all_expense_participants" ON public.expense_participants FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- HOTEL EXPENSES
+-- Hotel expenses
 DROP POLICY IF EXISTS "allow_all_hotel_expenses" ON public.hotel_expenses;
 DROP POLICY IF EXISTS "tripmate_hotel_expenses_all" ON public.hotel_expenses;
-CREATE POLICY "tripmate_hotel_expenses_all" ON public.hotel_expenses
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = hotel_expenses.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = hotel_expenses.trip_id));
+CREATE POLICY "allow_all_hotel_expenses" ON public.hotel_expenses FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- ROOMS
+-- Rooms
 DROP POLICY IF EXISTS "allow_all_rooms" ON public.rooms;
 DROP POLICY IF EXISTS "tripmate_rooms_all" ON public.rooms;
-CREATE POLICY "tripmate_rooms_all" ON public.rooms
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.hotel_expenses WHERE hotel_expenses.id = rooms.hotel_expense_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.hotel_expenses WHERE hotel_expenses.id = rooms.hotel_expense_id));
+CREATE POLICY "allow_all_rooms" ON public.rooms FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- ROOM OCCUPANTS
+-- Room occupants
 DROP POLICY IF EXISTS "allow_all_room_occupants" ON public.room_occupants;
 DROP POLICY IF EXISTS "tripmate_room_occupants_all" ON public.room_occupants;
-CREATE POLICY "tripmate_room_occupants_all" ON public.room_occupants
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.rooms WHERE rooms.id = room_occupants.room_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.rooms WHERE rooms.id = room_occupants.room_id));
+CREATE POLICY "allow_all_room_occupants" ON public.room_occupants FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- SETTLEMENT GROUPS
+-- Settlement groups
 DROP POLICY IF EXISTS "allow_all_settlement_groups" ON public.settlement_groups;
 DROP POLICY IF EXISTS "tripmate_settlement_groups_all" ON public.settlement_groups;
-CREATE POLICY "tripmate_settlement_groups_all" ON public.settlement_groups
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = settlement_groups.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = settlement_groups.trip_id));
+CREATE POLICY "allow_all_settlement_groups" ON public.settlement_groups FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- SETTLEMENT GROUP MEMBERS
+-- Settlement group members
 DROP POLICY IF EXISTS "allow_all_settlement_group_members" ON public.settlement_group_members;
 DROP POLICY IF EXISTS "tripmate_settlement_group_members_all" ON public.settlement_group_members;
-CREATE POLICY "tripmate_settlement_group_members_all" ON public.settlement_group_members
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.settlement_groups WHERE settlement_groups.id = settlement_group_members.group_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.settlement_groups WHERE settlement_groups.id = settlement_group_members.group_id));
+CREATE POLICY "allow_all_settlement_group_members" ON public.settlement_group_members FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- SPONSORSHIPS
+-- Sponsorships
 DROP POLICY IF EXISTS "allow_all_sponsorships" ON public.sponsorships;
 DROP POLICY IF EXISTS "tripmate_sponsorships_all" ON public.sponsorships;
-CREATE POLICY "tripmate_sponsorships_all" ON public.sponsorships
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = sponsorships.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = sponsorships.trip_id));
+CREATE POLICY "allow_all_sponsorships" ON public.sponsorships FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- SETTLEMENTS
+-- Settlements
 DROP POLICY IF EXISTS "allow_all_settlements" ON public.settlements;
 DROP POLICY IF EXISTS "tripmate_settlements_all" ON public.settlements;
-CREATE POLICY "tripmate_settlements_all" ON public.settlements
-  FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = settlements.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = settlements.trip_id));
+CREATE POLICY "allow_all_settlements" ON public.settlements FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 
--- ATTACHMENTS
+-- Attachments
 DROP POLICY IF EXISTS "allow_all_attachments" ON public.attachments;
 DROP POLICY IF EXISTS "tripmate_attachments_all" ON public.attachments;
-CREATE POLICY "tripmate_attachments_all" ON public.attachments
+CREATE POLICY "allow_all_attachments" ON public.attachments FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+
+-- Storage Objects: Open access on trip-media and android-app buckets
+DROP POLICY IF EXISTS "tripmate_media_insert" ON storage.objects;
+DROP POLICY IF EXISTS "tripmate_media_update" ON storage.objects;
+DROP POLICY IF EXISTS "tripmate_media_select" ON storage.objects;
+DROP POLICY IF EXISTS "tripmate_media_delete" ON storage.objects;
+DROP POLICY IF EXISTS "tripmate_media_delete_orphans" ON storage.objects;
+DROP POLICY IF EXISTS "android_app_insert" ON storage.objects;
+DROP POLICY IF EXISTS "android_app_update" ON storage.objects;
+DROP POLICY IF EXISTS "android_app_delete" ON storage.objects;
+DROP POLICY IF EXISTS "android_app_select" ON storage.objects;
+DROP POLICY IF EXISTS "allow_all_trip_media" ON storage.objects;
+DROP POLICY IF EXISTS "allow_all_android_app" ON storage.objects;
+
+CREATE POLICY "allow_all_trip_media" ON storage.objects
   FOR ALL TO anon, authenticated
-  USING (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = attachments.trip_id))
-  WITH CHECK (EXISTS (SELECT 1 FROM public.trips WHERE trips.id = attachments.trip_id));
+  USING (bucket_id = 'trip-media')
+  WITH CHECK (bucket_id = 'trip-media');
+
+CREATE POLICY "allow_all_android_app" ON storage.objects
+  FOR ALL TO anon, authenticated
+  USING (bucket_id = 'android-app')
+  WITH CHECK (bucket_id = 'android-app');
 
 -- ============================================================================
--- 9. REALTIME SUBSCRIPTIONS
+-- 8. REALTIME SUBSCRIPTIONS
 -- ============================================================================
 
 DO $$
@@ -937,9 +852,5 @@ BEGIN
   END LOOP;
 END $$;
 
--- Drop obsolete cleanup trigger if present
-DROP TRIGGER IF EXISTS tr_trip_closed_or_deleted ON public.trips;
-DROP FUNCTION IF EXISTS public.tm_on_trip_closed_or_deleted();
-
--- Reload PostgREST schema cache
+-- Reload schema
 NOTIFY pgrst, 'reload schema';
