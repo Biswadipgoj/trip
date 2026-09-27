@@ -44,6 +44,7 @@ export type TranslationKey =
   | 'joinTrip'
   | 'login'
   | 'getAndroidApp'
+  | 'addToHomeScreen'
   | 'downloadApk'
   | 'offlineApp'
   | 'offlineAppDesc'
@@ -110,6 +111,7 @@ export const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>>
     joinTrip: 'Join Existing Trip',
     login: 'Login to Trip',
     getAndroidApp: 'Get Android App',
+    addToHomeScreen: 'Add to Home Screen',
     downloadApk: 'Download Android App (APK)',
     offlineApp: '100% Offline Support',
     offlineAppDesc: 'TripMate works completely offline. Add expenses on remote beaches, mountain treks, or flights with zero signal. Everything saves on your device and syncs when back online.',
@@ -175,6 +177,7 @@ export const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>>
     joinTrip: 'ट्रिप से जुड़ें',
     login: 'लॉगिन करें',
     getAndroidApp: 'एंड्रॉइड ऐप पाएं',
+    addToHomeScreen: 'होम स्क्रीन पर जोड़ें',
     downloadApk: 'डाउनलोड करें एंड्रॉइड ऐप (APK)',
     offlineApp: '100% ऑफलाइन काम करता है',
     offlineAppDesc: 'पहाड़ों की वादियों में या समुद्र तट पर बिना इंटरनेट भी खर्चे जोड़ें। सारा डेटा आपके फोन में सुरक्षित रहेगा और इंटरनेट आते ही अपने-आप सिंक हो जाएगा।',
@@ -240,6 +243,7 @@ export const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>>
     joinTrip: 'ট্রিপে যোগ দিন',
     login: 'লগইন করুন',
     getAndroidApp: 'অ্যান্ড্রয়েড অ্যাপ নিন',
+    addToHomeScreen: 'হোম স্ক্রিনে যোগ করুন',
     downloadApk: 'ডাউনলোড অ্যান্ড্রয়েড অ্যাপ (APK)',
     offlineApp: '১০০% অফলাইনে কাজ করে',
     offlineAppDesc: 'পাহাড়ের ট্রেকে বা সমুদ্র সৈকতে নেটওয়ার্ক না থাকলেও অনায়াসে খরচ যোগ করুন। সব ডেটা ফোনে সেভ থাকবে, নেটওয়ার্ক পেলেই স্বয়ংক্রিয়ভাবে সিঙ্ক হবে।',

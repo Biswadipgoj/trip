@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
@@ -18,19 +18,16 @@ import {
 } from 'lucide-react'
 import { APP_RELEASE, getApkDownloadUrl } from '@/config/appRelease'
 import { triggerApkDownload } from '@/lib/downloadApk'
-import { isAndroidDevice } from '@/hooks/useAndroidAppPrompt'
+import { usePlatform } from '@/lib/platform'
+import { IosInstallGuide } from '@/components/download/IosInstallSheet'
 
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 
 export function DownloadPageClient() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState(0)
-  const [isAndroid, setIsAndroid] = useState<boolean | null>(null)
+  const platform = usePlatform()
   const downloadUrl = getApkDownloadUrl()
-
-  useEffect(() => {
-    setIsAndroid(isAndroidDevice())
-  }, [])
 
   const handleDownload = () => {
     setIsDownloading(true)
@@ -74,29 +71,65 @@ export function DownloadPageClient() {
         <LanguageSelector />
       </div>
 
-      {/* Non-Android Device Notice */}
-      {isAndroid === false && (
-        <div className="mb-6 rounded-2xl bg-amber-50 p-4 border border-amber-200 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-start gap-2.5">
-            <Globe className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+      {/* Platform detection runs after mount; render nothing platform-specific until then */}
+      {platform === null && <div className="min-h-[60vh]" aria-busy="true" />}
+
+      {/* iPhone / iPad: no APK — install the offline web app from the browser instead */}
+      {platform === 'ios' && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="rounded-[32px] border border-violet-200/90 bg-pure-white p-6 sm:p-10 shadow-2xl text-slate-950"
+        >
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-violet-100 px-3.5 py-1 text-xs font-bold text-violet-800 mb-3">
+            <Sparkles className="h-3.5 w-3.5 text-violet-600" />
+            <span>iPhone &amp; iPad</span>
+          </div>
+          <h1
+            className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-950"
+            style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+          >
+            Add TripMate to your Home Screen
+          </h1>
+          <p className="mt-2 text-sm sm:text-base font-medium text-slate-700 max-w-xl leading-relaxed">
+            On iPhone, TripMate installs straight from your browser. No App Store, no download, and it
+            keeps working when you lose signal.
+          </p>
+          <IosInstallGuide />
+        </motion.div>
+      )}
+
+      {/* Desktop and other devices: the APK is only offered on Android */}
+      {platform === 'other' && (
+        <div className="rounded-3xl bg-pure-white p-6 sm:p-8 border border-violet-200/90 text-slate-950 shadow-lg">
+          <div className="flex items-start gap-3">
+            <Globe className="h-6 w-6 text-violet-600 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-bold text-amber-950">
-                You&apos;re not on an Android phone
+              <h1
+                className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-950"
+                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+              >
+                Open this page on your phone
+              </h1>
+              <p className="mt-1 text-sm text-slate-700 leading-relaxed max-w-xl">
+                The TripMate Android app is available from an Android phone&apos;s browser. On iPhone, add
+                TripMate to your Home Screen instead. On this device, everything works right here in the
+                browser.
               </p>
-              <p className="text-xs text-amber-800 mt-0.5">
-                The app is for Android. Everything also works here in the browser.
-              </p>
+              <Link
+                href="/"
+                className="mt-4 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-pure-white font-bold text-xs shadow-md active:scale-95 transition-all"
+              >
+                Continue in the browser
+              </Link>
             </div>
           </div>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-pure-white font-bold text-xs shadow-md whitespace-nowrap active:scale-95 transition-all"
-          >
-            <span>Open TripMate in the browser</span>
-          </Link>
         </div>
       )}
 
+      {platform === 'android' && (
+      <>
       {/* Hero Card — Crisp Bright Pure White */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
@@ -173,8 +206,6 @@ export function DownloadPageClient() {
                 <span className="relative z-10 text-pure-white drop-shadow-sm">
                   {isDownloading
                     ? `Downloading… ${downloadProgress}%`
-                    : isAndroid === false
-                    ? 'Download the APK to copy to your phone'
                     : 'Download Android App (APK)'}
                 </span>
               </button>
@@ -344,6 +375,8 @@ export function DownloadPageClient() {
           </div>
         </dl>
       </div>
+      </>
+      )}
     </main>
   )
 }

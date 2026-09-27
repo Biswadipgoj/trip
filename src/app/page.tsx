@@ -10,7 +10,6 @@ import {
   Users,
   Receipt,
   CheckCircle2,
-  Smartphone,
   ShieldCheck,
   Zap,
   Check,
@@ -23,11 +22,14 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { useTranslation } from '@/lib/i18n'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
+import { AppInstallLink } from '@/components/download/AppInstallLink'
+import { usePlatform } from '@/lib/platform'
 
 export default function Home() {
   const router = useRouter()
   const session = useStore(s => s.session)
   const [activeTab, setActiveTab] = useState<'minimal' | 'messy'>('minimal')
+  const platform = usePlatform()
   const { t } = useTranslation()
 
   useEffect(() => {
@@ -86,13 +88,10 @@ export default function Home() {
           {/* 20-Language Selector Dropdown / Modal */}
           <LanguageSelector />
 
-          <Link
-            href="/download"
+          <AppInstallLink
             className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-700 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 transition-all"
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>{t('getAndroidApp')}</span>
-          </Link>
+            iconClassName="w-3.5 h-3.5"
+          />
         </div>
       </div>
 
@@ -160,14 +159,11 @@ export default function Home() {
               <span>{t('joinTrip')}</span>
             </Link>
 
-            <Link
-              href="/download"
+            <AppInstallLink
               id="download-app-btn"
               className="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-bold text-brand-700 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 hover:scale-105 active:scale-95 transition-all"
-            >
-              <Smartphone className="w-4 h-4 text-brand-600" />
-              <span>{t('getAndroidApp')}</span>
-            </Link>
+              iconClassName="w-4 h-4 text-brand-600"
+            />
           </motion.div>
 
           {/* Trust Badges */}
@@ -378,18 +374,31 @@ export default function Home() {
             <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-2xl font-normal">
               {t('offlineAppDesc')}
             </p>
-            <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3">
-              <Link
-                href="/download"
-                className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold shadow-md hover:scale-105 transition-all"
-              >
-                <Download className="w-4 h-4" />
-                <span>{t('downloadApk')}</span>
-              </Link>
-              <span className="text-xs font-semibold text-slate-500">
-                Direct safe APK download · No Play Store account needed
-              </span>
-            </div>
+            {platform === 'android' && (
+              <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                <Link
+                  href="/download"
+                  className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold shadow-md hover:scale-105 transition-all"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{t('downloadApk')}</span>
+                </Link>
+                <span className="text-xs font-semibold text-slate-500">
+                  Direct safe APK download · No Play Store account needed
+                </span>
+              </div>
+            )}
+            {platform === 'ios' && (
+              <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-3">
+                <AppInstallLink
+                  className="btn-brand inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold shadow-md hover:scale-105 transition-all"
+                  iconClassName="w-4 h-4"
+                />
+                <span className="text-xs font-semibold text-slate-500">
+                  Installs from your browser · No App Store needed
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 w-full sm:w-auto">

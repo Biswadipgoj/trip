@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { WifiOff, ShieldCheck, Smartphone, X } from 'lucide-react'
-import Link from 'next/link'
+import { WifiOff, X } from 'lucide-react'
+import { AppInstallLink } from '@/components/download/AppInstallLink'
 import { useTranslation } from '@/lib/i18n'
 
 export function OfflineBanner() {
@@ -49,13 +49,10 @@ export function OfflineBanner() {
           </div>
 
           <div className="flex items-center gap-3">
-            <Link
-              href="/download"
+            <AppInstallLink
               className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-900 hover:bg-amber-950 text-pure-white text-[11px] font-bold shadow-sm transition-all"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>{t('getAndroidApp')}</span>
-            </Link>
+              iconClassName="w-3.5 h-3.5"
+            />
 
             <button
               type="button"
