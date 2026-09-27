@@ -88,7 +88,7 @@ export const metadata: Metadata = {
     canonical: siteUrl,
   },
   verification: {
-    google: 'google6f2eafaea5be099a',
+    google: ['google6f2eafaea5be099a.html', 'google6f2eafaea5be099a'],
   },
 }
 
