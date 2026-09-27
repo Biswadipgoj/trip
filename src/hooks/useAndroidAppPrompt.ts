@@ -2,31 +2,15 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { triggerApkDownload } from '@/lib/downloadApk'
+import { detectPlatform } from '@/lib/platform'
 
 const STORAGE_KEY = 'tripmate_android_download_dismissed'
 const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-/**
- * Checks strictly if the current browser environment is running on a real Android device.
- * Excludes Windows, Mac, Linux desktops, iOS, iPadOS.
- */
+/** True only in a browser running on an Android device (phone or tablet). */
 export function isAndroidDevice(): boolean {
-  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
-
-  const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase()
-
-  // Explicitly exclude desktop operating systems
-  if (/windows nt|macintosh|mac os x|cros|linux x86_64/.test(ua) && !/android/.test(ua)) {
-    return false
-  }
-
-  // Explicitly exclude Apple iOS / iPadOS
-  if (/iphone|ipad|ipod/.test(ua)) {
-    return false
-  }
-
-  // Must contain android
-  return /android/.test(ua)
+  if (typeof navigator === 'undefined') return false
+  return detectPlatform(navigator.userAgent || '', navigator.maxTouchPoints || 0) === 'android'
 }
 
 /**
