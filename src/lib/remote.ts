@@ -17,6 +17,7 @@ import type {
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
   Attachment, AttachmentKind,
 } from '@/types'
+import type { TripChoice } from '@/lib/tripLogin'
 
 export function isRemoteEnabled(): boolean {
   return supabase !== null
@@ -242,6 +243,59 @@ export async function remoteGetMembers(tripId: string): Promise<Member[]> {
     .order('joined_at', { ascending: true })
   if (error || !data) return []
   return data.map(memberFromRow)
+}
+
+/**
+ * Every trip a mobile number belongs to, for the mobile-number login.
+ * Never downloads PINs: members without a PIN (added manually by the organiser)
+ * are filtered out on the server, since they cannot log in.
+ */
+export async function remoteFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
+  if (!supabase) return []
+  const { data: rows, error } = await supabase
+    .from('members')
+    .select('id, trip_id, name')
+    .eq('mobile', mobile)
+    .neq('pin', '')
+  if (error) throw new Error('Could not reach the server. Check your connection and try again.')
+  if (!rows || rows.length === 0) return []
+
+  const tripIds = rows.map(r => r.trip_id as string)
+  const [{ data: trips, error: tripErr }, { data: counts }] = await Promise.all([
+    supabase.from('trips').select('id, trip_code, name, status, created_at').in('id', tripIds),
+    supabase.from('members').select('trip_id').in('trip_id', tripIds),
+  ])
+  if (tripErr) throw new Error('Could not reach the server. Check your connection and try again.')
+
+  const choices: TripChoice[] = []
+  for (const r of rows) {
+    const t = trips?.find(x => x.id === r.trip_id)
+    if (!t) continue
+    choices.push({
+      tripId: t.id,
+      tripCode: t.trip_code,
+      name: t.name,
+      status: t.status === 'closed' ? 'closed' : 'active',
+      createdAt: t.created_at,
+      memberId: r.id,
+      memberName: r.name,
+      memberCount: counts?.filter(c => c.trip_id === t.id).length ?? 0,
+    })
+  }
+  return choices
+}
+
+/** True when `pin` is this member's PIN. The comparison runs in the query, so the PIN is never downloaded. */
+export async function remoteVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
+  if (!supabase) return false
+  const { data, error } = await supabase
+    .from('members')
+    .select('id')
+    .eq('id', memberId)
+    .eq('pin', pin)
+    .maybeSingle()
+  if (error) throw new Error('Could not reach the server. Check your connection and try again.')
+  return data !== null
 }
 
 /**

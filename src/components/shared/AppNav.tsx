@@ -21,6 +21,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
+import { LAST_MOBILE_KEY } from '@/lib/tripLogin'
 import { useTripSync } from '@/hooks/useTripSync'
 import { useTranslation } from '@/lib/i18n'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -67,6 +68,15 @@ export function AppNav({ tripId }: AppNavProps) {
   useTripSync(tripId)
 
   const handleLogout = () => {
+    // Remember the number so logging back in is one tap on the login page.
+    const me = allMembers.find(m => m.id === session?.memberId)
+    if (me?.mobile) {
+      try {
+        localStorage.setItem(LAST_MOBILE_KEY, me.mobile)
+      } catch {
+        // storage unavailable
+      }
+    }
     setSession(null)
     router.replace('/login')
   }

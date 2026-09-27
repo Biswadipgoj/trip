@@ -6,6 +6,7 @@ import { useStore } from '@/lib/store'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sparkles,
+  LogIn,
   ArrowRight,
   Users,
   Receipt,
@@ -88,6 +89,15 @@ export default function Home() {
           {/* 20-Language Selector Dropdown / Modal */}
           <LanguageSelector />
 
+          <Link
+            href="/login"
+            id="header-login-link"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-slate-800 bg-pure-white/90 hover:bg-pure-white border border-brand-500/20 transition-all"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>Log in</span>
+          </Link>
+
           <AppInstallLink
             className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-700 bg-brand-500/10 hover:bg-brand-500/20 border border-brand-500/30 transition-all"
             iconClassName="w-3.5 h-3.5"
@@ -157,6 +167,15 @@ export default function Home() {
               className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold text-slate-800 bg-pure-white/90 hover:bg-pure-white border border-brand-500/20 shadow-card hover:shadow-card-hover hover:scale-105 active:scale-95 transition-all"
             >
               <span>{t('joinTrip')}</span>
+            </Link>
+
+            <Link
+              href="/login"
+              id="login-btn"
+              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-bold text-brand-700 bg-pure-white/90 hover:bg-pure-white border border-brand-500/20 shadow-card hover:shadow-card-hover hover:scale-105 active:scale-95 transition-all"
+            >
+              <LogIn className="w-4 h-4" />
+              <span>{t('login')}</span>
             </Link>
 
             <AppInstallLink
