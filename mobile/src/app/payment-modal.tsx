@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
     backgroundColor: emerald(0.14), borderWidth: 1, borderColor: emerald(0.35),
   },
-  preferredText: { fontFamily: F.bold, fontSize: 10, lineHeight: 14, letterSpacing: 0.4, color: C.emerald500 },
+  preferredText: { fontFamily: F.bold, fontSize: 10, lineHeight: 14, letterSpacing: 0.4, color: '#0B6147' }, // 6.2:1 on its tint
   stepDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.brand500, alignItems: 'center', justifyContent: 'center' },
   stepText: { color: C.white, fontSize: 12, lineHeight: 15, fontFamily: F.bold },
   done: {
