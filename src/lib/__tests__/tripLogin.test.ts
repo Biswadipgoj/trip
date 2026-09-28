@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidMobile, localTripChoices, mergeTripChoices, sortTripChoices, type TripChoice } from '../tripLogin'
+import { isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, sortTripChoices, type TripChoice } from '../tripLogin'
 import type { Member, Trip } from '@/types'
 
 const choice = (tripId: string, status: 'active' | 'closed', createdAt: string, extra: Partial<TripChoice> = {}): TripChoice => ({
@@ -58,5 +58,17 @@ describe('isValidMobile', () => {
     expect(isValidMobile('9876543210')).toBe(true)
     expect(isValidMobile('1234567890')).toBe(false)
     expect(isValidMobile('98765')).toBe(false)
+  })
+})
+
+describe('normalizeMobileInput', () => {
+  it('strips formatting and a pasted country or trunk prefix', () => {
+    expect(normalizeMobileInput('+91 98765 43210')).toBe('9876543210')
+    expect(normalizeMobileInput('09876543210')).toBe('9876543210')
+    expect(normalizeMobileInput('98765-43210')).toBe('9876543210')
+  })
+
+  it('caps typing at 10 digits', () => {
+    expect(normalizeMobileInput('98765432109')).toBe('9876543210')
   })
 })

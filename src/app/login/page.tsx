@@ -10,7 +10,7 @@ import {
   remoteVerifyMemberPin,
   remoteFetchTripBundle,
 } from '@/lib/remote'
-import { LAST_MOBILE_KEY, isValidMobile, localTripChoices, mergeTripChoices, type TripChoice } from '@/lib/tripLogin'
+import { LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, type TripChoice } from '@/lib/tripLogin'
 import { ArrowLeft, ArrowRight, Phone, Shield, Users, ChevronRight, Radio } from 'lucide-react'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
@@ -176,9 +176,9 @@ export default function LoginPage() {
   )
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-16">
+    <main className="min-h-[100dvh] flex items-start sm:items-center justify-center px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-10 sm:py-16">
       <div className="w-full max-w-sm">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-8">
           <button
             type="button"
             onClick={goBack}
@@ -215,17 +215,29 @@ export default function LoginPage() {
                   <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                   Mobile Number
                 </label>
-                <input
-                  id="login-mobile"
-                  className="input-glass text-center text-lg font-semibold tracking-wider"
-                  placeholder="10-digit number"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  autoFocus
-                  value={mobile}
-                  onChange={e => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                  onKeyDown={e => e.key === 'Enter' && findTrips()}
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-2 left-0 flex items-center border-r border-brand-500/20 pl-4 pr-3 text-lg font-semibold text-slate-500"
+                  >
+                    +91
+                  </span>
+                  <input
+                    id="login-mobile"
+                    type="tel"
+                    className="input-glass !pl-[4.75rem] text-lg font-semibold tracking-wide placeholder:font-normal placeholder:tracking-normal"
+                    placeholder="98765 43210"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    aria-describedby="login-mobile-hint"
+                    value={mobile}
+                    onChange={e => setMobile(normalizeMobileInput(e.target.value))}
+                    onKeyDown={e => e.key === 'Enter' && findTrips()}
+                  />
+                </div>
+                <p id="login-mobile-hint" className="mt-1.5 text-[11px] text-slate-500">
+                  The number you used when you joined or created the trip.
+                </p>
               </div>
               {errorLine}
               <button

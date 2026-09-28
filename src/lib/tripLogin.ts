@@ -19,6 +19,14 @@ export const LAST_MOBILE_KEY = 'tripmate_last_mobile'
 
 export const isValidMobile = (mobile: string) => /^[6-9]\d{9}$/.test(mobile)
 
+/** Digits only, with a pasted +91 / 0 prefix removed, capped at 10 digits. */
+export function normalizeMobileInput(raw: string): string {
+  let digits = raw.replace(/\D/g, '')
+  if (digits.length > 10 && digits.startsWith('91')) digits = digits.slice(2)
+  else if (digits.length > 10 && digits.startsWith('0')) digits = digits.slice(1)
+  return digits.slice(0, 10)
+}
+
 /** Live trips first; within each group the most recently created trip first. */
 export function sortTripChoices(choices: TripChoice[]): TripChoice[] {
   return [...choices].sort((a, b) => {
