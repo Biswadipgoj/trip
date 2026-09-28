@@ -3,7 +3,9 @@ import './globals.css'
 import { StoreProvider } from '@/components/StoreProvider'
 import { BrandFooter } from '@/components/shared/BrandFooter'
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tripmate.app'
+import { SITE_URL } from '@/config/site'
+
+const siteUrl = SITE_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
     'Hindi travel expense tracker',
     'Bengali trip split app',
   ],
-  authors: [{ name: 'Biswodip Goj', url: 'https://tripmate.app' }],
+  authors: [{ name: 'Biswodip Goj' }],
   creator: 'Biswodip Goj',
   publisher: 'TripMate',
   applicationName: 'TripMate',
@@ -55,22 +57,14 @@ export const metadata: Metadata = {
     siteName: 'TripMate',
     locale: 'en_IN',
     type: 'website',
-    images: [
-      {
-        url: '/logo.png',
-        width: 1200,
-        height: 630,
-        alt: 'TripMate — Group Travel Expense Tracker',
-      },
-    ],
+    // Image: src/app/opengraph-image.tsx (a real 1200x630 card).
   },
   twitter: {
     card: 'summary_large_image',
     title: 'TripMate — Split Trips, Not Friendships',
     description:
       'Track group expenses, hotel rooms, and chai runs. Settle up with the fewest UPI transfers. Works 100% offline.',
-    images: ['/logo.png'],
-    creator: '@tripmate',
+    // Image: src/app/twitter-image.tsx
   },
   robots: {
     index: true,
@@ -84,8 +78,10 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
+  // Only the home page's canonical. Every other public page sets its own, so
+  // no page tells Google it is a copy of the home page.
   alternates: {
-    canonical: siteUrl,
+    canonical: '/',
   },
   verification: {
     google: ['google6f2eafaea5be099a.html', 'google6f2eafaea5be099a'],
@@ -107,7 +103,7 @@ const jsonLd = {
       '@type': 'SoftwareApplication',
       '@id': `${siteUrl}/#software`,
       name: 'TripMate',
-      operatingSystem: 'Android, Web, iOS',
+      operatingSystem: 'Android, Web',
       applicationCategory: 'FinanceApplication',
       description:
         'Split trip expenses with friends, track hotel stays, and settle up with minimal UPI payments. Works 100% offline with zero data loss.',
@@ -115,11 +111,6 @@ const jsonLd = {
         '@type': 'Offer',
         price: '0',
         priceCurrency: 'INR',
-      },
-      aggregateRating: {
-        '@type': 'AggregateRating',
-        ratingValue: '4.9',
-        ratingCount: '1280',
       },
       featureList: [
         '100% Offline-First functionality',
@@ -157,6 +148,7 @@ const jsonLd = {
 import { AndroidDownloadModal } from '@/components/download/AndroidDownloadModal'
 import { OfflineBanner } from '@/components/shared/OfflineBanner'
 import { PWARegister } from '@/components/shared/PWARegister'
+import { MotionPreferences } from '@/components/shared/MotionPreferences'
 
 export default function RootLayout({
   children,
@@ -198,6 +190,7 @@ export default function RootLayout({
             style={{ background: 'hsl(42, 95%, 80%)' }}
           />
         </div>
+        <MotionPreferences>
         <StoreProvider>
           <OfflineBanner />
           <div className="relative z-10">
@@ -206,6 +199,7 @@ export default function RootLayout({
             <AndroidDownloadModal />
           </div>
         </StoreProvider>
+        </MotionPreferences>
       </body>
     </html>
   )

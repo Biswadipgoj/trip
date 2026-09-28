@@ -2,7 +2,7 @@
 // TripMate ensures changes are saved locally immediately (optimistic UI),
 // so adding expenses, stays, payments, units, or trips works 100% offline.
 // When online, changes are synced to Supabase automatically in the background.
-import type { Expense, HotelExpense, Member, PaymentStatus, Settlement, SettlementGroup, Trip } from '../types'
+import type { Expense, HotelExpense, Member, PaymentMethod, PaymentStatus, Settlement, SettlementGroup, Trip } from '../types'
 import { useStore } from './store'
 import { useSyncStatus } from './synclog'
 import {
@@ -101,8 +101,8 @@ export async function cloudRemoveGroup(id: string): Promise<void> {
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
-export async function cloudSetPaymentStatus(settlementId: string, status: PaymentStatus): Promise<void> {
-  useStore.getState().updateSettlementStatus(settlementId, status)
+export async function cloudSetPaymentStatus(settlementId: string, status: PaymentStatus, method?: PaymentMethod): Promise<void> {
+  useStore.getState().updateSettlementStatus(settlementId, status, method)
 }
 
 export async function cloudDeleteSettlement(settlementId: string): Promise<void> {

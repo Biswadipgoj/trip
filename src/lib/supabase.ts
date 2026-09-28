@@ -1,10 +1,40 @@
 import { createClient } from '@supabase/supabase-js'
+import { SITE_URL } from '@/config/site'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+// Trip data goes through this site's own /api/sb proxy, never straight to
+// Supabase: the proxy checks the httpOnly session cookie and adds a trip pass
+// that the database requires. The browser holds no database key at all.
 
-export const supabase = supabaseUrl && supabaseKey
-  ? createClient(supabaseUrl, supabaseKey)
+const cloudConfigured = !!process.env.NEXT_PUBLIC_SUPABASE_URL
+
+let refreshing: Promise<boolean> | null = null
+
+/** One refresh at a time, shared by every request that hit an expired token. */
+function refreshSession(): Promise<boolean> {
+  refreshing ??= fetch('/api/auth/refresh', { method: 'POST', credentials: 'same-origin', cache: 'no-store' })
+    .then(r => r.ok)
+    .catch(() => false)
+    .finally(() => { setTimeout(() => { refreshing = null }, 0) })
+  return refreshing
+}
+
+/** Renews the 15-minute access cookie once and retries when the proxy says it expired. */
+const sessionFetch: typeof fetch = async (input, init) => {
+  const res = await fetch(input, { ...init, credentials: 'same-origin' })
+  if (res.status !== 401 || typeof window === 'undefined') return res
+  if (!(await refreshSession())) return res
+  return fetch(input, { ...init, credentials: 'same-origin' })
+}
+
+function proxyBase(): string {
+  return typeof window !== 'undefined' ? `${window.location.origin}/api/sb` : `${SITE_URL}/api/sb`
+}
+
+export const supabase = cloudConfigured
+  ? createClient(proxyBase(), 'tripmate-session', {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { fetch: sessionFetch },
+    })
   : null
 
 // ─── Type-safe helper: returns null-safe supabase client ──────────────────────

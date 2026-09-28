@@ -42,3 +42,32 @@ export const authLogout = (tripId?: string) =>
 
 /** 503: the server has no auth secrets configured (local dev), so run without cookies. */
 export const authUnavailable = (r: AuthResult<unknown>) => !r.ok && r.status === 503
+
+// ─── Trips (create / join, checked on the server) ────────────────────────────
+
+export interface ServerTrip {
+  id: string; tripCode: string; name: string; status: 'active' | 'closed'
+  createdAt: string; closedAt?: string; creatorId: string
+}
+export interface ServerMember {
+  id: string; tripId: string; name: string; mobile: string; avatarColor: string
+  upiId?: string; upiName?: string; joinedAt: string
+}
+
+/** Checks the trip password on the server; the trip's details come back only when it matches. */
+export const tripsFind = (tripCode: string, password: string) =>
+  post<{ trip: ServerTrip; memberCount: number }>('/api/trips/find', { tripCode, password })
+
+export interface JoinRequest {
+  tripCode: string
+  password: string
+  member: { id?: string; name: string; mobile: string; pin: string; avatarColor?: string; joinedAt?: string }
+  /** Send when the trip may not be on the server yet (new trip, or offline-created via invite link). */
+  trip?: { id: string; name: string; status?: string; createdAt?: string }
+  creator?: boolean
+}
+
+/** Creates or joins a trip and logs this browser in to it (httpOnly cookies). */
+export const tripsJoin = (req: JoinRequest) =>
+  post<{ trip: ServerTrip; member: ServerMember; alreadyMember: boolean; created: boolean; session: TripSession; memberships: TripSession[] }>(
+    '/api/trips/join', req)

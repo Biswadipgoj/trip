@@ -7,10 +7,11 @@ import { GlassCard } from '@/components/shared/GlassCard'
 import { Avatar } from '@/components/shared/Avatar'
 import { FadeIn } from '@/components/animations/FadeIn'
 import {
-  ArrowRight, CheckCircle2, Clock, CreditCard, QrCode,
+  ArrowRight, Banknote, CheckCircle2, Clock, CreditCard, QrCode, Smartphone,
   ArrowUpRight, ArrowDownRight, Sparkles, Trash2
 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
+import type { PaymentMethod } from '@/types'
 import { AttachmentViewer } from '@/components/attachments/AttachmentViewer'
 
 interface PaymentsPageProps {
@@ -24,6 +25,9 @@ interface PaymentsPageProps {
  * the expense engine: Expenses → Ledger → Balance Engine → Settlement Engine,
  * and outputs the minimum set of "who pays whom" transactions.
  */
+const methodLabel = (method?: PaymentMethod) =>
+  method === 'cash' ? ' · Cash' : method === 'upi' ? ' · UPI' : ''
+
 export default function PaymentsPage({ params }: PaymentsPageProps) {
   const { tripId } = React.use(params)
 
@@ -92,7 +96,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Payments</h1>
-            <p className="text-white/60 text-sm">
+            <p className="text-white/75 text-sm">
               {routes.length === 0
                 ? confirmedCount > 0
                   ? `All settled · ${confirmedCount} payment${confirmedCount !== 1 ? 's' : ''} confirmed`
@@ -122,7 +126,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                 </div>
               ))}
             </div>
-            <p className="text-[10px] text-white/50 mt-3 flex items-center gap-1">
+            <p className="text-[10px] text-white/70 mt-3 flex items-center gap-1">
               <Sparkles className="w-3 h-3" />
               Optimized to the minimum number of transactions
             </p>
@@ -135,10 +139,10 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
         <FadeIn delay={0.1}>
           <div className="text-center py-20">
             <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
-            <p className="text-white/60 mb-1">
+            <p className="text-white/75 mb-1">
               {confirmedCount > 0 ? 'Everything is settled 🎉' : 'No payments needed'}
             </p>
-            <p className="text-white/50 text-sm">
+            <p className="text-white/70 text-sm">
               {confirmedCount > 0
                 ? 'All confirmed payments are recorded below'
                 : 'Add expenses to see who pays whom'}
@@ -188,24 +192,24 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                   )}
                 </div>
 
-                {/* Status badge */}
-                <div className="flex items-center justify-between">
-                  <div className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+                {/* Status + actions: status line on top, actions get a full row on phones */}
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
+                  <div className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${
                     status === 'confirmed'
                       ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20'
                       : status === 'paid'
                       ? 'bg-brand-600/20 text-brand-400 border border-brand-500/20'
-                      : 'bg-white/5 text-white/60 border border-white/10'
+                      : 'bg-white/5 text-white/75 border border-white/10'
                   }`}>
                     {status === 'confirmed'
-                      ? <><CheckCircle2 className="w-3 h-3" /> Confirmed</>
+                      ? <><CheckCircle2 className="w-3 h-3" /> Confirmed{methodLabel(settlement?.method)}</>
                       : status === 'paid'
-                      ? <><CreditCard className="w-3 h-3" /> Paid</>
+                      ? <>{settlement?.method === 'cash' ? <Banknote className="w-3 h-3" /> : <CreditCard className="w-3 h-3" />} Paid{methodLabel(settlement?.method)}</>
                       : <><Clock className="w-3 h-3" /> Due</>
                     }
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center justify-end gap-2 max-sm:contents">
                     {/* QR code toggle (only if recipient has UPI) */}
                     {upiLink && (
                       <button
@@ -220,24 +224,32 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
 
                     {/* Action buttons */}
                     {settlement && status === 'pending' && (
-                      <button
-                        onClick={() => updateStatus(settlement.id, 'paid')}
-                        className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-brand-600 text-pure-white hover:bg-brand-700 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
-                      >
-                        Mark paid
-                      </button>
+                      <div className="grid grid-cols-2 gap-2 max-sm:w-full" role="group" aria-label={`Record how ${route.fromName} paid`}>
+                        <button
+                          onClick={() => updateStatus(settlement.id, 'paid', 'upi')}
+                          className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-sm font-semibold min-h-[44px] px-3.5 rounded-xl bg-brand-600 text-pure-white hover:bg-brand-700 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
+                        >
+                          <Smartphone className="w-4 h-4" aria-hidden="true" /> Paid by UPI
+                        </button>
+                        <button
+                          onClick={() => updateStatus(settlement.id, 'paid', 'cash')}
+                          className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-sm font-semibold min-h-[44px] px-3.5 rounded-xl border border-brand-500/30 bg-pure-white text-brand-800 hover:bg-brand-50 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
+                        >
+                          <Banknote className="w-4 h-4" aria-hidden="true" /> Paid in cash
+                        </button>
+                      </div>
                     )}
                     {settlement && status === 'paid' && (
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-end gap-2 max-sm:w-full">
                         <button
                           onClick={() => updateStatus(settlement.id, 'pending')}
-                          className="text-xs font-medium min-h-[36px] px-3 rounded-lg text-white/50 hover:text-white/80 hover:bg-white/5 active:scale-[0.97] transition"
+                          className="text-xs font-medium min-h-[36px] px-3 rounded-lg text-white/70 hover:text-white/80 hover:bg-white/5 active:scale-[0.97] transition"
                         >
                           Undo
                         </button>
                         <button
                           onClick={() => updateStatus(settlement.id, 'confirmed')}
-                          className="text-sm font-semibold min-h-[40px] px-4 rounded-xl bg-emerald-500 text-pure-white hover:bg-emerald-400 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
+                          className="whitespace-nowrap text-sm font-semibold min-h-[44px] px-4 rounded-xl bg-emerald-700 text-pure-white hover:bg-emerald-800 active:scale-[0.97] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2"
                         >
                           Confirm received
                         </button>
@@ -259,7 +271,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                         <div className="rounded-2xl p-3" style={{ background: '#ffffff' }}>
                           <QRCodeSVG value={upiLink} size={140} />
                         </div>
-                        <p className="text-xs text-white/60">Scan to pay via UPI</p>
+                        <p className="text-xs text-white/75">Scan to pay via UPI</p>
                         <a
                           href={upiLink}
                           className="text-xs text-brand-400 underline underline-offset-2"
@@ -274,7 +286,7 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                 {/* Payment screenshot / proof */}
                 <div className="mt-3 pt-3 border-t border-white/10">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[11px] font-medium text-white/60">Payment Proof / Screenshot</span>
+                    <span className="text-[11px] font-medium text-white/75">Payment Proof / Screenshot</span>
                   </div>
                   <AttachmentViewer
                     tripId={tripId}
@@ -311,11 +323,11 @@ export default function PaymentsPage({ params }: PaymentsPageProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">
                         <span className="font-semibold">{fromM.name}</span>
-                        <span className="text-white/60"> paid </span>
+                        <span className="text-white/75"> paid </span>
                         <span className="font-semibold">{toM.name}</span>
                       </p>
                       {payment.confirmedAt && (
-                        <p className="text-xs text-white/60">{formatDate(payment.confirmedAt)}</p>
+                        <p className="text-xs text-white/75">{formatDate(payment.confirmedAt)}</p>
                       )}
                     </div>
                     <span className="text-sm font-bold text-emerald-400 flex-shrink-0">

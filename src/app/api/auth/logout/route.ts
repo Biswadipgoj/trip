@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import {
-  authContext, clearSessionCookies, cookiesFor, isSameOrigin, isUuid, json, notConfigured, setSessionCookies,
+  allowedCaller, authContext, endSession, isUuid, issueSession, json, notConfigured, refreshTokenOf,
 } from '@/lib/server/authHttp'
 
 export const runtime = 'nodejs'
@@ -9,14 +9,12 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest) {
   const ctx = authContext()
   if (!ctx) return notConfigured()
-  if (!isSameOrigin(req)) return json({ error: 'Forbidden' }, 403)
+  if (!allowedCaller(req)) return json({ error: 'Forbidden' }, 403)
 
   const body = await req.json().catch(() => null)
   const tripId = isUuid(body?.tripId) ? body.tripId : undefined
 
-  const remaining = await ctx.sessions.logout(req.cookies.get(cookiesFor(req).refresh)?.value, tripId)
-  const res = json({ memberships: remaining?.memberships ?? [] })
-  if (remaining) await setSessionCookies(res, req, remaining, ctx.key)
-  else clearSessionCookies(res, req)
-  return res
+  const remaining = await ctx.sessions.logout(refreshTokenOf(req, body), tripId)
+  if (!remaining) return endSession(req, { memberships: [] })
+  return issueSession(req, { memberships: remaining.memberships }, remaining, ctx.key)
 }

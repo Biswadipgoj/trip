@@ -1,49 +1,17 @@
 import type { MetadataRoute } from 'next'
+import { SITE_URL } from '@/config/site'
 
+// Public pages are crawlable; private trip pages and the API are not.
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tripmate.app'
-
   return {
     rules: [
       {
         userAgent: '*',
-        allow: [
-          '/',
-          '/download',
-          '/create-trip',
-          '/join-trip',
-          '/login',
-          '/s/',
-          '/api/download/',
-          '/manifest.json',
-          '/icon.png',
-          '/logo.png',
-        ],
-        disallow: [
-          '/dashboard/',
-          '/expenses/',
-          '/members/',
-          '/payments/',
-          '/settlements/',
-          '/report/',
-          '/api/shorten',
-        ],
-      },
-      {
-        userAgent: 'Googlebot',
         allow: '/',
-        disallow: [
-          '/dashboard/',
-          '/expenses/',
-          '/members/',
-          '/payments/',
-          '/settlements/',
-          '/report/',
-          '/api/',
-        ],
+        disallow: ['/dashboard/', '/expenses/', '/members/', '/payments/', '/settlements/', '/report/', '/api/', '/s/'],
       },
     ],
-    sitemap: `${baseUrl.replace(/\/$/, '')}/sitemap.xml`,
-    host: baseUrl.replace(/\/$/, ''),
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL,
   }
 }

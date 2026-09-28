@@ -10,11 +10,12 @@ interface StatusBadgeProps {
 }
 
 const statusConfig = {
-  pending:   { label: 'Pending',   dot: 'bg-amber-400',   bg: 'bg-amber-400/10',   text: 'text-amber-400',   border: 'border-amber-400/20' },
-  paid:      { label: 'Paid',      dot: 'bg-blue-400',    bg: 'bg-blue-400/10',    text: 'text-blue-400',    border: 'border-blue-400/20' },
-  confirmed: { label: 'Confirmed', dot: 'bg-emerald-400', bg: 'bg-emerald-400/10', text: 'text-emerald-400', border: 'border-emerald-400/20' },
-  active:    { label: 'Active',    dot: 'bg-brand-400',   bg: 'bg-brand-400/10',   text: 'text-brand-400',   border: 'border-brand-400/20' },
-  closed:    { label: 'Closed',   dot: 'bg-slate-400',   bg: 'bg-slate-400/10',   text: 'text-slate-400',   border: 'border-slate-400/20' },
+  // Text uses the -700 shades: the -400 ones fail WCAG AA contrast on the light theme.
+  pending:   { label: 'Pending',   dot: 'bg-amber-400',   bg: 'bg-amber-400/10',   text: 'text-amber-700',   border: 'border-amber-400/20' },
+  paid:      { label: 'Paid',      dot: 'bg-blue-400',    bg: 'bg-blue-400/10',    text: 'text-blue-700',    border: 'border-blue-400/20' },
+  confirmed: { label: 'Confirmed', dot: 'bg-emerald-400', bg: 'bg-emerald-400/10', text: 'text-emerald-700', border: 'border-emerald-400/20' },
+  active:    { label: 'Active',    dot: 'bg-brand-400',   bg: 'bg-brand-400/10',   text: 'text-brand-700',   border: 'border-brand-400/20' },
+  closed:    { label: 'Closed',   dot: 'bg-slate-400',   bg: 'bg-slate-400/10',   text: 'text-slate-600',   border: 'border-slate-400/20' },
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {

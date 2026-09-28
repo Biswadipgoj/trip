@@ -258,3 +258,39 @@ describe('migrating data from older app versions', () => {
     expect(migrated.session?.tripId).toBe(trip.id)
   })
 })
+
+describe('settle by UPI or cash (Android)', () => {
+  it('records the method, keeps it through regeneration, confirmation and sync, clears it on undo', () => {
+    const { trip, asha, bala, chetan } = setupTrip()
+    const s = useStore.getState()
+    s.addExpense({
+      tripId: trip.id, title: 'Dinner', amount: 900, paidBy: asha.id, category: 'food',
+      participants: [asha.id, bala.id, chetan.id], splitType: 'equal', splits: [],
+    })
+    const dues = () => useStore.getState().settlements.filter(x => x.tripId === trip.id && x.status !== 'confirmed')
+    const balaDue = dues().find(d => d.fromMemberId === bala.id)!
+    const get = () => useStore.getState().settlements.find(x => x.id === balaDue.id)
+
+    useStore.getState().updateSettlementStatus(balaDue.id, 'paid', 'cash')
+    useStore.getState().generateSettlements(trip.id)
+    expect(get()?.method).toBe('cash')
+
+    useStore.getState().updateSettlementStatus(balaDue.id, 'pending')
+    expect(get()?.method).toBeUndefined()
+
+    useStore.getState().updateSettlementStatus(balaDue.id, 'paid', 'upi')
+    useStore.getState().updateSettlementStatus(balaDue.id, 'confirmed')
+    expect(useStore.getState().settlements.find(x => x.status === 'confirmed')?.method).toBe('upi')
+
+    // From another device: Chetan paid in cash.
+    const chetanDue = dues().find(d => d.fromMemberId === chetan.id)!
+    useStore.getState().mergeRemoteTrip(bundleFor(trip.id, {
+      expenses: useStore.getState().expenses.filter(e => e.tripId === trip.id),
+      settlementStatuses: [
+        ...useStore.getState().settlements.filter(x => x.status === 'confirmed').map(x => ({ ...x })),
+        { id: chetanDue.id, fromMemberId: chetan.id, toMemberId: asha.id, amount: chetanDue.amount, status: 'paid' as const, paidAt: new Date().toISOString(), method: 'cash' as const },
+      ],
+    }))
+    expect(dues().find(d => d.fromMemberId === chetan.id)?.method).toBe('cash')
+  })
+})

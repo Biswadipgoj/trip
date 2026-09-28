@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { authLogin, authUnavailable } from '@/lib/authClient'
+import { useRef, useState } from 'react'
+import { remoteCreateTrip } from '@/lib/remote'
+import { AgreeNote } from '@/components/legal/AgreeNote'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { createInviteLink } from '@/lib/utils'
 import { ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2, IndianRupee } from 'lucide-react'
-import type { Trip } from '@/types'
+import type { Member, Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
@@ -61,12 +62,14 @@ export default function CreateTripPage() {
     if (validateDetails()) setStep('pin')
   }
 
-  const secureSession = async (memberId: string, synced: Promise<void>) => {
+  // Puts the trip on the server and logs this browser in (httpOnly cookies).
+  // Needs the creator's PIN, which only this page has, so a failure offers "Try again".
+  const creatorRef = useRef<Member | null>(null)
+  const secureSession = async (trip: Trip, creator: Member) => {
     setSessionState('pending')
     setSessionError('')
-    await synced
-    const res = await authLogin(memberId, pin)
-    if (res.ok || authUnavailable(res)) {
+    const res = await remoteCreateTrip(trip, creator)
+    if (res.ok || res.status === 503) {
       setSessionState('ready')
     } else {
       setSessionState('failed')
@@ -80,8 +83,9 @@ export default function CreateTripPage() {
 
   const handleCreate = () => {
     if (!validatePin()) return
-    const { trip, member, synced } = createTrip(tripName, creatorName, mobile, password, pin)
-    void secureSession(member.id, synced)
+    const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
+    creatorRef.current = { ...member, pin }
+    void secureSession(trip, creatorRef.current)
     const budgetNum = parseFloat(budget)
     if (budgetNum > 0) setTripBudget(trip.id, budgetNum)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
@@ -142,7 +146,7 @@ export default function CreateTripPage() {
                       : 'rgba(139,78,245,0.16)',
                   }}
                 />
-                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/50'}`}>
+                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-700' : 'text-white/70'}`}>
                   {label}
                 </p>
               </div>
@@ -168,7 +172,7 @@ export default function CreateTripPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Name
                   </label>
@@ -184,7 +188,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Users className="w-3.5 h-3.5 inline mr-1.5" />
                     Your Name
                   </label>
@@ -200,7 +204,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                     Mobile Number
                   </label>
@@ -217,7 +221,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <IndianRupee className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Budget in ₹ (optional)
                   </label>
@@ -233,7 +237,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Lock className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Password (shared with friends)
                   </label>
@@ -274,7 +278,7 @@ export default function CreateTripPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">4-Digit PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">4-Digit PIN</label>
                   <input
                     id="pin-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -289,7 +293,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Confirm PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">Confirm PIN</label>
                   <input
                     id="pin-confirm-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -313,6 +317,7 @@ export default function CreateTripPage() {
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
+              <AgreeNote action="Create Trip" />
             </motion.div>
           )}
 
@@ -347,7 +352,7 @@ export default function CreateTripPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="text-white/60 text-sm mb-8"
+                className="text-white/75 text-sm mb-8"
               >
                 Share this code with your friends to join
               </motion.p>
@@ -359,7 +364,7 @@ export default function CreateTripPage() {
                 transition={{ delay: 0.35 }}
                 className="glass rounded-2xl p-6 mb-4"
               >
-                <p className="text-xs text-white/60 mb-2 font-medium">YOUR TRIP CODE</p>
+                <p className="text-xs text-white/75 mb-2 font-medium">YOUR TRIP CODE</p>
                 <p
                   className="text-4xl font-bold tracking-widest text-gradient-brand mb-4"
                   style={{ fontFamily: "'Space Grotesk', monospace" }}
@@ -388,11 +393,11 @@ export default function CreateTripPage() {
                   transition={{ delay: 0.4 }}
                   className="glass rounded-2xl p-4 mb-6 text-left"
                 >
-                  <p className="text-xs text-white/60 mb-2 font-medium flex items-center gap-1.5">
+                  <p className="text-xs text-white/75 mb-2 font-medium flex items-center gap-1.5">
                     <Link2 className="w-3.5 h-3.5" />
                     SHORT INVITE LINK (easy to share)
                   </p>
-                  <p className="text-[11px] text-white/50 font-mono break-all mb-3 leading-relaxed">
+                  <p className="text-[11px] text-white/70 font-mono break-all mb-3 leading-relaxed">
                     {shareUrl}
                   </p>
                   <button
@@ -420,7 +425,7 @@ export default function CreateTripPage() {
                 transition={{ delay: 0.45 }}
                 onClick={() =>
                   sessionState === 'failed'
-                    ? secureSession(result.memberId, Promise.resolve())
+                    ? (createdTrip && creatorRef.current && secureSession(createdTrip, creatorRef.current))
                     : router.push(`/dashboard/${result.tripId}`)
                 }
                 disabled={sessionState === 'pending'}

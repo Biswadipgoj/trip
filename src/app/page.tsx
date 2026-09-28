@@ -190,7 +190,7 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.55 }}
-            className="mt-8 pt-6 border-t border-brand-500/15 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-semibold text-slate-500"
+            className="mt-8 pt-6 border-t border-brand-500/15 flex flex-wrap items-center justify-center lg:justify-start gap-4 text-xs font-semibold text-slate-600"
           >
             <span className="inline-flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-amber-500" /> {t('freeNoAds')}
@@ -358,11 +358,11 @@ export default function Home() {
               {/* Quick Trip Features Glances */}
               <div className="grid grid-cols-2 gap-2.5 pt-2">
                 <div className="p-3 rounded-xl bg-surface-1/80 border border-brand-500/10 text-center">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">{t('addBill')}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-600">{t('addBill')}</p>
                   <p className="text-xs font-extrabold text-slate-900 mt-0.5">📸 Bill & UPI Photos</p>
                 </div>
                 <div className="p-3 rounded-xl bg-surface-1/80 border border-brand-500/10 text-center">
-                  <p className="text-[10px] font-bold uppercase text-slate-500">{t('offlineBadge')}</p>
+                  <p className="text-[10px] font-bold uppercase text-slate-600">{t('offlineBadge')}</p>
                   <p className="text-xs font-extrabold text-slate-900 mt-0.5">⚡ Auto Cloud Sync</p>
                 </div>
               </div>
@@ -403,7 +403,7 @@ export default function Home() {
                   <span>{t('downloadApk')}</span>
                 </Link>
                 <span className="text-xs font-semibold text-slate-500">
-                  Direct safe APK download · No Play Store account needed
+                  Free APK from tripmate.boats
                 </span>
               </div>
             )}

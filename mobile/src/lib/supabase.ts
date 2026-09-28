@@ -1,8 +1,11 @@
-// Supabase client. Null when the build has no Supabase credentials — the app
-// then runs local-only (single device), exactly like the web app does.
+// Data client. It talks to the TripMate server's /api/sb proxy, never to the
+// database directly: the proxy checks this phone's access token and only lets
+// it reach its own trips. Null when the build has no server URL — the app then
+// runs local-only (single device).
 import 'react-native-url-polyfill/auto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config'
+import { WEB_URL } from './config'
+import { accessToken, expireAccessToken, isServerConfigured, refreshSession } from './session'
 
 // React Native's fetch never times out on its own: one stalled request on a
 // flaky mobile network would otherwise block the sync loop forever.
@@ -26,12 +29,30 @@ const fetchWithTimeout: typeof fetch = (input, init = {}) => {
   return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer))
 }
 
+function withSession(init: RequestInit, token: string | null): RequestInit {
+  const headers = new Headers(init.headers)
+  headers.delete('Authorization')
+  headers.delete('apikey')
+  headers.set('x-tm-client', 'app')
+  if (token) headers.set('x-tm-access', token)
+  return { ...init, headers }
+}
+
+/** Adds the access token; on 401 renews it once and retries. */
+const sessionFetch: typeof fetch = async (input, init = {}) => {
+  const res = await fetchWithTimeout(input, withSession(init, await accessToken()))
+  if (res.status !== 401) return res
+  expireAccessToken()
+  if (!(await refreshSession())) return res
+  return fetchWithTimeout(input, withSession(init, await accessToken()))
+}
+
 function create(): SupabaseClient | null {
-  if (!/^https?:\/\/\S+/.test(SUPABASE_URL) || SUPABASE_ANON_KEY.length < 20) return null
+  if (!isServerConfigured) return null
   try {
-    return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    return createClient(`${WEB_URL}/api/sb`, 'tripmate-app', {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-      global: { fetch: fetchWithTimeout },
+      global: { fetch: sessionFetch },
     })
   } catch (err) {
     console.warn('[supabase] could not create client — running local-only:', err)

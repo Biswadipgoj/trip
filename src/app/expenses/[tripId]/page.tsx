@@ -280,7 +280,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white">Expenses</h1>
-              <p className="text-white/60 text-sm">
+              <p className="text-white/75 text-sm">
                 {expenses.length + hotelExpenses.length} items · {formatCurrency(totalSpent)}
               </p>
             </div>
@@ -326,7 +326,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           {payer && (
                             <div className="flex items-center gap-1">
                               <Avatar name={payer.name} color={payer.avatarColor} size="xs" />
-                              <span className="text-xs text-white/60">{payer.name}</span>
+                              <span className="text-xs text-white/75">{payer.name}</span>
                             </div>
                           )}
                           <span className="text-[10px] text-white/55">
@@ -337,12 +337,12 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       </div>
                       <div className="text-right flex-shrink-0">
                         <p className="font-bold text-white">{formatCurrency(hotel.totalAmount)}</p>
-                        <p className="text-[10px] text-white/50">{formatDate(hotel.createdAt)}</p>
+                        <p className="text-[10px] text-white/70">{formatDate(hotel.createdAt)}</p>
                       </div>
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-white/50 flex-shrink-0"
+                        className="text-white/70 flex-shrink-0"
                       >
                         <ChevronDown className="w-4 h-4" />
                       </motion.div>
@@ -372,11 +372,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                       <div key={m.id} className="flex items-center gap-1 text-xs text-white/65">
                                         <Avatar name={m.name} color={m.avatarColor} size="xs" />
                                         <span>{m.name}</span>
-                                        <span className="text-white/50">({formatCurrency(perPerson)})</span>
+                                        <span className="text-white/70">({formatCurrency(perPerson)})</span>
                                       </div>
                                     ))}
                                     {occupants.length === 0 && (
-                                      <span className="text-xs text-white/50 italic">No occupants assigned</span>
+                                      <span className="text-xs text-white/70 italic">No occupants assigned</span>
                                     )}
                                   </div>
                                 </div>
@@ -384,7 +384,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             })}
                             {/* Bill photos */}
                             <div className="pt-2 border-t border-white/10">
-                              <p className="text-xs text-white/60 mb-2">Bills & Receipts</p>
+                              <p className="text-xs text-white/75 mb-2">Bills & Receipts</p>
                               <AttachmentViewer tripId={tripId} kind="bill" hotelExpenseId={hotel.id} />
                             </div>
 
@@ -465,11 +465,11 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         <p className="font-semibold text-white text-sm truncate">{expense.title}</p>
                         <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                           {hasMultiplePayers ? (
-                            <span className="text-xs text-white/60">{expense.payers!.length} payers</span>
+                            <span className="text-xs text-white/75">{expense.payers!.length} payers</span>
                           ) : payer && (
                             <div className="flex items-center gap-1">
                               <Avatar name={payer.name} color={payer.avatarColor} size="xs" />
-                              <span className="text-xs text-white/60">{payer.name}</span>
+                              <span className="text-xs text-white/75">{payer.name}</span>
                             </div>
                           )}
                           {expense.subcategory && (
@@ -491,13 +491,13 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
 
                       <div className="text-right flex-shrink-0">
                         <p className="font-bold text-white">{formatCurrency(expense.amount)}</p>
-                        <p className="text-[10px] text-white/50">{formatDate(expense.createdAt)}</p>
+                        <p className="text-[10px] text-white/70">{formatDate(expense.createdAt)}</p>
                       </div>
 
                       <motion.div
                         animate={{ rotate: isExpanded ? 180 : 0 }}
                         transition={{ duration: 0.2 }}
-                        className="text-white/50 flex-shrink-0"
+                        className="text-white/70 flex-shrink-0"
                       >
                         <ChevronDown className="w-4 h-4" />
                       </motion.div>
@@ -516,7 +516,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           <div className="px-4 pb-4 border-t border-white/10 pt-3 space-y-3">
                             {hasMultiplePayers && (
                               <div>
-                                <p className="text-xs text-white/60 mb-2">Paid by {expense.payers!.length} people</p>
+                                <p className="text-xs text-white/75 mb-2">Paid by {expense.payers!.length} people</p>
                                 <div className="space-y-1.5">
                                   {expense.payers!.map(p => {
                                     const m = members.find(x => x.id === p.memberId)
@@ -536,7 +536,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             )}
 
                             <div>
-                              <p className="text-xs text-white/60 mb-2">Split between {participantMembers.length} people</p>
+                              <p className="text-xs text-white/75 mb-2">Split between {participantMembers.length} people</p>
                               <div className="space-y-1.5">
                                 {participantMembers.map(m => {
                                   const split = expense.splits.find(s => s.memberId === m.id)
@@ -547,7 +547,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                                       <Avatar name={m.name} color={m.avatarColor} size="xs" />
                                       <span className="text-xs text-white flex-1">{m.name}</span>
                                       {split && expense.splitType !== 'equal' && (
-                                        <span className="text-[10px] text-white/60">
+                                        <span className="text-[10px] text-white/75">
                                           {expense.splitType === 'quantity' ? `${split.value} units` : ''}
                                           {expense.splitType === 'percentage' ? `${split.value}%` : ''}
                                         </span>
@@ -562,7 +562,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             </div>
 
                             {expense.notes && (
-                              <p className="text-xs text-white/60 flex items-center gap-1">
+                              <p className="text-xs text-white/75 flex items-center gap-1">
                                 <Info className="w-3 h-3" />
                                 {expense.notes}
                               </p>
@@ -570,7 +570,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
 
                             {/* Bill photos */}
                             <div className="pt-2 border-t border-white/10">
-                              <p className="text-xs text-white/60 mb-2">Bills & Receipts</p>
+                              <p className="text-xs text-white/75 mb-2">Bills & Receipts</p>
                               <AttachmentViewer tripId={tripId} kind="bill" expenseId={expense.id} />
                             </div>
 
@@ -604,8 +604,8 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
             className="text-center py-20"
           >
             <Receipt className="w-12 h-12 text-white/40 mx-auto mb-3" />
-            <p className="text-white/60 mb-1">No expenses yet</p>
-            <p className="text-white/50 text-sm">Add your first expense to get started</p>
+            <p className="text-white/75 mb-1">No expenses yet</p>
+            <p className="text-white/70 text-sm">Add your first expense to get started</p>
           </motion.div>
         )}
       </div>
@@ -650,14 +650,14 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                   onClick={() => setShowModal(false)}
                   className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center"
                 >
-                  <X className="w-4 h-4 text-white/60" />
+                  <X className="w-4 h-4 text-white/75" />
                 </button>
               </div>
 
               <div className="space-y-5">
                 {/* Title */}
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Tag className="w-3.5 h-3.5 inline mr-1" />
                     {isStay ? 'Hotel / Stay Name' : 'Expense Title'}
                   </label>
@@ -674,7 +674,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {/* Amount (stay mode: auto-computed from rooms) */}
                 {!isStay && (
                   <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    <label className="block text-xs font-medium text-white/75 mb-1.5">
                       <IndianRupee className="w-3.5 h-3.5 inline mr-1" />
                       Amount (₹)
                     </label>
@@ -693,7 +693,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
 
                 {/* Category */}
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-2">Category</label>
+                  <label className="block text-xs font-medium text-white/75 mb-2">Category</label>
                   <div className="grid grid-cols-3 gap-2">
                     {CATEGORIES.map(cat => (
                       <button
@@ -716,7 +716,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {/* Subcategory (when the category has them, e.g. Food → Lunch) */}
                 {!isStay && SUBCATEGORIES[category] && (
                   <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}>
-                    <label className="block text-xs font-medium text-white/60 mb-2">Type (optional)</label>
+                    <label className="block text-xs font-medium text-white/75 mb-2">Type (optional)</label>
                     <div className="flex flex-wrap gap-2">
                       {SUBCATEGORIES[category].map(sub => (
                         <button
@@ -741,7 +741,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {isStay && (
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs font-medium text-white/60">
+                      <label className="text-xs font-medium text-white/75">
                         <BedDouble className="w-3.5 h-3.5 inline mr-1" />
                         Rooms
                       </label>
@@ -774,7 +774,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             )}
                           </div>
                           <div>
-                            <p className="text-[10px] text-white/60 mb-1.5">Occupants</p>
+                            <p className="text-[10px] text-white/75 mb-1.5">Occupants</p>
                             <div className="flex flex-wrap gap-1.5">
                               {members.map(m => {
                                 const selected = room.occupantIds.includes(m.id)
@@ -800,7 +800,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                     </div>
                     {totalRoomCost > 0 && (
                       <div className="mt-3 rounded-xl bg-brand-600/10 border border-brand-500/20 px-3 py-2 flex items-center justify-between">
-                        <span className="text-xs text-white/60 flex items-center gap-1">
+                        <span className="text-xs text-white/75 flex items-center gap-1">
                           <IndianRupee className="w-3 h-3" />
                           Total stay cost
                         </span>
@@ -814,7 +814,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {/* Paid By */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-white/60">
+                    <label className="text-xs font-medium text-white/75">
                       <Users className="w-3.5 h-3.5 inline mr-1" />
                       Paid By
                     </label>
@@ -825,7 +825,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                         className={`text-xs px-2.5 py-1 rounded-lg border transition-all ${
                           multiPayer
                             ? 'bg-brand-600/30 border-brand-500/50 text-brand-400'
-                            : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                            : 'bg-white/5 border-white/10 text-white/75 hover:text-white'
                         }`}
                       >
                         Multiple payers
@@ -843,7 +843,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all ${
                             paidBy === m.id
                               ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                              : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+                              : 'bg-white/5 border border-white/10 text-white/75 hover:text-white'
                           }`}
                         >
                           <Avatar name={m.name} color={m.avatarColor} size="xs" />
@@ -860,7 +860,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           <Avatar name={m.name} color={m.avatarColor} size="xs" />
                           <span className="text-xs text-white flex-1">{m.name}</span>
                           <div className="relative w-28">
-                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">₹</span>
+                            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/70">₹</span>
                             <input
                               id={`payer-amt-${m.id}`}
                               type="number"
@@ -888,10 +888,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {!isStay && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-white/60">Who&apos;s sharing this?</label>
+                    <label className="text-xs font-medium text-white/75">Who&apos;s sharing this?</label>
                     <div className="flex gap-3 text-xs">
                       <button id="select-all" onClick={() => setParticipants(members.map(m => m.id))} className="text-brand-400">All</button>
-                      <button id="clear-all"  onClick={() => setParticipants([])} className="text-white/60">None</button>
+                      <button id="clear-all"  onClick={() => setParticipants([])} className="text-white/75">None</button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -905,7 +905,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                           className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all ${
                             included
                               ? 'bg-brand-600/30 border border-brand-500/50 text-white'
-                              : 'bg-white/5 border border-white/10 text-white/60 hover:text-white'
+                              : 'bg-white/5 border border-white/10 text-white/75 hover:text-white'
                           }`}
                         >
                           <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 transition-all ${included ? 'bg-brand-500' : 'border border-white/30'}`}>
@@ -924,7 +924,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {/* Split Type */}
                 {!isStay && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-2">How to split?</label>
+                  <label className="block text-xs font-medium text-white/75 mb-2">How to split?</label>
                   <div className="grid grid-cols-2 gap-2">
                     {SPLIT_TYPES.map(st => (
                       <button
@@ -969,10 +969,10 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                               <span className="text-xs text-white flex-1">{m.name}</span>
                               <div className="relative w-24">
                                 {splitType === 'percentage' && (
-                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">%</span>
+                                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-white/70">%</span>
                                 )}
                                 {splitType === 'custom' && (
-                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/50">₹</span>
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-white/70">₹</span>
                                 )}
                                 <input
                                   id={`split-val-${pid}`}
@@ -1018,7 +1018,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                 {/* Notes */}
                 {!isStay && (
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Notes (optional)</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">Notes (optional)</label>
                   <input
                     id="expense-notes"
                     className="input-glass"
@@ -1031,7 +1031,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
 
                 {/* Bill / Receipt Attachment */}
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Paperclip className="w-3.5 h-3.5 inline mr-1" />
                     Attach Bill / Receipt (optional)
                   </label>
@@ -1041,7 +1041,7 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                       <img src={billPreview} alt="Bill preview" className="w-12 h-12 object-cover rounded-lg" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-white font-medium">Bill photo ready</p>
-                        <p className="text-[11px] text-white/60">
+                        <p className="text-[11px] text-white/75">
                           {(bill.blob.size / 1024).toFixed(0)} KB · uploads when you save
                         </p>
                       </div>
@@ -1055,14 +1055,14 @@ export default function ExpensesPage({ params }: ExpensesPageProps) {
                             setBillPreview(null)
                           }
                         }}
-                        className="p-2 rounded-lg text-white/60 hover:text-red-400 hover:bg-white/5 transition-colors"
+                        className="p-2 rounded-lg text-white/75 hover:text-red-400 hover:bg-white/5 transition-colors"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   ) : (
                     <label
-                      className={`flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 px-3 py-2.5 text-xs text-white/60 hover:text-white cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand-400 ${billPreparing ? 'opacity-60 pointer-events-none' : ''}`}
+                      className={`flex items-center gap-2 rounded-xl border border-dashed border-white/20 bg-white/5 hover:bg-white/10 px-3 py-2.5 text-xs text-white/75 hover:text-white cursor-pointer transition-all focus-within:ring-2 focus-within:ring-brand-400 ${billPreparing ? 'opacity-60 pointer-events-none' : ''}`}
                     >
                       {billPreparing
                         ? <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />

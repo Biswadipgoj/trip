@@ -6,12 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import {
   isRemoteEnabled,
-  remoteFindTripsByMobile,
-  remoteVerifyMemberPin,
   remoteFetchTripBundle,
 } from '@/lib/remote'
 import {
-  LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, sortTripChoices, type TripChoice,
+  LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, sortTripChoices, type TripChoice,
 } from '@/lib/tripLogin'
 import { authLogin, authLookupTrips, authUnavailable } from '@/lib/authClient'
 import { safeNextPath } from '@/lib/auth/safeNext'
@@ -101,13 +99,9 @@ export default function LoginPage() {
     }
   }
 
-  // Servers without login secrets (local development) fall back to the old
-  // device + direct lookup. Production always goes through /api/auth.
-  const legacyFindTrips = async () => {
-    const local = localTripChoices(trips, members, mobile)
-    const remote = isRemoteEnabled() ? await remoteFindTripsByMobile(mobile).catch(() => []) : []
-    return mergeTripChoices(local, remote)
-  }
+  // Servers without login secrets (local development) can only offer the
+  // trips on this device. Production always goes through /api/auth.
+  const legacyFindTrips = async () => localTripChoices(trips, members, mobile)
 
   const chooseTrip = (choice: TripChoice) => {
     setSelected(choice)
@@ -133,9 +127,7 @@ export default function LoginPage() {
           return
         }
         const localMember = members.find(m => m.id === selected.memberId)
-        let ok = !!localMember?.pin && localMember.pin === pin
-        if (!ok && isRemoteEnabled()) ok = await remoteVerifyMemberPin(selected.memberId, pin).catch(() => false)
-        if (!ok) {
+        if (!localMember?.pin || localMember.pin !== pin) {
           fail('That PIN doesn’t match this trip. Try again.')
           return
         }
@@ -194,7 +186,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
@@ -223,7 +215,7 @@ export default function LoginPage() {
           {step === 'mobile' && (
             <>
               <div>
-                <label htmlFor="login-mobile" className="block text-xs font-medium text-white/60 mb-1.5">
+                <label htmlFor="login-mobile" className="block text-xs font-medium text-white/75 mb-1.5">
                   <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                   Mobile Number
                 </label>
@@ -310,7 +302,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setStep('mobile')}
-                className="w-full text-xs text-white/60 hover:text-white/80"
+                className="w-full text-xs text-white/75 hover:text-white/80"
               >
                 Not {mobile}? Use a different number
               </button>
@@ -326,7 +318,7 @@ export default function LoginPage() {
                 </p>
               </div>
               <div>
-                <label htmlFor="login-pin" className="block text-xs font-medium text-white/60 mb-1.5">
+                <label htmlFor="login-pin" className="block text-xs font-medium text-white/75 mb-1.5">
                   <Shield className="w-3.5 h-3.5 inline mr-1.5" />
                   4-Digit PIN
                 </label>
@@ -364,13 +356,13 @@ export default function LoginPage() {
           transition={{ delay: 0.4 }}
           className="mt-6 text-center space-y-2"
         >
-          <p className="text-white/60 text-sm">
+          <p className="text-white/75 text-sm">
             New trip?{' '}
             <Link href="/create-trip" className="text-brand-600 hover:text-brand-700 font-medium transition-colors">
               Create one
             </Link>
           </p>
-          <p className="text-white/60 text-sm">
+          <p className="text-white/75 text-sm">
             Have a code?{' '}
             <Link href="/join-trip" className="text-brand-600 hover:text-brand-700 font-medium transition-colors">
               Join a trip

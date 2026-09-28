@@ -1,14 +1,16 @@
 // Refresh-token sessions with rotation and reuse detection.
 //
 // The browser holds an opaque random refresh token in an httpOnly cookie; the
-// database holds only its SHA-256 hash. Every refresh issues a new token and
-// retires the old one. Presenting a retired token after a short grace window
-// (two tabs refreshing at once) means it was copied, so the session is revoked.
+// database holds only its SHA-256 hash. A refresh issues a new token and
+// retires the old one, at most once per grace window. Presenting a retired
+// token after that window (not just two tabs refreshing at once) means it was
+// copied, so the session is revoked.
 
 import { createHash, randomBytes } from 'node:crypto'
 import { REFRESH_TTL_SECONDS, type Membership } from '@/lib/auth/tokens'
 
-export const ROTATION_GRACE_MS = 60_000
+/** Grace window (and minimum time between rotations). Server-only override for tests; never below 1 s. */
+export const ROTATION_GRACE_MS = Math.max(1_000, Number(process.env.AUTH_ROTATION_GRACE_MS) || 60_000)
 
 export interface SessionRow {
   id: string
@@ -89,6 +91,14 @@ export class SessionService {
 
     const row = await this.repo.findByRefreshHash(hash)
     if (row && isLive(row, now)) {
+      // Rotate at most once per grace window. A burst of parallel requests
+      // (prefetches, several tabs, a slow mobile network) then only ever holds
+      // the current token or the one just before it, which the grace check
+      // accepts, instead of an older one that would log the user out.
+      const lastRotation = row.rotatedAt ? Date.parse(row.rotatedAt) : 0
+      if (now - lastRotation < ROTATION_GRACE_MS) {
+        return { sessionId: row.id, memberships: row.memberships, refreshToken: null }
+      }
       const token = newToken()
       const ok = await this.repo.rotate(row.id, hash, {
         refreshHash: hashToken(token),

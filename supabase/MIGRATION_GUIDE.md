@@ -27,6 +27,33 @@ To enable multi-device cloud synchronization of photos and receipts across all t
 
 ---
 
+## Locking trip data (20261001 + 20261002): do these in order
+
+Since this release the apps never talk to the database directly: the website's `/api/sb`
+proxy checks the login and adds a short-lived, signed **trip pass**, and the database only
+answers for the trips in that pass. Roll it out in this order:
+
+1. **Deploy the website** (Vercel). It already works before the lock: the old rules still
+   allow everything, and the pass is simply extra.
+2. **Run `20261001_settlement_payment_method.sql`** (UPI / cash) in the SQL editor.
+3. **Build and publish the Android app 4.2.0** (`cd mobile && npm run build:apk`, then
+   `npm run upload:apk`). Older app versions stop syncing once step 4 runs; 4.2.0 signs
+   people in again with the PIN saved on their phone.
+4. **Run `20261002_lock_trip_data.sql`.** From then on the public key sees no trip data at all.
+   The website stores its pass-signing key in the database on its first request after this
+   (derived from `SESSION_SECRET`; nothing to copy by hand).
+5. **Disable the legacy API keys** in Supabase (Project Settings -> API Keys -> Legacy API keys).
+   This kills the service-role key that was pasted into a chat. The website uses the new
+   `sb_secret_` key and the publishable key, so it keeps working. Check that
+   `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel is the **publishable** key (`sb_publishable_...`)
+   before you do this.
+
+Check it worked: in the SQL editor run
+`SET ROLE anon; SELECT count(*) FROM trips; RESET ROLE;` and expect `0`.
+Undo (only if something is badly wrong): run `rollback/20261002_unlock_trip_data.sql`, then
+`20260928_production_security_hardening.sql`. That reopens all trips to the public key, so
+re-run the lock as soon as the problem is fixed.
+
 ## Why Did the Syntax Error Occur?
 
 In PostgreSQL, the error:

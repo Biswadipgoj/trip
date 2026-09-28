@@ -30,7 +30,7 @@ trap cleanup EXIT
 q() { $PSQL -v ON_ERROR_STOP=1 -q "$@" 2> >(grep -vE "^(NOTICE|WARNING|HINT|DETAIL)" >&2); }
 
 # A leftover server on one of these ports would silently answer instead of ours.
-for port in 3001 3100 54321; do
+for port in 3001 3100 54321 ${APP_EXPORT_DIR:+8081}; do
   if (echo > "/dev/tcp/127.0.0.1/$port") 2>/dev/null; then
     echo "port $port is already in use; stop whatever is running there first" >&2; exit 1
   fi
@@ -64,6 +64,9 @@ q -d "$DB" -c "GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, 
           -c "GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role"
 q -d "$DB" -o /dev/null < supabase/migrations/20260929_protect_member_pins.sql
 q -d "$DB" -o /dev/null < supabase/migrations/20260930_auth_sessions.sql
+q -d "$DB" -o /dev/null < supabase/migrations/20261001_settlement_payment_method.sql
+# The lock: trip data only with a server-signed trip pass.
+q -d "$DB" -o /dev/null < supabase/migrations/20261002_lock_trip_data.sql
 # Supabase's service_role keeps full rights regardless of the anon revokes.
 q -d "$DB" -c "GRANT ALL ON public.auth_sessions, public.auth_rate_limits, public.member_pins TO service_role" \
           -c "GRANT EXECUTE ON FUNCTION public.tm_rate_hit(TEXT,INT,INT), public.tm_auth_cleanup() TO service_role"
@@ -74,11 +77,15 @@ INSERT INTO trips (id, trip_code, name, password, status, created_at) VALUES
 INSERT INTO members (id, trip_id, name, mobile, pin) VALUES
  ('aaaaaaaa-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Asha','9876543210','1234'),
  ('aaaaaaaa-0000-4000-8000-000000000002','11111111-1111-4111-8111-111111111111','Ravi','9123456780','1111'),
- ('aaaaaaaa-0000-4000-8000-000000000003','22222222-2222-4222-8222-222222222222','Asha','9876543210','5678');
+ ('aaaaaaaa-0000-4000-8000-000000000003','22222222-2222-4222-8222-222222222222','Asha','9876543210','5678'),
+ ('aaaaaaaa-0000-4000-8000-000000000004','22222222-2222-4222-8222-222222222222','Kabir','9555500000','2222');
+INSERT INTO expenses (id, trip_id, title, amount, paid_by) VALUES
+ ('eeeeeeee-0000-4000-8000-000000000001','11111111-1111-4111-8111-111111111111','Beach shack dinner',2400,'aaaaaaaa-0000-4000-8000-000000000001'),
+ ('eeeeeeee-0000-4000-8000-000000000002','22222222-2222-4222-8222-222222222222','Manali ski passes',9000,'aaaaaaaa-0000-4000-8000-000000000003');
 SQL
 echo "database $DB ready (all migrations applied)"
 
-# ── PostgREST behind /rest/v1, Supabase-style anon + service keys ─────────────
+# ── PostgREST behind /rest/v1 (+ a recording fake of Storage), anon + service keys ──
 PGRST="$CACHE/postgrest-$PGRST_VERSION"
 if [ ! -x "$PGRST" ]; then
   curl -sSL "https://github.com/PostgREST/postgrest/releases/download/v$PGRST_VERSION/postgrest-v$PGRST_VERSION-linux-static-x64.tar.xz" \
@@ -102,9 +109,13 @@ read -r ANON SERVICE <<< "$KEYS"
 
 # ── The app, pointed at the local stack ───────────────────────────────────────
 export NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON"
+# Short refresh-rotation grace window so the stolen-token check can wait it out.
+export AUTH_ROTATION_GRACE_MS=3000
 export SUPABASE_SERVICE_ROLE_KEY="$SERVICE" SESSION_SECRET="e2e-session-secret-$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 npx next build > "$CACHE/next-build.log" 2>&1 || { tail -30 "$CACHE/next-build.log"; exit 1; }
 setsid npx next start -p 3100 > "$CACHE/next-start.log" 2>&1 & PIDS+=($!)
 for _ in $(seq 1 60); do curl -s -o /dev/null http://localhost:3100 && break; sleep 1; done
 
-node e2e/auth/auth.e2e.mjs
+ANON="$ANON" SERVICE="$SERVICE" node e2e/auth/auth.e2e.mjs
+# Optional: the Android app's JavaScript against the same stack (see e2e/app/app.e2e.mjs).
+if [ -n "${APP_EXPORT_DIR:-}" ]; then node e2e/app/app.e2e.mjs; fi

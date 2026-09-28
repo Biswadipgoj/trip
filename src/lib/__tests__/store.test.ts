@@ -692,3 +692,56 @@ describe('media & attachments compatibility', () => {
   })
 })
 
+
+describe('settle by UPI or cash', () => {
+  it('records the method, keeps it through regeneration and confirmation, clears it on undo', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    const get = () => useStore.getState().settlements.find(s => s.id === manuDue.id)
+
+    useStore.getState().updateSettlementStatus(manuDue.id, 'paid', 'cash')
+    expect(get()?.method).toBe('cash')
+
+    // Background sync regenerates dues every 15s: the same payment keeps its method.
+    useStore.getState().generateSettlements(trip.id)
+    expect(get()?.status).toBe('paid')
+    expect(get()?.method).toBe('cash')
+
+    useStore.getState().updateSettlementStatus(manuDue.id, 'pending')
+    expect(get()?.method).toBeUndefined()
+
+    useStore.getState().updateSettlementStatus(manuDue.id, 'paid', 'upi')
+    useStore.getState().updateSettlementStatus(manuDue.id, 'confirmed')
+    expect(confirmed(trip.id)[0].method).toBe('upi')
+  })
+
+  it('a paid-in-cash due changes back to unpaid (and forgets the method) when the amount changes', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const manuDue = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    useStore.getState().updateSettlementStatus(manuDue.id, 'paid', 'cash')
+    addEqualExpense(trip.id, 300, dip.id, [dip.id, manu.id, pari.id]) // Manu now owes more
+    const after = due(trip.id).find(d => d.fromMemberId === manu.id)!
+    expect(after.status).toBe('pending')
+    expect(after.method).toBeUndefined()
+  })
+
+  it('imports the method from another device', () => {
+    const { trip, dip, manu, pari } = seedTrip()
+    addEqualExpense(trip.id, 3000, dip.id, [dip.id, manu.id, pari.id])
+    const s = useStore.getState()
+    s.mergeRemoteTrip({
+      trip,
+      members: s.members.filter(m => m.tripId === trip.id),
+      expenses: s.expenses.filter(e => e.tripId === trip.id),
+      hotelExpenses: [], settlementGroups: [], sponsorships: [],
+      settlementStatuses: [
+        { id: crypto.randomUUID(), fromMemberId: manu.id, toMemberId: dip.id, amount: 1000, status: 'confirmed', confirmedAt: new Date().toISOString(), method: 'cash' },
+        { id: crypto.randomUUID(), fromMemberId: pari.id, toMemberId: dip.id, amount: 1000, status: 'paid', paidAt: new Date().toISOString(), method: 'upi' },
+      ],
+    })
+    expect(confirmed(trip.id)[0].method).toBe('cash')
+    expect(due(trip.id).find(d => d.fromMemberId === pari.id)?.method).toBe('upi')
+  })
+})

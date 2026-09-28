@@ -9,7 +9,7 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import {
-  ArrowRight, Camera, CircleCheck, Copy, CreditCard, ExternalLink, QrCode, ShieldCheck, TriangleAlert, X,
+  ArrowRight, Banknote, Camera, CircleCheck, Copy, CreditCard, ExternalLink, QrCode, ShieldCheck, Smartphone, TriangleAlert, X,
 } from 'lucide-react-native'
 import { useStore } from '../lib/store'
 import { proofsFor, useTripData } from '../lib/hooks'
@@ -19,6 +19,7 @@ import { confirmAction } from '../lib/dialogs'
 import { toast } from '../lib/toast'
 import { buildUpiLink, formatCurrency, formatDate } from '../lib/utils'
 import type { PreparedImage } from '../lib/media'
+import type { PaymentMethod } from '../types'
 import { Screen } from '../components/ui/Screen'
 import { GlassCard } from '../components/ui/GlassCard'
 import { T } from '../components/ui/Text'
@@ -27,7 +28,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { QRCode } from '../components/ui/QRCode'
 import { AttachmentPicker } from '../components/attachments/AttachmentPicker'
 import { AttachmentStrip } from '../components/attachments/AttachmentStrip'
-import { StatusBadge } from '../components/animated/PulseBadge'
+import { StatusBadge, paymentBadgeLabel } from '../components/animated/PulseBadge'
 import { CountUp } from '../components/animated/SlotCounter'
 import { Collapsible, FadeIn } from '../components/animated/FadeInView'
 import { Confetti } from '../components/animated/ConfettiBlast'
@@ -52,7 +53,7 @@ export default function PaymentModal() {
   const [awaitingProof, setAwaitingProof] = useState(false)
   const [confetti, setConfetti] = useState(0)
   // Which action is in flight: blocks double taps and shows a spinner.
-  const [busy, setBusy] = useState<null | 'upi' | 'paid' | 'confirm' | 'proof'>(null)
+  const [busy, setBusy] = useState<null | 'upi' | 'paid' | 'cash' | 'confirm' | 'proof'>(null)
   const leftForUpi = useRef(false)
   const scrollRef = useRef<ScrollView>(null)
   const proofY = useRef(0)
@@ -158,11 +159,11 @@ export default function PaymentModal() {
     setAwaitingProof(false)
     if (status === 'pending') {
       const ok = await withCloud(async () => {
-        await cloudSetPaymentStatus(settlement.id, 'paid')
+        await cloudSetPaymentStatus(settlement.id, 'paid', 'upi')
         return true
       })
       if (!ok) {
-        toast.success('Screenshot added — tap "Mark as paid" once you are back online')
+        toast.success('Screenshot added. Tap "Paid by UPI" once you are back online.')
         return
       }
       tick('success')
@@ -172,22 +173,30 @@ export default function PaymentModal() {
     }
   })
 
-  const markPaid = () => run('paid', async () => {
-    if (proofs.length === 0) {
+  const markPaid = (method: PaymentMethod) => run(method === 'cash' ? 'cash' : 'paid', async () => {
+    if (method === 'upi' && proofs.length === 0) {
       const ok = await confirmAction({
-        title: 'Mark as paid without a screenshot?',
+        title: 'Mark as paid by UPI without a screenshot?',
         message: 'A UPI screenshot helps the receiver confirm quickly. You can still add one later.',
-        confirmLabel: 'Mark as paid',
+        confirmLabel: 'Paid by UPI',
+      })
+      if (!ok) return
+    }
+    if (method === 'cash') {
+      const ok = await confirmAction({
+        title: `Paid ${formatCurrency(settlement.amount)} in cash?`,
+        message: `${toName.split(' ')[0]} will be asked to confirm they received it.`,
+        confirmLabel: 'Paid in cash',
       })
       if (!ok) return
     }
     const okDone = await withCloud(async () => {
-      await cloudSetPaymentStatus(settlement.id, 'paid')
+      await cloudSetPaymentStatus(settlement.id, 'paid', method)
       return true
     })
     if (!okDone) return
     tick('success')
-    toast.success('Marked as paid — waiting for confirmation')
+    toast.success(method === 'cash' ? 'Marked as paid in cash. Waiting for confirmation.' : 'Marked as paid by UPI. Waiting for confirmation.')
   })
 
   const confirmReceived = () => run('confirm', async () => {
@@ -223,7 +232,7 @@ export default function PaymentModal() {
         {/* Amount + who pays whom */}
         <FadeIn>
           <GlassCard strong radius={24} contentStyle={styles.hero}>
-            <StatusBadge status={status} />
+            <StatusBadge status={status} label={paymentBadgeLabel(status, settlement.method)} />
             <CountUp value={settlement.amount} prefix="₹" decimals={settlement.amount % 1 ? 2 : 0} variant="display" style={styles.amount} />
             <View style={styles.people}>
               <View style={styles.person}>
@@ -324,19 +333,26 @@ export default function PaymentModal() {
         {/* Step 3 — status */}
         <FadeIn delay={200}>
           {status === 'pending' && (
-            <Button title="Mark as paid" icon={CircleCheck} variant={proofs.length ? 'brand' : 'ghost'} size="lg" onPress={() => void markPaid()} loading={busy === 'paid' || busy === 'proof'} disabled={!!busy} full />
+            <View style={styles.row}>
+              <Button title="Paid by UPI" icon={Smartphone} variant={proofs.length ? 'brand' : 'soft'} size="lg" onPress={() => void markPaid('upi')} loading={busy === 'paid' || busy === 'proof'} disabled={!!busy} style={styles.flex} />
+              <Button title="Paid in cash" icon={Banknote} variant="ghost" size="lg" onPress={() => void markPaid('cash')} loading={busy === 'cash'} disabled={!!busy} style={styles.flex} />
+            </View>
           )}
           {status === 'paid' && (
             <GlassCard contentStyle={styles.gap12}>
               <View style={styles.row}>
                 <ShieldCheck size={18} color={C.blue500} />
                 <T variant="title" style={styles.flex}>
-                  {iReceive ? 'Did you receive this payment?' : `Waiting for ${toName.split(' ')[0]} to confirm`}
+                  {iReceive
+                    ? `Did you receive this ${settlement.method === 'cash' ? 'cash' : 'payment'}?`
+                    : `Waiting for ${toName.split(' ')[0]} to confirm`}
                 </T>
               </View>
               <T variant="small" color={ink(0.6)}>
                 {iReceive
-                  ? 'Check your UPI app or bank, then confirm. This settles it for everyone.'
+                  ? settlement.method === 'cash'
+                    ? 'Confirm once you have the cash in hand. This settles it for everyone.'
+                    : 'Check your UPI app or bank, then confirm. This settles it for everyone.'
                   : 'Anyone in the trip can confirm once the money has arrived.'}
               </T>
               <Button title="Confirm received" icon={CircleCheck} variant="success" size="lg" onPress={() => void confirmReceived()} loading={busy === 'confirm'} disabled={!!busy} full />

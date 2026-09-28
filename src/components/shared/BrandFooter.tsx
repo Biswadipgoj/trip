@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import Link from 'next/link'
 import { ArrowUpRight, X } from 'lucide-react'
 import { AppInstallLink } from '@/components/download/AppInstallLink'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -49,6 +50,18 @@ export function BrandFooter() {
             <ArrowUpRight className="w-3 h-3 text-violet-400 group-hover:text-violet-600 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </motion.button>
         </div>
+        <nav aria-label="Guides" className="mb-1 flex flex-wrap items-center justify-center gap-x-3 text-[11px] font-medium text-slate-600">
+          <Link href="/split-bills-with-friends" className="inline-block py-1.5 hover:text-violet-700 hover:underline">Split bills with friends</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/trip-expense-splitter" className="inline-block py-1.5 hover:text-violet-700 hover:underline">Trip expense splitter</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/splitwise-alternative" className="inline-block py-1.5 hover:text-violet-700 hover:underline">Splitwise alternative</Link>
+        </nav>
+        <nav aria-label="Legal" className="flex items-center justify-center gap-3 text-[11px] font-medium text-slate-600">
+          <Link href="/privacy" className="inline-block py-1.5 hover:text-violet-700 hover:underline">Privacy Policy</Link>
+          <span aria-hidden="true">·</span>
+          <Link href="/terms" className="inline-block py-1.5 hover:text-violet-700 hover:underline">Terms of Service</Link>
+        </nav>
       </footer>
 
       <AnimatePresence>
@@ -117,9 +130,8 @@ export function BrandFooter() {
               </h3>
 
               <p className="text-[13px] text-slate-600 mb-4 leading-relaxed">
-                TripMate is an independent product, conceived, designed and built end to end by one
-                person. An offline-first ledger for shared travel: every expense recorded without
-                signal, every balance settled in the fewest payments.
+                Designed and built by one person. TripMate records a group’s trip expenses, even
+                without signal, and settles every balance in the fewest payments, by UPI or cash.
               </p>
 
               <ul className="flex flex-wrap items-center justify-center gap-1.5 mb-5" aria-label="Disciplines">
@@ -148,7 +160,7 @@ export function BrandFooter() {
               </a>
 
               <p className="mt-3 text-[10px] text-slate-400">
-                Selected work, case studies and contact details. Opens in a new tab.
+                Opens biswadip.in in a new tab.
               </p>
             </motion.div>
           </motion.div>

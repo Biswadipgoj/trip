@@ -141,7 +141,7 @@ export default function Home() {
                 <GlassCard
                   key={trip.id}
                   padding={14}
-                  onPress={() => router.push({ pathname: '/login', params: { code: trip.tripCode } })}
+                  onPress={() => router.push('/login')}
                   accessibilityLabel={`Log in to ${trip.name}`}
                 >
                   <View style={styles.tripRow}>

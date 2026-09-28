@@ -26,6 +26,12 @@ export async function middleware(req: NextRequest) {
     return res
   }
 
+  // Background prefetches (Next.js router) must not start refreshes: several
+  // fire at once and would race the page's own refresh. Just decline them.
+  if (req.headers.get('next-router-prefetch') || req.headers.get('purpose') === 'prefetch') {
+    return new NextResponse(null, { status: 204 })
+  }
+
   // Valid session but not for this trip → log in to this trip. No or expired
   // access token → try a silent refresh first.
   const target = claims

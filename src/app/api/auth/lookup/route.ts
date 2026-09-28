@@ -1,5 +1,5 @@
 import type { NextRequest } from 'next/server'
-import { authContext, clientIp, isSameOrigin, json, notConfigured, underRateLimit } from '@/lib/server/authHttp'
+import { allowedCaller, authContext, clientIp, json, notConfigured, underRateLimit } from '@/lib/server/authHttp'
 
 export const runtime = 'nodejs'
 
@@ -7,7 +7,7 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest) {
   const ctx = authContext()
   if (!ctx) return notConfigured()
-  if (!isSameOrigin(req)) return json({ error: 'Forbidden' }, 403)
+  if (!allowedCaller(req)) return json({ error: 'Forbidden' }, 403)
 
   const body = await req.json().catch(() => null)
   const mobile = typeof body?.mobile === 'string' ? body.mobile : ''

@@ -5,6 +5,8 @@
 
 export type TripStatus = 'active' | 'closed'
 export type PaymentStatus = 'pending' | 'paid' | 'confirmed'
+/** How a settlement was paid. Unknown for payments recorded before this existed. */
+export type PaymentMethod = 'upi' | 'cash'
 export type ExpenseCategory = 'food' | 'travel' | 'stay' | 'entertainment' | 'shopping' | 'alcohol' | 'fuel' | 'tickets' | 'misc'
 export type SplitType = 'equal' | 'custom' | 'percentage' | 'quantity' | 'room'
 
@@ -99,6 +101,7 @@ export interface Settlement {
   status: PaymentStatus
   paidAt?: string
   confirmedAt?: string
+  method?: PaymentMethod
   // For group settlements, track which member IDs are involved
   fromGroupIds?: string[]
   toGroupIds?: string[]

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { safeNextPath } from '@/lib/auth/tokens'
 import {
-  authContext, clearSessionCookies, cookiesFor, isSameOrigin, json, notConfigured, setSessionCookies,
+  allowedCaller, authContext, clearSessionCookies, cookiesFor, endSession, issueSession, json, notConfigured,
+  refreshTokenOf, setSessionCookies,
 } from '@/lib/server/authHttp'
 
 export const runtime = 'nodejs'
@@ -10,17 +11,12 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest) {
   const ctx = authContext()
   if (!ctx) return notConfigured()
-  if (!isSameOrigin(req)) return json({ error: 'Forbidden' }, 403)
+  if (!allowedCaller(req)) return json({ error: 'Forbidden' }, 403)
 
-  const issued = await ctx.sessions.refresh(req.cookies.get(cookiesFor(req).refresh)?.value)
-  if (!issued) {
-    const res = json({ error: 'Session expired. Log in again.' }, 401)
-    clearSessionCookies(res, req)
-    return res
-  }
-  const res = json({ memberships: issued.memberships })
-  await setSessionCookies(res, req, issued, ctx.key)
-  return res
+  const body = await req.json().catch(() => null)
+  const issued = await ctx.sessions.refresh(refreshTokenOf(req, body))
+  if (!issued) return endSession(req, { error: 'Session expired. Log in again.' }, 401)
+  return issueSession(req, { memberships: issued.memberships }, issued, ctx.key)
 }
 
 /**

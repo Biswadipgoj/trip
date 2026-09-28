@@ -83,6 +83,8 @@ export default function RootLayout() {
             <Stack.Screen name="create-trip" />
             <Stack.Screen name="join-trip" />
             <Stack.Screen name="login" />
+            <Stack.Screen name="privacy" />
+            <Stack.Screen name="terms" />
             <Stack.Screen name="(tabs)" options={{ animation: 'fade', gestureEnabled: false }} />
             <Stack.Screen name="add-expense" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             <Stack.Screen name="payment-modal" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
