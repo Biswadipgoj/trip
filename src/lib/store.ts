@@ -193,12 +193,16 @@ interface AppState {
   // ─── Hydration ──────────────────────────────────────────────────────────────
   hydrated: boolean
   setHydrated: (v: boolean) => void
+  /** True once the server has said who is logged in (or it can't be reached). Never persisted. */
+  authChecked: boolean
+  setAuthChecked: (v: boolean) => void
 
   // ─── Session ────────────────────────────────────────────────────────────────
   session: TripSession | null
 
   // ─── Trip Actions ────────────────────────────────────────────────────────────
-  createTrip:  (name: string, creatorName: string, mobile: string, password: string, pin: string) => { trip: Trip; member: Member }
+  /** `synced` settles once the trip is on the server (or immediately when cloud sync is off). */
+  createTrip:  (name: string, creatorName: string, mobile: string, password: string, pin: string) => { trip: Trip; member: Member; synced: Promise<void> }
   joinTrip:    (tripCode: string, password: string, name: string, mobile: string, pin: string) => Member | null
   closeTrip:   (tripId: string) => void
   getTripById: (tripId: string) => Trip | undefined
@@ -264,6 +268,8 @@ export const useStore = create<AppState>()(
     (set, get) => ({
       hydrated:         false,
       setHydrated:      (v) => set({ hydrated: v }),
+      authChecked:      false,
+      setAuthChecked:   (v) => set({ authChecked: v }),
 
       trips:            [],
       members:          [],
@@ -293,8 +299,9 @@ export const useStore = create<AppState>()(
           status: 'active', createdAt: new Date().toISOString(),
         }
         set(s => ({ trips: [...s.trips, trip], members: [...s.members, member] }))
-        fireAndForget(remoteCreateTrip(trip, member))
-        return { trip, member }
+        const synced = remoteCreateTrip(trip, member)
+        fireAndForget(synced)
+        return { trip, member, synced: synced.catch(() => undefined) }
       },
 
       joinTrip: (tripCode, password, name, mobile, pin) => {
@@ -990,6 +997,11 @@ export const useStore = create<AppState>()(
       name: 'trip-expense-store',
       version: 3,
       skipHydration: true, // prevent React 19 hydration mismatch (SSR vs localStorage)
+      // PINs are checked on the server; never keep one in browser storage.
+      partialize: ({ authChecked: _authChecked, ...state }) => ({
+        ...state,
+        members: state.members.map(m => (m.pin ? { ...m, pin: '' } : m)),
+      }),
       // v3: rewrite legacy non-UUID ids to UUIDs so old trips become
       // cloud-compatible and upload via the normal two-way sync.
       migrate: (persisted, version) => {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { authLogin, authUnavailable } from '@/lib/authClient'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
@@ -34,6 +35,9 @@ export default function CreateTripPage() {
   const [copied, setCopied] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [confetti, setConfetti] = useState(false)
+  // Server session (httpOnly cookie) for the new trip; the dashboard needs it.
+  const [sessionState, setSessionState] = useState<'pending' | 'ready' | 'failed'>('pending')
+  const [sessionError, setSessionError] = useState('')
 
   const validateDetails = () => {
     const errs: Record<string, string> = {}
@@ -57,9 +61,27 @@ export default function CreateTripPage() {
     if (validateDetails()) setStep('pin')
   }
 
+  const secureSession = async (memberId: string, synced: Promise<void>) => {
+    setSessionState('pending')
+    setSessionError('')
+    await synced
+    const res = await authLogin(memberId, pin)
+    if (res.ok || authUnavailable(res)) {
+      setSessionState('ready')
+    } else {
+      setSessionState('failed')
+      setSessionError(
+        res.status === 0
+          ? 'Your trip is saved on this phone. Connect to the internet, then tap Try again.'
+          : res.error,
+      )
+    }
+  }
+
   const handleCreate = () => {
     if (!validatePin()) return
-    const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
+    const { trip, member, synced } = createTrip(tripName, creatorName, mobile, password, pin)
+    void secureSession(member.id, synced)
     const budgetNum = parseFloat(budget)
     if (budgetNum > 0) setTripBudget(trip.id, budgetNum)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
@@ -396,12 +418,20 @@ export default function CreateTripPage() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.45 }}
-                onClick={() => router.push(`/dashboard/${result.tripId}`)}
-                className="btn-brand w-full flex items-center justify-center gap-2"
+                onClick={() =>
+                  sessionState === 'failed'
+                    ? secureSession(result.memberId, Promise.resolve())
+                    : router.push(`/dashboard/${result.tripId}`)
+                }
+                disabled={sessionState === 'pending'}
+                className="btn-brand w-full flex items-center justify-center gap-2 disabled:opacity-70"
               >
-                Go to Dashboard
-                <ArrowRight className="w-4 h-4" />
+                {sessionState === 'pending' ? 'Securing your session…' : sessionState === 'failed' ? 'Try again' : 'Go to Dashboard'}
+                {sessionState === 'ready' && <ArrowRight className="w-4 h-4" />}
               </motion.button>
+              {sessionState === 'failed' && (
+                <p role="alert" className="mt-3 text-xs text-red-500">{sessionError}</p>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

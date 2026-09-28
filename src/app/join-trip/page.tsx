@@ -9,6 +9,7 @@ import {
   isRemoteEnabled, joinLog, remoteFindTripByCode, remoteGetMembers,
   remoteJoinTrip, remoteFetchTripBundle, remoteEnsureTrip,
 } from '@/lib/remote'
+import { authLogin, authUnavailable } from '@/lib/authClient'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -227,6 +228,12 @@ function JoinTripContent() {
         })
         // Pull the full existing trip (members, expenses, stays, settlements)
         // so the dashboard shows the real trip — not an empty copy.
+        // Server session (httpOnly cookie) for this trip; the PIN is checked on the server.
+        const auth = await authLogin(member.id, pin)
+        if (!auth.ok && !authUnavailable(auth)) {
+          setErrors({ general: auth.error })
+          return
+        }
         const bundle = await remoteFetchTripBundle(foundTrip.id)
         if (bundle) mergeRemoteTrip(bundle)
         else upsertMember(member)

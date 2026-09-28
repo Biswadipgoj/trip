@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 import { useStore } from '@/lib/store'
 import { LAST_MOBILE_KEY } from '@/lib/tripLogin'
+import { authLogout } from '@/lib/authClient'
 import { useTripSync } from '@/hooks/useTripSync'
 import { useTranslation } from '@/lib/i18n'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -67,7 +68,9 @@ export function AppNav({ tripId }: AppNavProps) {
   // Cross-device sync: pull this trip's data from the cloud while in the app
   useTripSync(tripId)
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // End the server session for this trip (clears the httpOnly cookies when it was the last one).
+    await authLogout(session?.tripId)
     // Remember the number so logging back in is one tap on the login page.
     const me = allMembers.find(m => m.id === session?.memberId)
     if (me?.mobile) {
