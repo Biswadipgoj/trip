@@ -2,7 +2,9 @@
 // Used by middleware (edge runtime) and API routes, so this file must stay
 // free of Node-only APIs. Never import it from client components.
 
-import { SignJWT, jwtVerify } from 'jose'
+// Narrow imports keep jose's JWE/deflate code (unsupported on the edge runtime) out of the middleware bundle.
+import { SignJWT } from 'jose/jwt/sign'
+import { jwtVerify } from 'jose/jwt/verify'
 
 export interface Membership {
   tripId: string
