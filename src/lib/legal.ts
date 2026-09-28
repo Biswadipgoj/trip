@@ -39,13 +39,14 @@ export const PRIVACY_POLICY: LegalDoc = {
         '• A 4-digit PIN. On our servers it is stored only as a one-way hash, so nobody, including us, can read it back.',
         '• Trip details you and your group add: trip name, code and password, expenses (amounts, categories, notes, who paid and who shared), hotel stays and rooms, sponsorships, settlements, and whether each one was paid by UPI or in cash.',
         '• UPI IDs and names that members choose to add so others can pay them.',
-        '• Bill photos and UPI payment screenshots you attach. Photos are compressed on your device before upload.',
+        '• Bill photos and UPI payment screenshots you attach. Photos are compressed on your device before upload and can only be opened by members of that trip.',
       ],
     },
     {
       title: 'Information collected automatically',
       body: [
         '• Login cookies. The website keeps your login in two httpOnly cookies that page scripts cannot read: a short-lived access token and a refresh token that lasts up to 90 days while you keep using TripMate.',
+        '• On Android, the app keeps the same kind of refresh token in the phone’s secure storage (Android Keystore), and the short-lived access token only in memory.',
         '• A session record for each logged-in browser: a hash of the refresh token, the trips it can open, your browser or app description (user agent) and when it was last used. This lets you log out and lets us end stolen sessions.',
         '• Abuse protection. To stop PIN guessing, we count login attempts against your network (IP) address and mobile number for a short time, and lock a member for 15 minutes after 5 wrong PINs.',
         '• Standard server logs kept by our hosting providers, such as request times and IP addresses.',

@@ -74,3 +74,47 @@ Final run (all exit 0): web unit **121/121**, clean build, app **46/46**, `expo-
 APK build: [!] BLOCKED here by design — the production APK must be signed with the key EAS already holds for `com.tripmate.app`; a locally signed APK could not update existing installs. Owner runs `cd mobile && npm run build:apk`.
 
 Release status unchanged: **NOT RELEASE READY** (cap 49: cross-user data access through the anon key; stages 2–5).
+
+## Addendum — round 4: security stages 2–5 (trip data locked to its members)
+
+**Status: RELEASE READY IN CODE — production stays exposed until the owner runs the rollout (below).**
+The Critical that capped this report at 49 (public key reads and writes every trip) is closed in
+code and verified against a real PostgreSQL + PostgREST stack. It stays open *in production* until
+`20261002_lock_trip_data.sql` runs there and the legacy keys are disabled; neither can be done from
+here (no production access, and both need the owner's go-ahead).
+
+### What changed
+| Requirement | Implementation | Verification | Status |
+|---|---|---|---|
+| Public key sees no trip data | `supabase/migrations/20261002_lock_trip_data.sql`: all old policies dropped; table rights cut to what the apps use; trip-scoped RLS on all 12 tables via `tm_request_trips()` | `supabase/tests/run-lock-test.sh`: **34/34** (no pass → 0 rows in every table and view; forged, expired, re-signed and malformed passes → 0 rows; Goa pass cannot read, write, split into, group into or push to Manali) + migration idempotent | [x] VERIFIED |
+| Server decides which trips a request reaches | `/api/sb/[...path]`: checks the httpOnly cookie (web) or `x-tm-access` (app), signs a 120 s HMAC trip pass (`src/lib/server/tripPass.ts`, key derived from `SESSION_SECRET`), forwards only whitelisted tables and the 3 `tm_push_*` RPCs | e2e: without a session → 401; Goa session sees exactly Goa; client-sent fake pass ignored; sessions table and PIN RPC → 404; cross-site write → 403 | [x] VERIFIED |
+| Money writes go through the database rules | Inserts/updates checked by RLS `WITH CHECK`; trip password, PINs, trip creation not writable with the public key (column grants) | SQL L22–L29; e2e: own-trip expense 201, other trip refused, password change refused | [x] VERIFIED |
+| Trip password and PINs checked on the server | `/api/trips/find` (constant-time password check), `/api/trips/join` (create / join / heal from invite, PIN check for returning numbers, then login) | e2e: wrong password 401, right one returns the trip *without* its password; create + join through the UI; wrong-PIN rejoin refused | [x] VERIFIED |
+| Server-only functions closed | `tm_find_trips_by_mobile`, `tm_verify_member_pin`, `get_trip_bundle`, `create_*` revoked from anon | SQL L7–L9, e2e direct calls → 401 | [x] VERIFIED |
+| Photos private to the trip | `trip-media` bucket private; anon storage policies dropped; proxy checks every upload / view / list / delete path against the session and uses the service key only after that (orphan-only deletes kept) | SQL L31–L32; e2e with a recording Storage fake: own upload forwarded with the service key, other trip's upload 403, view 404, list 404, nothing reaches Storage; non-images 415 | [x] VERIFIED (fake Storage) · [?] UNVERIFIED against real Supabase Storage |
+| Published APK can't be replaced by anyone | `android_app_insert/update/delete` policies dropped (anon could overwrite `tripmate-latest.apk`: supply-chain risk found during this gate); upload script requires the secret key | SQL L33–L34 | [x] VERIFIED |
+| Android app holds no database key | App calls only `https://www.tripmate.boats`; refresh token in `expo-secure-store` (Keystore), access token in memory; `x-tm-client: app` login/refresh/logout; old installs re-sign in with the PIN saved on the phone | App bundle (Expo web export) against the locked stack: **10/10** (server lookup, server PIN check, data via proxy with app token, no Manali data, no cookies, no token in storage, join via server); e2e API: app login gives tokens and no cookies, refresh rotates, logout kills the session | [x] VERIFIED (web render) · [?] UNVERIFIED on a device |
+| Emergency undo exists and works | `supabase/rollback/20261002_unlock_trip_data.sql` + 20260928 | Lock test R1/R2: reopens, then re-locks | [x] VERIFIED |
+
+### Defects found and fixed during this round
+1. **Anyone could replace the downloadable APK** (anon INSERT/UPDATE/DELETE on `android-app`). Closed.
+2. The proxy forwarded `accept-profile`/`content-profile` (schema switching). Removed.
+3. Join rate limits (20 per trip code) would have blocked a big group joining at once; raised to 100 per code and 60 per IP per 10 min.
+4. The app could fall back to a local join after the server *refused* a join (wrong PIN). Now only a lost connection falls back.
+5. `members.pin` had no default, so placeholder members could not be added without sending a PIN. Default `''` added.
+6. e2e flake (2 in ~10 runs) traced to Playwright's `clearCookies({name})`, which removes *all* cookies and re-adds the rest; a request from the still-open page in that gap logged the test user out. Test now leaves the page first. Not an app bug.
+
+### Verification (final run)
+web typecheck · web lint · web unit **128/128** · `next build` (inside e2e) · mobile typecheck · mobile lint · mobile unit **46/46** · `expo-doctor` **21/21** · `expo export -p android` · SQL lock **34/34 + 2** · SQL PINs **16/16** · SQL storage (pass) · e2e web **53/53** · e2e app **10/10** · stability: see below · secret scan: 0 hits in tree, `.next/static` and the app bundle; the browser bundle no longer contains the Supabase URL or any key.
+
+### Rollout (owner, in this order — also in `supabase/MIGRATION_GUIDE.md`)
+1. Merge + deploy the website. 2. Run `20261001_settlement_payment_method.sql`. 3. Build 4.2.0 (`cd mobile && npm run build:apk`) and `npm run upload:apk`. 4. Run `20261002_lock_trip_data.sql`. 5. Confirm Vercel's `NEXT_PUBLIC_SUPABASE_ANON_KEY` is the `sb_publishable_` key, then disable the legacy API keys (kills the leaked service-role key).
+
+### Still open
+- [ ] Production: steps 4–5 above (Critical stays open in production until done).
+- [ ] OPEN (High, build-time only): PostCSS inside Next 15.5.26; needs Next 16. Owner acceptance.
+- [ ] OPEN (Moderate ×15): Expo tooling deps.
+- [!] BLOCKED: EAS APK build + install on a real phone (Expo credentials, device).
+- [?] UNVERIFIED: real Supabase Storage through the proxy; photo upload size limit on Vercel (4 MB cap in the proxy; photos are compressed on the phone first).
+- Known limits: a trip page stays reachable for up to 15 min after logging out of that trip elsewhere (access-token lifetime); a website trip created while offline is uploaded only from the create page's "Try again" (the PIN is not kept in the browser); older app versions stop syncing after step 4.
+- [ ] No monitoring/alerting; backup restore untested.

@@ -654,7 +654,9 @@ export const useStore = create<AppState>()(
         if (!trip) return
 
         if (!remote) {
-          const ok = await remoteEnsureTrip(trip)
+          // Not on the server for this phone yet: sign in with a PIN saved here
+          // (uploads a trip that only lived on this phone).
+          const ok = await remoteEnsureTrip(trip, s.members, s.session?.tripId === tripId ? s.session.memberId : undefined)
           if (!ok) return
         }
 

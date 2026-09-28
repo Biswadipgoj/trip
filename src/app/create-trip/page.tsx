@@ -1,14 +1,14 @@
 'use client'
 
-import { useState } from 'react'
-import { authLogin, authUnavailable } from '@/lib/authClient'
+import { useRef, useState } from 'react'
+import { remoteCreateTrip } from '@/lib/remote'
 import { AgreeNote } from '@/components/legal/AgreeNote'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { createInviteLink } from '@/lib/utils'
 import { ArrowRight, ArrowLeft, Check, Copy, Users, Lock, Phone, Sparkles, Link2, IndianRupee } from 'lucide-react'
-import type { Trip } from '@/types'
+import type { Member, Trip } from '@/types'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
@@ -62,12 +62,14 @@ export default function CreateTripPage() {
     if (validateDetails()) setStep('pin')
   }
 
-  const secureSession = async (memberId: string, synced: Promise<void>) => {
+  // Puts the trip on the server and logs this browser in (httpOnly cookies).
+  // Needs the creator's PIN, which only this page has, so a failure offers "Try again".
+  const creatorRef = useRef<Member | null>(null)
+  const secureSession = async (trip: Trip, creator: Member) => {
     setSessionState('pending')
     setSessionError('')
-    await synced
-    const res = await authLogin(memberId, pin)
-    if (res.ok || authUnavailable(res)) {
+    const res = await remoteCreateTrip(trip, creator)
+    if (res.ok || res.status === 503) {
       setSessionState('ready')
     } else {
       setSessionState('failed')
@@ -81,8 +83,9 @@ export default function CreateTripPage() {
 
   const handleCreate = () => {
     if (!validatePin()) return
-    const { trip, member, synced } = createTrip(tripName, creatorName, mobile, password, pin)
-    void secureSession(member.id, synced)
+    const { trip, member } = createTrip(tripName, creatorName, mobile, password, pin)
+    creatorRef.current = { ...member, pin }
+    void secureSession(trip, creatorRef.current)
     const budgetNum = parseFloat(budget)
     if (budgetNum > 0) setTripBudget(trip.id, budgetNum)
     setResult({ tripCode: trip.tripCode, tripId: trip.id, memberId: member.id })
@@ -422,7 +425,7 @@ export default function CreateTripPage() {
                 transition={{ delay: 0.45 }}
                 onClick={() =>
                   sessionState === 'failed'
-                    ? secureSession(result.memberId, Promise.resolve())
+                    ? (createdTrip && creatorRef.current && secureSession(createdTrip, creatorRef.current))
                     : router.push(`/dashboard/${result.tripId}`)
                 }
                 disabled={sessionState === 'pending'}

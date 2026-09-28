@@ -6,10 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import { parseInviteToken, inviteSignature, getAvatarColor } from '@/lib/utils'
 import {
-  isRemoteEnabled, joinLog, remoteFindTripByCode, remoteGetMembers,
-  remoteJoinTrip, remoteFetchTripBundle, remoteEnsureTrip,
+  isRemoteEnabled, joinLog, remoteFindTrip, remoteJoinTrip, remoteFetchTripBundle, TripAccessError,
 } from '@/lib/remote'
-import { authLogin, authUnavailable } from '@/lib/authClient'
 import { AgreeNote } from '@/components/legal/AgreeNote'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
@@ -116,26 +114,26 @@ function JoinTripContent() {
       // 1. Cloud path (preferred): the trip lives on the server, so joining
       //    works from ANY device and always targets the one existing trip.
       if (isRemoteEnabled()) {
-        let remoteTrip: Trip | null = null
+        let found: { trip: Trip; memberCount: number } | null = null
         try {
-          remoteTrip = await remoteFindTripByCode(code)
+          // The server checks the password; the trip comes back only when it matches.
+          found = await remoteFindTrip(code, password)
         } catch (err) {
-          setErrors({ general: err instanceof Error ? err.message : 'Network error. Try again.' })
+          if (err instanceof TripAccessError && err.status === 401) {
+            joinLog('find.wrongPassword', { tripCode: code })
+            setErrors({ tripPassword: err.message })
+          } else {
+            setErrors({ general: err instanceof Error ? err.message : 'Network error. Try again.' })
+          }
           return
         }
 
-        if (remoteTrip) {
-          if (remoteTrip.password !== password) {
-            joinLog('find.wrongPassword', { tripCode: code })
-            setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
-            return
-          }
-          const existingMembers = await remoteGetMembers(remoteTrip.id)
-          importTrip(remoteTrip) // upsert by code — never duplicates
-          setFoundTrip(remoteTrip)
+        if (found) {
+          importTrip(found.trip) // upsert by code — never duplicates
+          setFoundTrip(found.trip)
           setFoundViaRemote(true)
-          setMemberCount(existingMembers.length)
-          joinLog('find.verified', { tripId: remoteTrip.id, tripCode: code, members: existingMembers.length })
+          setMemberCount(found.memberCount)
+          joinLog('find.verified', { tripId: found.trip.id, tripCode: code, members: found.memberCount })
           setStep('join')
           return
         }
@@ -206,42 +204,24 @@ function JoinTripContent() {
     setBusy(true)
     try {
       if (isRemoteEnabled()) {
-        // The trip was verified via invite link or found locally but is not on
-        // the server yet (created before cloud sync). Provision the SAME trip
-        // row (same id + code) so the join attaches to the one shared trip —
-        // never a parallel device-local copy with the same name.
-        const remoteReady = foundViaRemote || await remoteEnsureTrip(foundTrip)
-
-        if (!remoteReady) {
-          // Joining locally anyway would create a disconnected same-named copy
-          // (the exact bug this flow exists to prevent) — fail loudly instead.
-          joinLog('join.remoteUnavailable', { tripId: foundTrip.id })
-          setErrors({
-            general:
-              'Could not attach you to the shared trip on the server. Check your internet connection and try again — joining offline would create a disconnected copy.',
-          })
-          return
-        }
-
+        // A trip verified via invite link (or found on this device) may not be
+        // on the server yet: the server then creates that SAME trip (same id
+        // and code) before attaching the member, never a parallel copy.
         const avatarColor = getAvatarColor(memberCount ?? 0)
-        const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
+        const { member, alreadyMember: existed, trip: serverTrip } = await remoteJoinTrip(foundTrip, {
           name: name.trim(), mobile, pin, avatarColor,
-        })
-        // Pull the full existing trip (members, expenses, stays, settlements)
-        // so the dashboard shows the real trip — not an empty copy.
-        // Server session (httpOnly cookie) for this trip; the PIN is checked on the server.
-        const auth = await authLogin(member.id, pin)
-        if (!auth.ok && !authUnavailable(auth)) {
-          setErrors({ general: auth.error })
-          return
-        }
-        const bundle = await remoteFetchTripBundle(foundTrip.id)
+        }, !foundViaRemote)
+        // The server logged this browser in (httpOnly cookies). Pull the full
+        // trip (members, expenses, stays, settlements) so the dashboard shows
+        // the real trip, not an empty copy.
+        importTrip(serverTrip)
+        const bundle = await remoteFetchTripBundle(serverTrip.id)
         if (bundle) mergeRemoteTrip(bundle)
         else upsertMember(member)
 
         setAlreadyMember(existed)
-        setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-        joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
+        setSession({ tripId: serverTrip.id, memberId: member.id, tripCode: serverTrip.tripCode })
+        joinLog('join.success', { tripId: serverTrip.id, memberId: member.id, alreadyMember: existed })
         setStep('success')
         setConfetti(true)
         return

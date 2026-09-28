@@ -7,8 +7,7 @@
     "base": {
       "node": "22.14.0",
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "https://qufmbheewymzyzkfaivr.supabase.co",
-        "EXPO_PUBLIC_WEB_URL": "https://tripmate.boats"
+        "EXPO_PUBLIC_WEB_URL": "https://www.tripmate.boats"
       }
     },
     "development": {

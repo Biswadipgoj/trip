@@ -6,12 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
 import {
   isRemoteEnabled,
-  remoteFindTripsByMobile,
-  remoteVerifyMemberPin,
   remoteFetchTripBundle,
 } from '@/lib/remote'
 import {
-  LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, sortTripChoices, type TripChoice,
+  LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, sortTripChoices, type TripChoice,
 } from '@/lib/tripLogin'
 import { authLogin, authLookupTrips, authUnavailable } from '@/lib/authClient'
 import { safeNextPath } from '@/lib/auth/safeNext'
@@ -101,13 +99,9 @@ export default function LoginPage() {
     }
   }
 
-  // Servers without login secrets (local development) fall back to the old
-  // device + direct lookup. Production always goes through /api/auth.
-  const legacyFindTrips = async () => {
-    const local = localTripChoices(trips, members, mobile)
-    const remote = isRemoteEnabled() ? await remoteFindTripsByMobile(mobile).catch(() => []) : []
-    return mergeTripChoices(local, remote)
-  }
+  // Servers without login secrets (local development) can only offer the
+  // trips on this device. Production always goes through /api/auth.
+  const legacyFindTrips = async () => localTripChoices(trips, members, mobile)
 
   const chooseTrip = (choice: TripChoice) => {
     setSelected(choice)
@@ -133,9 +127,7 @@ export default function LoginPage() {
           return
         }
         const localMember = members.find(m => m.id === selected.memberId)
-        let ok = !!localMember?.pin && localMember.pin === pin
-        if (!ok && isRemoteEnabled()) ok = await remoteVerifyMemberPin(selected.memberId, pin).catch(() => false)
-        if (!ok) {
+        if (!localMember?.pin || localMember.pin !== pin) {
           fail('That PIN doesn’t match this trip. Try again.')
           return
         }

@@ -18,6 +18,7 @@ import { LiquidBackground } from '../../components/ui/Screen'
 import { TabBar } from '../../components/animated/AnimatedTabBar'
 import { C, amber } from '../../theme/colors'
 import { useTranslation } from '../../lib/i18n'
+import { serverLogout } from '../../lib/session'
 
 export const unstable_settings = { initialRouteName: 'dashboard' }
 
@@ -48,6 +49,8 @@ export default function TripTabsLayout() {
     if (!ok) return
     // Remember the number so logging back in starts with it filled in.
     if (me?.mobile && isValidMobile(me.mobile)) AsyncStorage.setItem(LAST_MOBILE_KEY, me.mobile).catch(() => {})
+    // Ends this trip on the server too, so the phone's saved token no longer opens it.
+    void serverLogout(session.tripId).catch(() => {})
     logout()
     leaveTrip()
   }

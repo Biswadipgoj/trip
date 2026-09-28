@@ -8,9 +8,11 @@ if (!SUPABASE_URL) {
   console.error('Error: set NEXT_PUBLIC_SUPABASE_URL in your environment.');
   process.exit(1);
 }
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+// Only the owner's secret key can replace the published APK (the public key
+// is read-only on the android-app bucket since 20261002_lock_trip_data.sql).
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!SUPABASE_KEY) {
-  console.error('Error: set SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY in your environment.');
+  console.error('Error: set SUPABASE_SERVICE_ROLE_KEY (your Supabase secret key) in .env.local. Never commit it.');
   process.exit(1);
 }
 

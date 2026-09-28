@@ -12,8 +12,7 @@ import { ArrowRight, Check, ClipboardPaste, Link2, Lock, Phone, Search, Triangle
 import type { InvitePayload, Trip } from '../types'
 import { useStore } from '../lib/store'
 import {
-  isRemoteEnabled, joinLog, remoteEnsureTrip, remoteFetchTripBundle, remoteFindTripByCode,
-  remoteGetMembers, remoteJoinTrip, describeError,
+  isRemoteEnabled, joinLog, remoteFetchTripBundle, remoteFindTrip, remoteJoinTrip, describeError, TripAccessError,
 } from '../lib/remote'
 import { useSyncStatus } from '../lib/synclog'
 import { extractJoinInput, getAvatarColor, inviteSignature, parseInviteToken } from '../lib/utils'
@@ -169,26 +168,26 @@ export default function JoinTripScreen() {
     try {
       // 1. Cloud (preferred when online): the shared trip lives on the server.
       if (isRemoteEnabled() && useSyncStatus.getState().online) {
-        let remoteTrip: Trip | null = null
+        let found: { trip: Trip; memberCount: number } | null = null
         try {
-          remoteTrip = await remoteFindTripByCode(code)
+          // The server checks the password; the trip comes back only when it matches.
+          found = await remoteFindTrip(code, password)
         } catch (err) {
-          // If network error, allow falling back to local/invite below
-          console.warn('[join-trip] remote search fallback:', err)
-        }
-        if (remoteTrip) {
-          if (remoteTrip.password !== password) {
-            joinLog('find.wrongPassword', { tripCode: code })
-            setErrors({ tripPassword: 'Wrong trip password. Ask the trip creator for the correct one.' })
+          if (err instanceof TripAccessError && err.status !== 0) {
+            joinLog('find.error', { tripCode: code, status: err.status })
+            setErrors(err.status === 401 ? { tripPassword: err.message } : { general: err.message })
             tick('error')
             return
           }
-          const existingMembers = await remoteGetMembers(remoteTrip.id)
-          importTrip(remoteTrip) // upsert by code — never duplicates
-          setFoundTrip(remoteTrip)
+          // Offline: fall back to the invite link / this phone below.
+          console.warn('[join-trip] remote search fallback:', err)
+        }
+        if (found) {
+          importTrip(found.trip) // upsert by code — never duplicates
+          setFoundTrip(found.trip)
           setFoundViaRemote(true)
-          setMemberCount(existingMembers.length)
-          joinLog('find.verified', { tripId: remoteTrip.id, tripCode: code, members: existingMembers.length })
+          setMemberCount(found.memberCount)
+          joinLog('find.verified', { tripId: found.trip.id, tripCode: code, members: found.memberCount })
           tick('success')
           go('join')
           return
@@ -267,25 +266,28 @@ export default function JoinTripScreen() {
     try {
       if (isRemoteEnabled() && useSyncStatus.getState().online) {
         try {
-          const remoteReady = foundViaRemote || (await remoteEnsureTrip(foundTrip))
-          if (remoteReady) {
-            const { member, alreadyMember: existed } = await remoteJoinTrip(foundTrip, {
-              name: name.trim(), mobile, pin, avatarColor: getAvatarColor(memberCount ?? 0),
-            })
-            const bundle = await remoteFetchTripBundle(foundTrip.id)
-            if (bundle) mergeRemoteTrip(bundle)
-            else upsertMember(member)
+          // A trip verified via invite link (or found on this phone) may not be
+          // on the server yet: the server then creates that SAME trip first.
+          const { member, alreadyMember: existed, trip: serverTrip } = await remoteJoinTrip(foundTrip, {
+            name: name.trim(), mobile, pin, avatarColor: getAvatarColor(memberCount ?? 0),
+          }, !foundViaRemote)
+          importTrip(serverTrip)
+          const bundle = await remoteFetchTripBundle(serverTrip.id)
+          if (bundle) mergeRemoteTrip(bundle)
+          else upsertMember(member)
 
-            setAlreadyMember(existed)
-            setSession({ tripId: foundTrip.id, memberId: member.id, tripCode: foundTrip.tripCode })
-            joinLog('join.success', { tripId: foundTrip.id, memberId: member.id, alreadyMember: existed })
-            tick('success')
-            go('success')
-            setConfetti(n => n + 1)
-            return
-          }
+          setAlreadyMember(existed)
+          setSession({ tripId: serverTrip.id, memberId: member.id, tripCode: serverTrip.tripCode })
+          joinLog('join.success', { tripId: serverTrip.id, memberId: member.id, alreadyMember: existed })
+          tick('success')
+          go('success')
+          setConfetti(n => n + 1)
+          return
         } catch (err) {
-          console.warn('[join-trip] remote join error, attempting local join:', err)
+          // The server said no (wrong PIN, locked, …): show why. Only a lost
+          // connection falls through to joining on this phone for now.
+          if (!(err instanceof TripAccessError) || err.status !== 0) throw err
+          console.warn('[join-trip] offline, joining on this phone:', err)
         }
       }
 

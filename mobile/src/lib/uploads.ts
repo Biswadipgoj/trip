@@ -13,7 +13,7 @@ import { decode } from 'base64-arraybuffer'
 import { useStore, setLocalFileCleaner, setUploadProcessor } from './store'
 import { deleteLocalFiles, localFileExists, takePendingPick, type PreparedImage } from './media'
 import {
-  isRemoteEnabled, remoteUploadMedia, remoteInsertAttachment, mediaPublicUrl,
+  isRemoteEnabled, remoteUploadMedia, remoteInsertAttachment,
   MediaError, describeError,
 } from './remote'
 import { useSyncStatus, logSync } from './synclog'
@@ -107,8 +107,7 @@ export function retryUpload(id: string) {
 export function attachmentSources(a: Attachment): string[] {
   const out: string[] = []
   if (a.localUri && fileExists(a.localUri)) out.push(a.localUri)
-  const pub = mediaPublicUrl(a.storagePath)
-  if (pub) out.push(pub)
+  // Cloud copies are private: AttachmentImage asks the server for a signed link.
   return out
 }
 

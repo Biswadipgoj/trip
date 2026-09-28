@@ -1,7 +1,8 @@
 // A bill photo / UPI screenshot that always ends in something useful: it loads
-// from the on-device copy, then the public cloud URL, then a signed URL (for a
-// bucket that isn't public), and otherwise shows a placeholder with a retry.
-import { useState } from 'react'
+// from the on-device copy, then a short-lived signed link from the TripMate
+// server (photos are private to the trip), and otherwise shows a placeholder
+// with a retry.
+import { useEffect, useState } from 'react'
 import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native'
 import { Image, type ImageContentFit } from 'expo-image'
 import { ImageOff, RotateCw } from 'lucide-react-native'
@@ -48,6 +49,13 @@ export function AttachmentImage({
     }
     setState({ ...current, failed: true })
   }
+
+  // No copy on this phone: go straight to the signed cloud link.
+  const needsSigned = !uri && !current.failed && !!a.storagePath
+  useEffect(() => {
+    if (needsSigned) void onError()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsSigned, key])
 
   if (!uri || current.failed) {
     const color = tone === 'dark' ? 'rgba(255,255,255,0.7)' : ink(0.45)

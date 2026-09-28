@@ -12,12 +12,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { ArrowRight, ChevronRight, Phone, Shield, Users } from 'lucide-react-native'
 import { useStore } from '../lib/store'
 import {
-  describeError, isRemoteEnabled, remoteFetchTripBundle, remoteFindTripsByMobile, remoteVerifyMemberPin,
+  isRemoteEnabled, remoteFetchTripBundle,
 } from '../lib/remote'
 import {
   LAST_MOBILE_KEY, isValidMobile, localTripChoices, mergeTripChoices, normalizeMobileInput, type TripChoice,
 } from '../lib/tripLogin'
 import { useSyncStatus } from '../lib/synclog'
+import { serverLogin, serverLookupTrips } from '../lib/session'
 import { enterTrip } from '../lib/nav'
 import { toast } from '../lib/toast'
 import { Screen } from '../components/ui/Screen'
@@ -103,10 +104,9 @@ export default function LoginScreen() {
       let cloud: TripChoice[] = []
       let cloudError = ''
       if (isRemoteEnabled() && useSyncStatus.getState().online) {
-        cloud = await remoteFindTripsByMobile(mobile).catch(err => {
-          cloudError = describeError(err)
-          return []
-        })
+        const res = await serverLookupTrips(mobile)
+        if (res.ok) cloud = res.data.trips
+        else cloudError = res.error
       }
       const found = mergeTripChoices(local, cloud)
       if (found.length === 0) {
@@ -140,22 +140,19 @@ export default function LoginScreen() {
     }
     setLoading(true)
     try {
+      // The server checks the PIN and adds this trip to the phone's session.
+      // Offline, a PIN saved on this phone still opens the trip; it syncs
+      // once the server has confirmed it.
       const localMember = members.find(m => m.id === selected.memberId)
-      let ok = !!localMember?.pin && localMember.pin === pin
-      if (!ok) {
-        if (!isRemoteEnabled() || !useSyncStatus.getState().online) {
-          fail(localMember ? 'That PIN doesn’t match this trip. Try again.' : 'Connect to the internet to check your PIN.')
+      const localOk = !!localMember?.pin && localMember.pin === pin
+      if (isRemoteEnabled() && useSyncStatus.getState().online) {
+        const res = await serverLogin(selected.memberId, pin)
+        if (!res.ok && !(res.status === 0 && localOk)) {
+          fail(res.error)
           return
         }
-        try {
-          ok = await remoteVerifyMemberPin(selected.memberId, pin)
-        } catch (err) {
-          fail(describeError(err))
-          return
-        }
-      }
-      if (!ok) {
-        fail('That PIN doesn’t match this trip. Try again.')
+      } else if (!localOk) {
+        fail(localMember ? 'That PIN doesn’t match this trip. Try again.' : 'Connect to the internet to check your PIN.')
         return
       }
 

@@ -27,23 +27,15 @@ Without step 2 the app still syncs trips; photos stay on the phone and the sync 
 
 ## 2. Environment variables
 
-The app needs the web app's public Supabase values (Vercel: `NEXT_PUBLIC_SUPABASE_URL`,
-`NEXT_PUBLIC_SUPABASE_ANON_KEY`) and, for invite links, the web app's URL.
+The app needs one setting: the TripMate website's address, `EXPO_PUBLIC_WEB_URL`. Login, sync and
+photos all go through that server, which checks every request, so **the app contains no database key**.
 
-**Local runs** — copy `.env.example` to `.env` (git-ignored) and fill it in.
+**Local runs:** copy `.env.example` to `.env` (git-ignored). Point it at a local `npm run dev` or at the live site.
 
-**EAS cloud builds** — `.env` is never uploaded to EAS. `eas.json` already sets the public
-`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_WEB_URL`; add the anon (publishable) key once per environment
-(or in the Expo dashboard → Project → Environment variables):
-
-```bash
-npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon or publishable key> --visibility plaintext
-npx eas-cli@latest env:create --environment preview    --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon or publishable key> --visibility plaintext
-```
-
-Use the same key as Vercel's `NEXT_PUBLIC_SUPABASE_ANON_KEY` (never the secret/service-role key). Values are
-baked in at build time — rebuild after changing them. `scripts/check-build-env.mjs` runs on EAS before install
-and **stops a preview/production build** that is missing them, so an APK can't ship without cloud sync.
+**EAS cloud builds:** `eas.json` already sets `EXPO_PUBLIC_WEB_URL=https://www.tripmate.boats`; nothing else is
+needed. Values are baked in at build time, so rebuild after changing them. `scripts/check-build-env.mjs` runs
+on EAS before install and **stops a preview/production build** without a valid `https://` URL, so an APK can't
+ship without cloud sync.
 
 ## 3. Run it
 
@@ -75,7 +67,7 @@ mkdir -p dist && cp ~/Downloads/<downloaded>.apk dist/tripmate-latest.apk
 npm run upload:apk
 ```
 
-and update `version` / `versionCode` in `src/config/appRelease.ts` to match `app.json` (currently 4.1.0 / 410).
+and update `version` / `versionCode` in `src/config/appRelease.ts` to match `app.json` (currently 4.2.0 / 420).
 
 `preview` builds the same APK for testers (channel `preview`); `development` builds a dev client.
 Bump `version` and `android.versionCode` in `app.json` for every release: builds with native changes can't be

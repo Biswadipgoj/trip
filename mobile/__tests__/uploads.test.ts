@@ -60,14 +60,14 @@ describe('fileExists', () => {
 })
 
 describe('attachmentSources', () => {
-  it('tries the on-device copy first, then the cloud URL', () => {
+  it('uses the on-device copy, never a public cloud URL (photos are private)', () => {
     fs.existing.add('file:///docs/tripmate-media/a1.jpg')
     expect(attachmentSources(bill({ localUri: 'file:///docs/tripmate-media/a1.jpg', storagePath: 't1/bills/a1.jpg' })))
-      .toEqual(['file:///docs/tripmate-media/a1.jpg', 'https://cdn.example/t1/bills/a1.jpg'])
+      .toEqual(['file:///docs/tripmate-media/a1.jpg'])
   })
 
-  it('uses the cloud URL on other phones (no local copy)', () => {
-    expect(attachmentSources(bill({ storagePath: 't1/bills/a1.jpg' }))).toEqual(['https://cdn.example/t1/bills/a1.jpg'])
+  it('on other phones leaves it to the signed link (no public URL)', () => {
+    expect(attachmentSources(bill({ storagePath: 't1/bills/a1.jpg' }))).toEqual([])
   })
 
   it('has nothing to show for a photo that is neither on this phone nor uploaded', () => {

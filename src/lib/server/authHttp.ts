@@ -2,7 +2,8 @@ import 'server-only'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
-  ACCESS_TTL_SECONDS, REFRESH_TTL_SECONDS, cookieNames, sessionKey, signAccessToken,
+  ACCESS_TTL_SECONDS, REFRESH_TTL_SECONDS, cookieNames, sessionKey, signAccessToken, verifyAccessToken,
+  type AccessClaims,
 } from '@/lib/auth/tokens'
 import { SessionService } from '@/lib/server/sessions'
 import { SupabaseSessionRepo, supabaseAdmin } from '@/lib/server/supabaseAdmin'
@@ -74,6 +75,54 @@ export async function setSessionCookies(res: NextResponse, req: NextRequest, iss
       httpOnly: true, secure, sameSite: 'lax', path: '/api/auth', maxAge: REFRESH_TTL_SECONDS,
     })
   }
+}
+
+// ─── Android app ──────────────────────────────────────────────────────────────
+// The app has no cookie jar it controls well, so it keeps the refresh token in
+// the phone's secure storage (Android Keystore) and sends tokens explicitly:
+//   x-tm-client: app          marks the request as the app's
+//   x-tm-access: <jwt>        the 15-minute access token, on data requests
+//   { refreshToken }          in the body of /api/auth/refresh and /logout
+// No browser sends these on its own, so the cookie CSRF check does not apply.
+
+export const isAppClient = (req: NextRequest) => req.headers.get('x-tm-client') === 'app'
+
+/** Web: same-origin check. App: allowed (it authenticates with explicit tokens, never cookies). */
+export const allowedCaller = (req: NextRequest) => isAppClient(req) || isSameOrigin(req)
+
+/** The refresh token for this caller: the app's body field or the browser's cookie. */
+export function refreshTokenOf(req: NextRequest, body: any): string | undefined {
+  if (isAppClient(req)) return typeof body?.refreshToken === 'string' && body.refreshToken.length <= 200 ? body.refreshToken : undefined
+  return req.cookies.get(cookiesFor(req).refresh)?.value
+}
+
+/** Verified access claims from the app header or the browser cookie. */
+export async function claimsOf(req: NextRequest, key: Uint8Array): Promise<AccessClaims | null> {
+  const token = isAppClient(req)
+    ? req.headers.get('x-tm-access') ?? undefined
+    : req.cookies.get(cookiesFor(req).access)?.value
+  return verifyAccessToken(token, key)
+}
+
+/**
+ * Hands a session to the caller: cookies for the browser, tokens in the body
+ * for the app (refreshToken null = keep the one you have).
+ */
+export async function issueSession(req: NextRequest, body: Record<string, unknown>, issued: IssuedSession, key: Uint8Array) {
+  if (isAppClient(req)) {
+    const accessToken = await signAccessToken({ sid: issued.sessionId, ms: issued.memberships }, key)
+    return json({ ...body, accessToken, refreshToken: issued.refreshToken, expiresIn: ACCESS_TTL_SECONDS })
+  }
+  const res = json(body)
+  await setSessionCookies(res, req, issued, key)
+  return res
+}
+
+/** Ends the caller's session: clears cookies for the browser; the app drops its tokens. */
+export function endSession(req: NextRequest, body: Record<string, unknown>, status = 200) {
+  const res = json(body, status)
+  if (!isAppClient(req)) clearSessionCookies(res, req)
+  return res
 }
 
 export function clearSessionCookies(res: NextResponse, req: NextRequest) {

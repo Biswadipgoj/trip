@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
 import {
-  authContext, clientIp, cookiesFor, isSameOrigin, isUuid, json, notConfigured, setSessionCookies, underRateLimit,
+  allowedCaller, authContext, clientIp, isUuid, issueSession, json, notConfigured, refreshTokenOf, underRateLimit,
 } from '@/lib/server/authHttp'
 
 export const runtime = 'nodejs'
@@ -13,7 +13,7 @@ export const runtime = 'nodejs'
 export async function POST(req: NextRequest) {
   const ctx = authContext()
   if (!ctx) return notConfigured()
-  if (!isSameOrigin(req)) return json({ error: 'Forbidden' }, 403)
+  if (!allowedCaller(req)) return json({ error: 'Forbidden' }, 403)
 
   const body = await req.json().catch(() => null)
   const memberId = body?.memberId
@@ -42,12 +42,6 @@ export async function POST(req: NextRequest) {
   if (!member || !trip) return json({ error: 'This trip no longer exists.' }, 404)
 
   const membership = { tripId: trip.id as string, memberId, tripCode: trip.trip_code as string }
-  const issued = await ctx.sessions.login(
-    req.cookies.get(cookiesFor(req).refresh)?.value,
-    membership,
-    req.headers.get('user-agent'),
-  )
-  const res = json({ session: membership, memberships: issued.memberships })
-  await setSessionCookies(res, req, issued, ctx.key)
-  return res
+  const issued = await ctx.sessions.login(refreshTokenOf(req, body), membership, req.headers.get('user-agent'))
+  return issueSession(req, { session: membership, memberships: issued.memberships }, issued, ctx.key)
 }

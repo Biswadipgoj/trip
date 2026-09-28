@@ -10,7 +10,7 @@ import {
   calculateBalances, calculateSettlements, applyConfirmedTransfers
 } from '@/lib/utils'
 import {
-  isRemoteEnabled, remoteCreateTrip, remoteCloseTrip, remoteEnsureTrip,
+  isRemoteEnabled, remoteCloseTrip, remoteEnsureTrip,
   remoteAddManualMember, remoteUpdateMemberUpi,
   remotePushExpense, remoteDeleteExpense, remotePushHotelExpense, remoteDeleteHotelExpense,
   remotePushSettlementStatus, remoteDeleteSettlementStatus, remoteCleanStaleSettlements, remoteDeleteSettlementsByTrip,
@@ -202,7 +202,7 @@ interface AppState {
 
   // ─── Trip Actions ────────────────────────────────────────────────────────────
   /** `synced` settles once the trip is on the server (or immediately when cloud sync is off). */
-  createTrip:  (name: string, creatorName: string, mobile: string, password: string, pin: string) => { trip: Trip; member: Member; synced: Promise<void> }
+  createTrip:  (name: string, creatorName: string, mobile: string, password: string, pin: string) => { trip: Trip; member: Member }
   joinTrip:    (tripCode: string, password: string, name: string, mobile: string, pin: string) => Member | null
   closeTrip:   (tripId: string) => void
   getTripById: (tripId: string) => Trip | undefined
@@ -298,10 +298,9 @@ export const useStore = create<AppState>()(
           id: tripId, tripCode, name, password, creatorId: memberId,
           status: 'active', createdAt: new Date().toISOString(),
         }
+        // The create page puts the trip on the server (it holds the PIN).
         set(s => ({ trips: [...s.trips, trip], members: [...s.members, member] }))
-        const synced = remoteCreateTrip(trip, member)
-        fireAndForget(synced)
-        return { trip, member, synced: synced.catch(() => undefined) }
+        return { trip, member }
       },
 
       joinTrip: (tripCode, password, name, mobile, pin) => {

@@ -17,7 +17,7 @@ import type {
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
   Attachment, AttachmentKind,
 } from '@/types'
-import type { TripChoice } from '@/lib/tripLogin'
+import { tripsFind, tripsJoin, type ServerMember, type ServerTrip } from '@/lib/authClient'
 
 export function isRemoteEnabled(): boolean {
   return supabase !== null
@@ -130,88 +130,71 @@ function attachmentFromRow(row: any): Attachment {
 }
 
 // ─── Trips ────────────────────────────────────────────────────────────────────
+// Creating, finding and joining trips happens on the server (/api/trips/*),
+// which checks the trip password and PINs and then logs this browser in.
 
-export async function remoteFindTripByCode(tripCode: string): Promise<Trip | null> {
-  if (!supabase) return null
-  const { data, error } = await supabase
-    .from('trips')
-    .select('*')
-    .eq('trip_code', tripCode.toUpperCase())
-    .maybeSingle()
-  if (error) {
-    joinLog('remote.findTrip.error', { tripCode, error: error.message })
-    throw new Error('Could not reach the server. Check your connection and try again.')
-  }
-  return data ? tripFromRow(data) : null
+function tripFromServer(t: ServerTrip, password: string): Trip {
+  return { ...t, password }
 }
 
-export async function remoteCreateTrip(trip: Trip, creator: Member): Promise<void> {
-  if (!supabase || !isUuid(trip.id) || !isUuid(creator.id)) return
-  const { error: tripErr } = await supabase.from('trips').insert({
-    id: trip.id,
-    trip_code: trip.tripCode,
-    name: trip.name,
-    password: trip.password,
-    status: trip.status,
-    created_at: trip.createdAt,
-  })
-  if (tripErr) {
-    joinLog('remote.createTrip.error', { tripId: trip.id, error: tripErr.message })
-    return
+function memberFromServer(m: ServerMember): Member {
+  return { ...m, pin: '' }
+}
+
+/** The trip behind a code, once the server has checked its password. */
+export async function remoteFindTrip(tripCode: string, password: string): Promise<{ trip: Trip; memberCount: number } | null> {
+  if (!supabase) return null
+  const res = await tripsFind(tripCode.toUpperCase(), password)
+  if (res.ok) return { trip: tripFromServer(res.data.trip, password), memberCount: res.data.memberCount }
+  if (res.status === 404) return null
+  joinLog('remote.findTrip.error', { tripCode, status: res.status })
+  throw new TripAccessError(res.error, res.status)
+}
+
+export class TripAccessError extends Error {
+  constructor(message: string, readonly status: number, readonly code?: string) {
+    super(message)
   }
-  const { error: memErr } = await supabase.from('members').insert({
-    id: creator.id,
-    trip_id: trip.id,
-    name: creator.name,
-    mobile: creator.mobile,
-    pin: creator.pin,
-    avatar_color: creator.avatarColor,
-    joined_at: creator.joinedAt,
-  })
-  if (memErr) {
-    joinLog('remote.createTrip.memberError', { tripId: trip.id, error: memErr.message })
-    return
-  }
-  await supabase.from('trips').update({ creator_id: creator.id }).eq('id', trip.id)
-  joinLog('remote.createTrip.ok', { tripId: trip.id, tripCode: trip.tripCode })
 }
 
 /**
- * Guarantees a trip verified via an invite link also exists on the server —
- * WITHOUT ever creating a duplicate. It inserts the exact same trip row
- * (same id, same trip code) only when no row with that code exists yet.
- * This heals trips that were created before cloud sync was configured, so a
- * join always attaches everyone to the ONE shared trip instead of leaving
- * divergent device-local copies with the same name.
+ * Puts a new trip on the server with its creator and logs this browser in to
+ * it. Safe to repeat (e.g. after being offline): the server recognises the
+ * same trip and creator.
+ */
+export async function remoteCreateTrip(trip: Trip, creator: Member): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (!supabase || !isUuid(trip.id) || !isUuid(creator.id)) return { ok: true }
+  const res = await tripsJoin({
+    tripCode: trip.tripCode,
+    password: trip.password,
+    trip: { id: trip.id, name: trip.name, status: trip.status, createdAt: trip.createdAt },
+    creator: true,
+    member: {
+      id: creator.id, name: creator.name, mobile: creator.mobile, pin: creator.pin,
+      avatarColor: creator.avatarColor, joinedAt: creator.joinedAt,
+    },
+  })
+  if (!res.ok) {
+    joinLog('remote.createTrip.error', { tripId: trip.id, status: res.status })
+    return res
+  }
+  joinLog('remote.createTrip.ok', { tripId: trip.id, tripCode: trip.tripCode })
+  return { ok: true }
+}
+
+/**
+ * True when this trip is on the server and this browser may open it. A trip
+ * that only exists on this device can't be uploaded from here without its
+ * creator's PIN; the create page does that while it still has the PIN.
  */
 export async function remoteEnsureTrip(trip: Trip): Promise<boolean> {
   if (!supabase || !isUuid(trip.id)) return false
-
-  const { data: existing, error: findErr } = await supabase
-    .from('trips')
-    .select('id')
-    .eq('trip_code', trip.tripCode.toUpperCase())
-    .maybeSingle()
-  if (findErr) {
-    joinLog('remote.ensureTrip.findError', { tripCode: trip.tripCode, error: findErr.message })
-    return false
-  }
-  if (existing) return existing.id === trip.id
-
-  const { error } = await supabase.from('trips').insert({
-    id: trip.id,
-    trip_code: trip.tripCode,
-    name: trip.name,
-    password: trip.password,
-    status: trip.status,
-    created_at: trip.createdAt,
-  })
+  const { data, error } = await supabase.from('trips').select('id').eq('id', trip.id).maybeSingle()
   if (error) {
-    joinLog('remote.ensureTrip.insertError', { tripId: trip.id, error: error.message })
+    joinLog('remote.ensureTrip.findError', { tripId: trip.id, error: error.message })
     return false
   }
-  joinLog('remote.ensureTrip.created', { tripId: trip.id, tripCode: trip.tripCode })
-  return true
+  return !!data
 }
 
 /** Sets trips.creator_id when it is still NULL (healed/legacy trip rows). */
@@ -245,133 +228,36 @@ export async function remoteGetMembers(tripId: string): Promise<Member[]> {
   return data.map(memberFromRow)
 }
 
-const OFFLINE_MESSAGE = 'Could not reach the server. Check your connection and try again.'
 export const PIN_LOCKED_MESSAGE = 'Too many wrong PINs. This member is locked for 15 minutes; try again later.'
 
 /**
- * Every trip a mobile number belongs to, for the mobile-number login.
- * Runs as a database function: only members who have a PIN are returned, and
- * no PIN data ever leaves the server.
- */
-export async function remoteFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase.rpc('tm_find_trips_by_mobile', { p_mobile: mobile })
-  if (isMissingFunction(error)) return legacyFindTripsByMobile(mobile)
-  if (error) throw new Error(OFFLINE_MESSAGE)
-  return ((data ?? []) as any[]).map(r => ({
-    tripId: r.trip_id,
-    tripCode: r.trip_code,
-    name: r.trip_name,
-    status: r.status === 'closed' ? 'closed' : 'active',
-    createdAt: r.created_at,
-    memberId: r.member_id,
-    memberName: r.member_name,
-    memberCount: r.member_count ?? 0,
-  }))
-}
-
-/**
- * True when `pin` is this member's PIN. Checked by a database function against
- * a bcrypt hash; after 5 wrong tries the member is locked for 15 minutes.
- */
-export async function remoteVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
-  if (!supabase) return false
-  const { data, error } = await supabase.rpc('tm_verify_member_pin', { p_member_id: memberId, p_pin: pin })
-  if (isMissingFunction(error)) return legacyVerifyMemberPin(memberId, pin)
-  if (error) throw new Error(/PIN_LOCKED/.test(error.message) ? PIN_LOCKED_MESSAGE : OFFLINE_MESSAGE)
-  return data === true
-}
-
-// Fallbacks for a database where 20260929_protect_member_pins.sql has not run
-// yet, so deploying the app before the migration does not break login. Once it
-// has run, members.pin is always '' and these paths are never taken.
-const isMissingFunction = (e: PgError | null | undefined) =>
-  e?.code === 'PGRST202' || e?.code === '42883' || /could not find the function/i.test(e?.message ?? '')
-
-async function legacyFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
-  if (!supabase) return []
-  const { data: rows, error } = await supabase
-    .from('members').select('id, trip_id, name').eq('mobile', mobile).neq('pin', '')
-  if (error) throw new Error(OFFLINE_MESSAGE)
-  if (!rows?.length) return []
-  const tripIds = rows.map(r => r.trip_id as string)
-  const [{ data: trips, error: tripErr }, { data: counts }] = await Promise.all([
-    supabase.from('trips').select('id, trip_code, name, status, created_at').in('id', tripIds),
-    supabase.from('members').select('trip_id').in('trip_id', tripIds),
-  ])
-  if (tripErr) throw new Error(OFFLINE_MESSAGE)
-  return rows.flatMap(r => {
-    const t = trips?.find(x => x.id === r.trip_id)
-    if (!t) return []
-    return [{
-      tripId: t.id,
-      tripCode: t.trip_code,
-      name: t.name,
-      status: t.status === 'closed' ? 'closed' as const : 'active' as const,
-      createdAt: t.created_at,
-      memberId: r.id,
-      memberName: r.name,
-      memberCount: counts?.filter(c => c.trip_id === t.id).length ?? 0,
-    }]
-  })
-}
-
-async function legacyVerifyMemberPin(memberId: string, pin: string): Promise<boolean> {
-  if (!supabase || !/^\d{4}$/.test(pin)) return false
-  const { data, error } = await supabase
-    .from('members').select('id').eq('id', memberId).eq('pin', pin).maybeSingle()
-  if (error) throw new Error(OFFLINE_MESSAGE)
-  return data !== null
-}
-
-/**
- * Attaches a member to an EXISTING trip. Duplicate-safe: if a member with the
- * same mobile already exists on the trip, that member is returned instead of
- * inserting a second row (also enforced by the DB UNIQUE(trip_id, mobile)).
+ * Attaches a member to a trip on the server and logs this browser in to it.
+ * Duplicate-safe: a number that already joined must enter the PIN chosen
+ * then, and gets that same member back. `inviteTrip` lets the server create a
+ * trip that so far only existed on the inviter's device.
  */
 export async function remoteJoinTrip(
   trip: Trip,
-  details: { name: string; mobile: string; pin: string; avatarColor: string }
-): Promise<{ member: Member; alreadyMember: boolean }> {
+  details: { name: string; mobile: string; pin: string; avatarColor: string },
+  inviteTrip = false,
+): Promise<{ member: Member; alreadyMember: boolean; trip: Trip }> {
   if (!supabase) throw new Error('Server sync is not configured.')
-
-  const { data: existing } = await supabase
-    .from('members')
-    .select('*')
-    .eq('trip_id', trip.id)
-    .eq('mobile', details.mobile)
-    .maybeSingle()
-
-  if (existing) {
-    // Rejoining with a number that is already in the trip: prove it is the same
-    // person, or anyone with the trip password could take over that member.
-    if (!(await remoteVerifyMemberPin(existing.id, details.pin))) {
-      joinLog('join.duplicatePinMismatch', { tripId: trip.id, tripCode: trip.tripCode })
-      throw new Error('This mobile number has already joined the trip. Enter the PIN you chose then, or use Log in.')
-    }
-    joinLog('join.duplicatePrevented', { tripId: trip.id, tripCode: trip.tripCode, mobile: details.mobile })
-    return { member: memberFromRow(existing), alreadyMember: true }
+  const res = await tripsJoin({
+    tripCode: trip.tripCode,
+    password: trip.password,
+    member: details,
+    ...(inviteTrip ? { trip: { id: trip.id, name: trip.name, status: trip.status, createdAt: trip.createdAt } } : {}),
+  })
+  if (!res.ok) {
+    joinLog('join.error', { tripId: trip.id, status: res.status })
+    throw new TripAccessError(res.status === 0 ? OFFLINE_MESSAGE : res.error, res.status)
   }
-
-  const { data, error } = await supabase
-    .from('members')
-    .insert({
-      trip_id: trip.id,
-      name: details.name,
-      mobile: details.mobile,
-      pin: details.pin,
-      avatar_color: details.avatarColor,
-    })
-    .select('*')
-    .single()
-
-  if (error || !data) {
-    joinLog('join.insertError', { tripId: trip.id, error: error?.message })
-    throw new Error('Could not join the trip. Please try again.')
-  }
-  joinLog('join.memberAdded', { tripId: trip.id, tripCode: trip.tripCode, memberId: data.id })
-  return { member: memberFromRow(data), alreadyMember: false }
+  const { member, alreadyMember } = res.data
+  joinLog(alreadyMember ? 'join.duplicatePrevented' : 'join.memberAdded', { tripId: res.data.trip.id, memberId: member.id })
+  return { member: memberFromServer(member), alreadyMember, trip: tripFromServer(res.data.trip, trip.password) }
 }
+
+const OFFLINE_MESSAGE = 'Could not reach the server. Check your connection and try again.'
 
 export async function remoteUpdateMemberUpi(memberId: string, upiId: string, upiName?: string): Promise<void> {
   if (!supabase || !isUuid(memberId)) return
@@ -387,7 +273,7 @@ export async function remoteAddManualMember(member: Member): Promise<void> {
     trip_id: member.tripId,
     name: member.name,
     mobile: member.mobile || `manual-${member.id.slice(0, 8)}`, // UNIQUE(trip_id, mobile) needs a placeholder
-    pin: member.pin,
+    // No PIN: PINs are only ever set by the server when someone joins.
     avatar_color: member.avatarColor,
     joined_at: member.joinedAt,
   })
