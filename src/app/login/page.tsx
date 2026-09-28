@@ -10,7 +10,11 @@ import {
   remoteVerifyMemberPin,
   remoteFetchTripBundle,
 } from '@/lib/remote'
-import { LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, type TripChoice } from '@/lib/tripLogin'
+import {
+  LAST_MOBILE_KEY, isValidMobile, normalizeMobileInput, localTripChoices, mergeTripChoices, sortTripChoices, type TripChoice,
+} from '@/lib/tripLogin'
+import { authLogin, authLookupTrips, authUnavailable } from '@/lib/authClient'
+import { safeNextPath } from '@/lib/auth/safeNext'
 import { ArrowLeft, ArrowRight, Phone, Shield, Users, ChevronRight, Radio } from 'lucide-react'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
 import Link from 'next/link'
@@ -78,25 +82,31 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      const local = localTripChoices(trips, members, mobile)
-      let remote: TripChoice[] = []
-      let remoteError = ''
-      if (isRemoteEnabled()) {
-        remote = await remoteFindTripsByMobile(mobile).catch((e: Error) => {
-          remoteError = e.message
-          return []
-        })
-      }
-      const merged = mergeTripChoices(local, remote)
-      if (merged.length === 0) {
-        fail(remoteError || 'No trips found for this number. Join with a trip code or create a new trip.')
+      const res = await authLookupTrips(mobile)
+      let found: TripChoice[]
+      if (res.ok) found = sortTripChoices(res.data.trips)
+      else if (authUnavailable(res)) found = await legacyFindTrips()
+      else {
+        fail(res.error)
         return
       }
-      setChoices(merged)
+      if (found.length === 0) {
+        fail('No trips found for this number. Join with a trip code or create a new trip.')
+        return
+      }
+      setChoices(found)
       setStep('trips')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Servers without login secrets (local development) fall back to the old
+  // device + direct lookup. Production always goes through /api/auth.
+  const legacyFindTrips = async () => {
+    const local = localTripChoices(trips, members, mobile)
+    const remote = isRemoteEnabled() ? await remoteFindTripsByMobile(mobile).catch(() => []) : []
+    return mergeTripChoices(local, remote)
   }
 
   const chooseTrip = (choice: TripChoice) => {
@@ -115,22 +125,23 @@ export default function LoginPage() {
     }
     setLoading(true)
     try {
-      const localMember = members.find(m => m.id === selected.memberId)
-      let ok = !!localMember && localMember.pin === pin
-      if (!ok && isRemoteEnabled()) {
-        try {
-          ok = await remoteVerifyMemberPin(selected.memberId, pin)
-        } catch (e) {
-          fail((e as Error).message)
+      // The server checks the PIN and sets the httpOnly session cookies.
+      const res = await authLogin(selected.memberId, pin)
+      if (!res.ok) {
+        if (!authUnavailable(res)) {
+          fail(res.error)
+          return
+        }
+        const localMember = members.find(m => m.id === selected.memberId)
+        let ok = !!localMember?.pin && localMember.pin === pin
+        if (!ok && isRemoteEnabled()) ok = await remoteVerifyMemberPin(selected.memberId, pin).catch(() => false)
+        if (!ok) {
+          fail('That PIN doesn’t match this trip. Try again.')
           return
         }
       }
-      if (!ok) {
-        fail('That PIN doesn’t match this trip. Try again.')
-        return
-      }
 
-      // Pull the latest trip data; fine to continue offline if it's already on this device.
+      // Pull the latest trip data; fine to continue if it's already on this device.
       if (isRemoteEnabled()) {
         const bundle = await remoteFetchTripBundle(selected.tripId).catch(() => null)
         if (bundle) mergeRemoteTrip(bundle)
@@ -146,7 +157,8 @@ export default function LoginPage() {
         // ignore
       }
       setSession({ tripId: selected.tripId, memberId: selected.memberId, tripCode: selected.tripCode })
-      router.push(`/dashboard/${selected.tripId}`)
+      const next = safeNextPath(new URLSearchParams(window.location.search).get('next'))
+      router.push(next && next.includes(selected.tripId) ? next : `/dashboard/${selected.tripId}`)
     } finally {
       setLoading(false)
     }

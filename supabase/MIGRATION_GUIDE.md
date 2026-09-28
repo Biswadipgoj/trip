@@ -1,5 +1,11 @@
 # TripMate — Supabase Media & Cloud Sync Setup Guide
 
+> **Run next (2026-09-30):** run
+> [`migrations/20260930_auth_sessions.sql`](./migrations/20260930_auth_sessions.sql) **before** deploying
+> the server-side login. It adds the `auth_sessions` table (hashed refresh tokens) and the login rate
+> limiter, both invisible to the public key. Needs `SUPABASE_SERVICE_ROLE_KEY` and `SESSION_SECRET` in
+> Vercel. Safe to re-run; copy it with GitHub's **Copy raw file** button.
+
 > **Run next (2026-09-29):** run
 > [`migrations/20260929_protect_member_pins.sql`](./migrations/20260929_protect_member_pins.sql) in the
 > Supabase SQL editor. It moves every member PIN into a hashed table the public key cannot read,
