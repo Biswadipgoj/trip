@@ -403,7 +403,7 @@ export default function Home() {
                   <span>{t('downloadApk')}</span>
                 </Link>
                 <span className="text-xs font-semibold text-slate-500">
-                  Direct safe APK download · No Play Store account needed
+                  Free APK from tripmate.boats
                 </span>
               </div>
             )}

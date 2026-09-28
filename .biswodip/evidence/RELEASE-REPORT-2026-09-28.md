@@ -58,3 +58,19 @@ Security 3 → 7.5 · Correctness 7 → 14 · Reliability 6 → 9 · Tests/evide
 3. Stage 5: revoke anon on all tables, drop `tripmate_*_all`, disable legacy API keys (kills the leaked key); SQL tests prove anon gets nothing.
 4. Build the APK on EAS, install on a real phone, run the login + sync checklist.
 5. Add error monitoring and test a backup restore.
+
+## Addendum — round 3 (same day)
+| Requirement | Implementation | Verification | Status |
+|---|---|---|---|
+| Settle by **UPI or cash** (web + app) | `PaymentMethod` on `Settlement`; `payment_method` column (`20261001_settlement_payment_method.sql`, falls back if not yet run); web "Paid by UPI" / "Paid in cash"; app buttons + cash confirm, badge "Paid · Cash" | Store tests web 3 + app 1 (method survives regeneration, confirmation, sync; cleared on undo/amount change); migration applied twice on PostgreSQL 16 (check constraint rejects other values); browser run: cash → "Paid · Cash" | [x] VERIFIED |
+| Only the owner's name, no other details | Legal text: no website link, no location; page data author without URL | Parity test; grep | [x] VERIFIED |
+| "No Play Store account needed" removed | home, download page, Terms | grep: 0 mentions in src/ and mobile/src | [x] VERIFIED |
+| Logo wherever "TripMate" is shown | share image (real logo), legal + guide headers (web), app legal screens | OG PNG 1200×630 inspected; tsc/lint | [x] VERIFIED |
+| Copy pass (no AI slop) | legal, guides, creator card, OG | colon reveals, em dashes in titles, "actually", unverifiable portfolio claim removed | [x] VERIFIED |
+| Contrast on trip screens | `text-white/60→/75`, `/50→/70` (122 uses), StatusBadge -400→-700 text, Log out rose-700, confirm button emerald-700, pie charts labelled + out of Tab order | axe WCAG 2.2 AA: 0 violations on dashboard, expenses, members, report, payments (due + paid) and 10 public pages | [x] VERIFIED |
+
+Final run (all exit 0): web unit **121/121**, clean build, app **46/46**, `expo-doctor` 21/21, `expo export -p android`, SQL 20/20 + 16/16, e2e auth **29/29**.
+
+APK build: [!] BLOCKED here by design — the production APK must be signed with the key EAS already holds for `com.tripmate.app`; a locally signed APK could not update existing installs. Owner runs `cd mobile && npm run build:apk`.
+
+Release status unchanged: **NOT RELEASE READY** (cap 49: cross-user data access through the anon key; stages 2–5).

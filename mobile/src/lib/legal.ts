@@ -8,7 +8,6 @@
 
 export const LEGAL_UPDATED = '28 September 2026'
 export const LEGAL_OPERATOR = 'Biswodip Goj'
-export const LEGAL_CONTACT_URL = 'https://biswadip.in'
 
 export interface LegalSection {
   title: string
@@ -30,7 +29,7 @@ export const PRIVACY_POLICY: LegalDoc = {
     {
       title: 'Who we are',
       body: [
-        `TripMate is a group trip expense app on the web and on Android, built and operated by ${LEGAL_OPERATOR} in India ("we", "us"). This policy explains what information TripMate handles, why, and the choices you have.`,
+        `TripMate is a group trip expense app on the web and on Android, built and run by ${LEGAL_OPERATOR} ("we", "us"). This policy explains what information TripMate handles, why, and the choices you have.`,
       ],
     },
     {
@@ -38,7 +37,7 @@ export const PRIVACY_POLICY: LegalDoc = {
       body: [
         '• Your name and 10-digit mobile number, so your group knows who you are and you can find your trips when you log in.',
         '• A 4-digit PIN. On our servers it is stored only as a one-way hash, so nobody, including us, can read it back.',
-        '• Trip details you and your group add: trip name, code and password, expenses (amounts, categories, notes, who paid and who shared), hotel stays and rooms, sponsorships, settlements and payment status.',
+        '• Trip details you and your group add: trip name, code and password, expenses (amounts, categories, notes, who paid and who shared), hotel stays and rooms, sponsorships, settlements, and whether each one was paid by UPI or in cash.',
         '• UPI IDs and names that members choose to add so others can pay them.',
         '• Bill photos and UPI payment screenshots you attach. Photos are compressed on your device before upload.',
       ],
@@ -114,7 +113,7 @@ export const PRIVACY_POLICY: LegalDoc = {
     },
     {
       title: 'Contact',
-      body: [`Questions or requests about your data: reach ${LEGAL_OPERATOR} through ${LEGAL_CONTACT_URL}.`],
+      body: [`For questions or requests about your data, contact ${LEGAL_OPERATOR}, who runs TripMate.`],
     },
   ],
 }
@@ -122,7 +121,7 @@ export const PRIVACY_POLICY: LegalDoc = {
 export const TERMS_OF_SERVICE: LegalDoc = {
   title: 'Terms of Service',
   summary:
-    'The short version: TripMate helps you record and split group costs. It never holds or moves your money, so check amounts before you pay.',
+    'TripMate helps you record and split group costs. It never holds or moves your money, so check amounts before you pay.',
   sections: [
     {
       title: 'Agreement',
@@ -140,7 +139,7 @@ export const TERMS_OF_SERVICE: LegalDoc = {
       title: 'What TripMate is, and is not',
       body: [
         '• TripMate is a tool for recording shared expenses and working out who owes whom.',
-        '• It is not a bank, wallet or payment service and never holds or transfers money. "Settle up" opens your own UPI app; the payment is between you and the person you pay.',
+        '• It is not a bank, wallet or payment service and never holds or transfers money. You settle up through your own UPI app or in cash, directly with the person you pay.',
         '• Balances and suggested settlements are calculated from what your group enters. Check the amounts before you pay. We are not responsible for mistaken entries or payments.',
       ],
     },
@@ -165,7 +164,7 @@ export const TERMS_OF_SERVICE: LegalDoc = {
     {
       title: 'The Android app',
       body: [
-        'The TripMate Android app is distributed as an APK from our website, not the Play Store. Download it only from tripmate.boats. Android will ask you to allow the install. App updates may be delivered automatically.',
+        'The TripMate Android app is an APK you download from tripmate.boats. Download it only from there. Android will ask you to allow the install, and app updates may arrive automatically.',
       ],
     },
     {
@@ -204,7 +203,7 @@ export const TERMS_OF_SERVICE: LegalDoc = {
     },
     {
       title: 'Contact',
-      body: [`Questions about these terms: reach ${LEGAL_OPERATOR} through ${LEGAL_CONTACT_URL}.`],
+      body: [`For questions about these terms, contact ${LEGAL_OPERATOR}, who runs TripMate.`],
     },
   ],
 }

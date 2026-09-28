@@ -169,7 +169,7 @@ export default function CreateTripPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Sparkles className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Name
                   </label>
@@ -185,7 +185,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Users className="w-3.5 h-3.5 inline mr-1.5" />
                     Your Name
                   </label>
@@ -201,7 +201,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                     Mobile Number
                   </label>
@@ -218,7 +218,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <IndianRupee className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Budget in ₹ (optional)
                   </label>
@@ -234,7 +234,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Lock className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Password (shared with friends)
                   </label>
@@ -275,7 +275,7 @@ export default function CreateTripPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">4-Digit PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">4-Digit PIN</label>
                   <input
                     id="pin-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -290,7 +290,7 @@ export default function CreateTripPage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Confirm PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">Confirm PIN</label>
                   <input
                     id="pin-confirm-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -349,7 +349,7 @@ export default function CreateTripPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3 }}
-                className="text-white/60 text-sm mb-8"
+                className="text-white/75 text-sm mb-8"
               >
                 Share this code with your friends to join
               </motion.p>
@@ -361,7 +361,7 @@ export default function CreateTripPage() {
                 transition={{ delay: 0.35 }}
                 className="glass rounded-2xl p-6 mb-4"
               >
-                <p className="text-xs text-white/60 mb-2 font-medium">YOUR TRIP CODE</p>
+                <p className="text-xs text-white/75 mb-2 font-medium">YOUR TRIP CODE</p>
                 <p
                   className="text-4xl font-bold tracking-widest text-gradient-brand mb-4"
                   style={{ fontFamily: "'Space Grotesk', monospace" }}
@@ -390,11 +390,11 @@ export default function CreateTripPage() {
                   transition={{ delay: 0.4 }}
                   className="glass rounded-2xl p-4 mb-6 text-left"
                 >
-                  <p className="text-xs text-white/60 mb-2 font-medium flex items-center gap-1.5">
+                  <p className="text-xs text-white/75 mb-2 font-medium flex items-center gap-1.5">
                     <Link2 className="w-3.5 h-3.5" />
                     SHORT INVITE LINK (easy to share)
                   </p>
-                  <p className="text-[11px] text-white/50 font-mono break-all mb-3 leading-relaxed">
+                  <p className="text-[11px] text-white/70 font-mono break-all mb-3 leading-relaxed">
                     {shareUrl}
                   </p>
                   <button

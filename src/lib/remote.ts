@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase'
 import { isUuid } from '@/lib/utils'
 import { logSync } from '@/lib/synclog'
 import type {
-  Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus,
+  Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus, PaymentMethod,
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship,
   Attachment, AttachmentKind,
 } from '@/types'
@@ -523,11 +523,12 @@ export async function remoteDeleteSponsorship(sponsorshipId: string): Promise<vo
 export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
   if (!supabase || !isUuid(s.tripId)) return
 
-  const patch = {
+  const patch: Record<string, unknown> = {
     amount: s.amount,
     status: s.status,
     paid_at: s.paidAt ?? null,
     confirmed_at: s.confirmedAt ?? null,
+    payment_method: s.status === 'pending' ? null : (s.method ?? null),
   }
 
   // 1) The same settlement already lives on the server → update it in place.
@@ -535,7 +536,7 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
     const { data: byId } = await supabase
       .from('settlements').select('id').eq('id', s.id).maybeSingle()
     if (byId) {
-      const { error } = await supabase.from('settlements').update(patch).eq('id', s.id)
+      const { error } = await withoutMissingMethod(patch, p => supabase!.from('settlements').update(p).eq('id', s.id))
       pushLog('push.settlementStatus', error)
       return
     }
@@ -555,20 +556,36 @@ export async function remotePushSettlementStatus(s: Settlement): Promise<void> {
     .maybeSingle()
 
   if (open) {
-    const { error } = await supabase.from('settlements').update(patch).eq('id', open.id)
+    const { error } = await withoutMissingMethod(patch, p => supabase!.from('settlements').update(p).eq('id', open.id))
     pushLog('push.settlementStatus', error)
     return
   }
 
   // 3) Brand-new payment row (keeps the local id so future pushes match).
-  const { error } = await supabase.from('settlements').insert({
+  const { error } = await withoutMissingMethod(patch, p => supabase!.from('settlements').insert({
     ...(isUuid(s.id) ? { id: s.id } : {}),
     trip_id: s.tripId,
     from_member_id: s.fromMemberId,
     to_member_id: s.toMemberId,
-    ...patch,
-  })
+    ...p,
+  }))
   pushLog('push.settlementStatus', error)
+}
+
+/**
+ * Runs a settlements write; if the server doesn't have the payment_method
+ * column yet (migration 20261001 not run), retries without it so payment
+ * status still syncs.
+ */
+async function withoutMissingMethod(
+  patch: Record<string, unknown>,
+  write: (p: Record<string, unknown>) => PromiseLike<{ error: PgError | null }>,
+): Promise<{ error: PgError | null }> {
+  const first = await write(patch)
+  const missing = first.error && (first.error.code === 'PGRST204' || /payment_method/.test(first.error.message ?? ''))
+  if (!missing) return first
+  const { payment_method: _dropped, ...rest } = patch
+  return write(rest)
 }
 
 export async function remoteDeleteSettlementStatus(settlementId: string): Promise<boolean> {
@@ -732,6 +749,7 @@ export interface TripBundle {
     status: PaymentStatus
     paidAt?: string
     confirmedAt?: string
+    method?: PaymentMethod
   }>
   /** null when the attachments table isn't available (migration not run, or
    *  a transient error) — local attachments are then left untouched. */
@@ -858,6 +876,7 @@ export async function remoteFetchTripBundle(tripId: string): Promise<TripBundle 
     status: row.status as PaymentStatus,
     paidAt: row.paid_at || undefined,
     confirmedAt: row.confirmed_at || undefined,
+    method: row.payment_method === 'upi' || row.payment_method === 'cash' ? row.payment_method as PaymentMethod : undefined,
   }))
 
   // Attachments are optional: a server without the mobile media migration still syncs.

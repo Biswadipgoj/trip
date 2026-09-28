@@ -130,9 +130,8 @@ export function BrandFooter() {
               </h3>
 
               <p className="text-[13px] text-slate-600 mb-4 leading-relaxed">
-                TripMate is an independent product, conceived, designed and built end to end by one
-                person. An offline-first ledger for shared travel: every expense recorded without
-                signal, every balance settled in the fewest payments.
+                Designed and built by one person. TripMate records a group’s trip expenses, even
+                without signal, and settles every balance in the fewest payments, by UPI or cash.
               </p>
 
               <ul className="flex flex-wrap items-center justify-center gap-1.5 mb-5" aria-label="Disciplines">
@@ -161,7 +160,7 @@ export function BrandFooter() {
               </a>
 
               <p className="mt-3 text-[10px] text-slate-400">
-                Selected work, case studies and contact details. Opens in a new tab.
+                Opens biswadip.in in a new tab.
               </p>
             </motion.div>
           </motion.div>

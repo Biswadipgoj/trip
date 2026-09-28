@@ -43,9 +43,9 @@ const GOA: GuideExample = {
 export const GUIDES: Guide[] = [
   {
     slug: 'split-bills-with-friends',
-    title: 'Split Bills with Friends — Free Bill Splitter App (UPI)',
+    title: 'Split Bills with Friends: Free Bill Splitter App (UPI)',
     description:
-      'Split bills with friends in seconds. Add who paid, TripMate works out who owes whom and settles up on UPI in the fewest payments. Free, no ads, works offline.',
+      'Split bills with friends in seconds. Add who paid, and TripMate works out who owes whom and the fewest payments to settle, by UPI or cash. Free, no ads, works offline.',
     h1: 'Split bills with friends, without the awkward maths',
     lead:
       'Dinners, rent, cabs, groceries, a weekend away: whenever a group shares costs, someone ends up doing sums on a napkin. TripMate keeps a shared list of who paid for what and tells everyone exactly who owes whom.',
@@ -56,7 +56,7 @@ export const GUIDES: Guide[] = [
           '1. Create a trip (or group) and share the code or invite link on WhatsApp.',
           '2. Whoever pays adds the expense: amount, what it was for, and who it was shared between.',
           '3. TripMate keeps a running balance for every person.',
-          '4. When you are done, tap Settle up. TripMate shows the fewest payments needed, and each one opens GPay, PhonePe or Paytm with the amount filled in.',
+          '4. When you are done, tap Settle up. TripMate shows the fewest payments needed. Pay through GPay, PhonePe or Paytm with the amount filled in, or hand over cash and mark it paid in cash.',
         ],
       },
       {
@@ -66,9 +66,9 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        h2: 'Settle up in the fewest UPI payments',
+        h2: 'Settle up in the fewest payments',
         body: [
-          'If five friends each paid for different things, paying everyone back one by one could take a dozen transfers. TripMate nets everything out first, so most groups settle in just a few payments. Attach a screenshot of the UPI payment as proof, and the balance updates for everyone.',
+          'If five friends each paid for different things, paying everyone back one by one could take a dozen transfers. TripMate nets everything out first, so most groups settle in a few payments. Record each one as paid by UPI (with a screenshot as proof) or in cash, and the balance updates for everyone.',
         ],
       },
     ],
@@ -84,7 +84,7 @@ export const GUIDES: Guide[] = [
       },
       {
         q: 'Does TripMate handle the money?',
-        a: 'No. TripMate never holds or moves money. Settle up opens your own UPI app, and you pay your friend directly.',
+        a: 'No. TripMate never holds or moves money. You pay your friend directly, through your own UPI app or in cash.',
       },
       {
         q: 'Can I add expenses without internet?',
@@ -94,15 +94,15 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: 'trip-expense-splitter',
-    title: 'Trip Expense Splitter & Group Travel Expense Calculator',
+    title: 'Trip Expense Splitter and Group Travel Expense Calculator',
     description:
-      'Plan and split group trip costs: hotels by room, cabs, meals and tickets. TripMate calculates each person’s share and the fewest UPI payments to settle. Free and offline.',
+      'Split hotel rooms, cabs, meals and tickets on group trips. TripMate works out each share and the fewest payments to settle, by UPI or cash. Free and offline.',
     h1: 'The trip expense splitter for group travel',
     lead:
       'Group trips are the best, until the last evening, when everyone tries to work out who paid for the hotel, the cabs and the fourth round of chai. TripMate tracks it while you travel, so settling up takes a minute.',
     sections: [
       {
-        h2: 'Built for how Indian group trips actually work',
+        h2: 'Built for Indian group trips',
         body: [
           '• Hotel stays split by room, including rooms with different prices.',
           '• Categories for stays, food, travel, fuel, tickets, shopping and more, with a report of where the money went.',
@@ -111,7 +111,7 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        h2: 'Works where your trip goes',
+        h2: 'Works offline',
         body: [
           'Mountain passes, beaches and flights rarely have signal. TripMate works fully offline: add expenses and bill photos anywhere, and everything syncs when you reconnect.',
         ],
@@ -145,9 +145,9 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: 'splitwise-alternative',
-    title: 'Free Splitwise Alternative for India — TripMate',
+    title: 'Free Splitwise Alternative for India | TripMate',
     description:
-      'Looking for a free Splitwise alternative in India? TripMate splits group and trip expenses, settles up on UPI, works offline and supports 20 Indian languages. No ads.',
+      'Looking for a free Splitwise alternative in India? TripMate splits trip expenses, settles up by UPI or cash, works offline and supports 20 Indian languages.',
     h1: 'A free Splitwise alternative, made for India',
     lead:
       'If you are looking for a different way to split group expenses, TripMate is a free option built around how people in India travel and pay: UPI settlements, offline use and regional languages.',
@@ -156,7 +156,7 @@ export const GUIDES: Guide[] = [
         h2: 'What TripMate offers',
         body: [
           '• Free, with no ads.',
-          '• UPI settle-up: each payment opens GPay, PhonePe or Paytm with the amount filled in.',
+          '• Settle up by UPI (GPay, PhonePe or Paytm open with the amount filled in) or in cash.',
           '• Works fully offline and syncs later.',
           '• Hotel rooms, multiple payers, couples and sponsorships.',
           '• Bill photos and payment screenshots attached to expenses.',
@@ -178,8 +178,8 @@ export const GUIDES: Guide[] = [
         a: 'Yes, TripMate is free on the web and Android, and it has no ads.',
       },
       {
-        q: 'Does TripMate support UPI?',
-        a: 'Yes. Settling up opens your UPI app with the payee and amount filled in. TripMate itself never handles money.',
+        q: 'Can we settle by UPI or cash?',
+        a: 'Both. Paying by UPI opens your UPI app with the payee and amount filled in. Paying in cash, you mark it paid in cash. TripMate itself never handles money.',
       },
       {
         q: 'Can I use it without internet?',

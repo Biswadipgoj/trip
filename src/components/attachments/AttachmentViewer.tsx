@@ -300,7 +300,7 @@ function Lightbox({ att, label, readOnly, onClose, onDelete }: {
           <div className="flex items-center gap-2 min-w-0">
             <ImageIcon className="w-4 h-4 text-brand-400 flex-shrink-0" />
             <span className="text-sm font-semibold text-white">{title}</span>
-            <span className="text-xs text-white/60 truncate">
+            <span className="text-xs text-white/75 truncate">
               {new Date(att.createdAt).toLocaleDateString()}
               {att.upload === 'pending' ? ' · syncing to the trip' : ''}
             </span>
@@ -360,7 +360,7 @@ function Lightbox({ att, label, readOnly, onClose, onDelete }: {
               )}
             </div>
           ) : (
-            <Loader2 className="w-6 h-6 text-white/60 animate-spin" />
+            <Loader2 className="w-6 h-6 text-white/75 animate-spin" />
           )}
         </div>
       </motion.div>

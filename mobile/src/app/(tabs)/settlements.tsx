@@ -25,7 +25,7 @@ import { Avatar } from '../../components/ui/Avatar'
 import { QRCode } from '../../components/ui/QRCode'
 import { PageHeader, PageScroll } from '../../components/ui/PageHeader'
 import { AttachmentStrip } from '../../components/attachments/AttachmentStrip'
-import { StatusBadge } from '../../components/animated/PulseBadge'
+import { StatusBadge, paymentBadgeLabel } from '../../components/animated/PulseBadge'
 import { Collapsible, FadeIn, SMOOTH_LAYOUT, stagger } from '../../components/animated/FadeInView'
 import { EmptyState } from '../../components/animated/AnimatedEmptyState'
 import { Confetti } from '../../components/animated/ConfettiBlast'
@@ -298,7 +298,7 @@ function DueCard({ due, to, me, proofs, upiLink, showQr, onToggleQr, onPay, onCo
         )}
 
         <View style={styles.actions}>
-          <StatusBadge status={status} />
+          <StatusBadge status={status} label={settlement ? paymentBadgeLabel(status, settlement.method) : undefined} />
           <View style={styles.actionRow}>
             {upiLink && (
               <PressScale onPress={onToggleQr} style={styles.inline} haptic="selection" accessibilityRole="button" accessibilityLabel="Show UPI QR code">

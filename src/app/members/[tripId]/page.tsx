@@ -112,7 +112,7 @@ export default function MembersPage({ params }: MembersPageProps) {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Members</h1>
-            <p className="text-white/60 text-sm">{members.length} people · {formatCurrency(totalSpent)} total spent</p>
+            <p className="text-white/75 text-sm">{members.length} people · {formatCurrency(totalSpent)} total spent</p>
           </div>
         </div>
       </FadeIn>
@@ -127,7 +127,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <Link2 className="w-4 h-4 text-brand-400" />
                   Invite friends
                 </p>
-                <p className="text-xs text-white/60 mt-0.5">
+                <p className="text-xs text-white/75 mt-0.5">
                   Share the join link — works on any device, valid 30 days
                 </p>
               </div>
@@ -167,7 +167,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <UserPlus className="w-4 h-4 text-accent-400" />
                   Add member
                 </p>
-                <p className="text-xs text-white/60 mt-0.5">
+                <p className="text-xs text-white/75 mt-0.5">
                   Add friends by name — they can join with the link later
                 </p>
               </div>
@@ -259,26 +259,26 @@ export default function MembersPage({ params }: MembersPageProps) {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-white/60 mb-3">
+                    <p className="text-xs text-white/75 mb-3">
                       {member.mobile || 'Added by admin'} · Joined {formatDate(member.joinedAt)}
                     </p>
 
                     {/* Balance stats */}
                     <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <p className="text-[10px] text-white/50 mb-0.5">Paid</p>
+                        <p className="text-[10px] text-white/70 mb-0.5">Paid</p>
                         <p className="text-sm font-semibold text-white">
                           ₹<CountUp end={balance.totalPaid} duration={1} decimals={0} />
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-white/50 mb-0.5">Owes</p>
+                        <p className="text-[10px] text-white/70 mb-0.5">Owes</p>
                         <p className="text-sm font-semibold text-white">
                           ₹<CountUp end={balance.totalOwed} duration={1} decimals={0} />
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] text-white/50 mb-0.5">Balance</p>
+                        <p className="text-[10px] text-white/70 mb-0.5">Balance</p>
                         <div className="flex items-center gap-1">
                           {balance.netBalance > 0 ? (
                             <ArrowUpRight className="w-3 h-3 text-emerald-400 flex-shrink-0" />
@@ -291,7 +291,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                                 ? 'text-emerald-400'
                                 : balance.netBalance < 0
                                 ? 'text-red-400'
-                                : 'text-white/60'
+                                : 'text-white/75'
                             }`}
                           >
                             ₹<CountUp end={Math.abs(balance.netBalance)} duration={1} decimals={0} />
@@ -307,8 +307,8 @@ export default function MembersPage({ params }: MembersPageProps) {
                   <div className="mt-4 pt-4 border-t border-white/10">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-1.5">
-                        <Wallet className="w-3.5 h-3.5 text-white/60" />
-                        <span className="text-xs text-white/60 font-medium">
+                        <Wallet className="w-3.5 h-3.5 text-white/75" />
+                        <span className="text-xs text-white/75 font-medium">
                           {isMe ? 'Your UPI ID' : `${balance.name.split(' ')[0]}'s UPI ID`}
                         </span>
                         {!isMe && isAdmin && (
@@ -362,7 +362,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                             onClick={() => setEditingUpi(null)}
                             className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center"
                           >
-                            <X className="w-3.5 h-3.5 text-white/60" />
+                            <X className="w-3.5 h-3.5 text-white/75" />
                           </button>
                         </motion.div>
                       ) : (
@@ -370,7 +370,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                           key="display"
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className={`text-sm font-mono ${member.upiId ? 'text-white' : 'text-white/50 italic'}`}
+                          className={`text-sm font-mono ${member.upiId ? 'text-white' : 'text-white/70 italic'}`}
                         >
                           {member.upiId || (canEditUpi ? 'No UPI ID set — tap Add' : 'No UPI ID set')}
                         </motion.p>
@@ -404,7 +404,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                 </button>
               )}
             </div>
-            <p className="text-xs text-white/60 mb-4">
+            <p className="text-xs text-white/75 mb-4">
               Group members (e.g. a couple) into one unit — they settle as a single entity
             </p>
 
@@ -427,14 +427,14 @@ export default function MembersPage({ params }: MembersPageProps) {
                       </div>
                       <span className="text-sm font-medium text-white flex-1 truncate">{unit.name}</span>
                       <span className={`text-xs font-semibold ${
-                        combined > 0.01 ? 'text-emerald-400' : combined < -0.01 ? 'text-red-400' : 'text-white/60'
+                        combined > 0.01 ? 'text-emerald-400' : combined < -0.01 ? 'text-red-400' : 'text-white/75'
                       }`}>
                         {combined > 0 ? '+' : ''}{formatCurrency(combined)}
                       </span>
                       <button
                         id={`remove-unit-${unit.id}`}
                         onClick={e => { e.stopPropagation(); removeSettlementGroup(unit.id) }}
-                        className="text-white/50 hover:text-red-400 transition-colors"
+                        className="text-white/70 hover:text-red-400 transition-colors"
                         aria-label="Remove unit"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -455,7 +455,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                               return (
                                 <div key={m.id} className="flex items-center justify-between text-xs">
                                   <span className="text-white/65">{m.name}</span>
-                                  <span className={b && b.netBalance > 0.01 ? 'text-emerald-400' : b && b.netBalance < -0.01 ? 'text-red-400' : 'text-white/60'}>
+                                  <span className={b && b.netBalance > 0.01 ? 'text-emerald-400' : b && b.netBalance < -0.01 ? 'text-red-400' : 'text-white/75'}>
                                     {b && b.netBalance > 0 ? '+' : ''}{formatCurrency(b?.netBalance ?? 0)}
                                   </span>
                                 </div>
@@ -469,7 +469,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                 )
               })}
               {units.length === 0 && !showUnitForm && (
-                <p className="text-xs text-white/50 italic">No units yet</p>
+                <p className="text-xs text-white/70 italic">No units yet</p>
               )}
             </div>
 
@@ -530,7 +530,7 @@ export default function MembersPage({ params }: MembersPageProps) {
                         Create Unit
                       </button>
                     </div>
-                    <p className="text-[10px] text-white/50">Pick at least 2 members. A member can only belong to one unit.</p>
+                    <p className="text-[10px] text-white/70">Pick at least 2 members. A member can only belong to one unit.</p>
                   </div>
                 </motion.div>
               )}
@@ -542,7 +542,7 @@ export default function MembersPage({ params }: MembersPageProps) {
       {members.length === 0 && (
         <div className="text-center py-20">
           <Users className="w-12 h-12 text-white/40 mx-auto mb-3" />
-          <p className="text-white/60">No members yet</p>
+          <p className="text-white/75">No members yet</p>
         </div>
       )}
     </div>

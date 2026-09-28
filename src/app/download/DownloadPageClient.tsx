@@ -221,7 +221,7 @@ export function DownloadPageClient() {
             </div>
 
             <p className="mt-3 text-xs font-medium text-slate-600">
-              Downloads straight from TripMate&apos;s server. No Google Play account needed.
+              Downloads straight from TripMate&apos;s server.
             </p>
           </div>
         </div>
@@ -344,7 +344,7 @@ export function DownloadPageClient() {
           <div className="leading-relaxed">
             <strong className="font-bold text-amber-950">If Play Protect asks before installing</strong>
             <p className="mt-0.5 font-medium text-amber-900">
-              The app comes from TripMate&apos;s own server, not the Play Store, so Android checks with you first. Tap <strong>Install anyway</strong> to continue.
+              The app comes from TripMate&apos;s own server, so Android checks with you first. Tap <strong>Install anyway</strong> to continue.
             </p>
           </div>
         </div>

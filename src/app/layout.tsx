@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     'Hindi travel expense tracker',
     'Bengali trip split app',
   ],
-  authors: [{ name: 'Biswodip Goj', url: 'https://biswadip.in' }],
+  authors: [{ name: 'Biswodip Goj' }],
   creator: 'Biswodip Goj',
   publisher: 'TripMate',
   applicationName: 'TripMate',

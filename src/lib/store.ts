@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
-  Trip, Member, Expense, Settlement, TripSession, PaymentStatus,
+  Trip, Member, Expense, Settlement, TripSession, PaymentStatus, PaymentMethod,
   SettlementGroup, Sponsorship, HotelExpense, Room, SplitType, ParticipantSplit,
   Attachment, AttachmentKind,
 } from '@/types'
@@ -245,7 +245,7 @@ interface AppState {
   // ─── Settlement Actions ──────────────────────────────────────────────────────
   generateSettlements:       (tripId: string) => void
   getSettlementsByTrip:      (tripId: string) => Settlement[]
-  updateSettlementStatus:    (id: string, status: PaymentStatus) => void
+  updateSettlementStatus:    (id: string, status: PaymentStatus, method?: PaymentMethod) => void
   deleteSettlement:          (id: string) => void
 
   // ─── Attachment / Media Actions ──────────────────────────────────────────────
@@ -454,6 +454,7 @@ export const useStore = create<AppState>()(
                       status: 'confirmed' as const,
                       paidAt: x.paidAt ?? r.paidAt,
                       confirmedAt: x.confirmedAt ?? r.confirmedAt,
+                      method: x.method ?? r.method,
                     }
                   : x
               )
@@ -467,6 +468,7 @@ export const useStore = create<AppState>()(
                 status: 'confirmed' as const,
                 paidAt: r.paidAt,
                 confirmedAt: r.confirmedAt,
+                method: r.method,
               }]
             }
           })
@@ -529,6 +531,7 @@ export const useStore = create<AppState>()(
               amount: route.amount,
               status: isPaid ? ('paid' as const) : ('pending' as const),
               paidAt: isPaid ? (prev?.paidAt ?? remote?.paidAt) : undefined,
+              method: isPaid ? ((samePayment ? prev?.method : undefined) ?? remote?.method ?? prev?.method) : undefined,
               fromGroupIds: route.fromMemberIds && route.fromMemberIds.length > 1 ? route.fromMemberIds : undefined,
               toGroupIds: route.toMemberIds && route.toMemberIds.length > 1 ? route.toMemberIds : undefined,
             }
@@ -833,6 +836,7 @@ export const useStore = create<AppState>()(
             amount:       route.amount,
             status:       samePayment ? ('paid' as const) : ('pending' as const),
             paidAt:       samePayment ? prev.paidAt : undefined,
+            method:       samePayment ? prev.method : undefined,
             // Snapshot the members behind each side so a confirmed couple
             // payment keeps settling everyone even if the group is deleted.
             fromGroupIds: route.fromMemberIds && route.fromMemberIds.length > 1 ? route.fromMemberIds : undefined,
@@ -857,7 +861,7 @@ export const useStore = create<AppState>()(
       getSettlementsByTrip: (tripId) =>
         get().settlements.filter(s => s.tripId === tripId),
 
-      updateSettlementStatus: (settlementId, status) => {
+      updateSettlementStatus: (settlementId, status, method) => {
         const now = new Date().toISOString()
         set(s => ({
           settlements: s.settlements.map(x =>
@@ -867,6 +871,8 @@ export const useStore = create<AppState>()(
                   status,
                   paidAt:       status === 'paid' || status === 'confirmed' ? (x.paidAt ?? now) : undefined,
                   confirmedAt:  status === 'confirmed' ? now : undefined,
+                  // Paid by UPI or in cash; kept when a payment is confirmed, cleared on undo.
+                  method:       status === 'pending' ? undefined : (method ?? x.method),
                 }
               : x
           ),

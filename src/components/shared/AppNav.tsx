@@ -125,7 +125,7 @@ export function AppNav({ tripId }: AppNavProps) {
               id="logout-btn-mobile"
               onClick={handleLogout}
               aria-label="Log out"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-transform"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 bg-rose-500/10 border border-rose-500/20 active:scale-95 transition-transform"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t('logout')}</span>

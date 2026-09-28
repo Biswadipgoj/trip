@@ -7,6 +7,7 @@ import { Screen } from '../ui/Screen'
 import { BackLink } from '../ui/PageHeader'
 import { GlassCard } from '../ui/GlassCard'
 import { GradientText, T } from '../ui/Text'
+import { Logo } from '../ui/Logo'
 import { FadeIn, stagger } from '../animated/FadeInView'
 import { C, ink } from '../../theme/colors'
 import { LEGAL_UPDATED, type LegalDoc } from '../../lib/legal'
@@ -38,6 +39,10 @@ export function LegalScreen({ doc, other }: { doc: LegalDoc; other: { href: '/pr
       >
         <BackLink />
         <FadeIn>
+          <View style={styles.brand}>
+            <Logo size={32} />
+            <T variant="title">TripMate</T>
+          </View>
           <GradientText variant="display">{doc.title}</GradientText>
           <T variant="small" color={ink(0.55)} style={styles.updated}>Last updated {LEGAL_UPDATED}</T>
         </FadeIn>
@@ -65,6 +70,7 @@ export function LegalScreen({ doc, other }: { doc: LegalDoc; other: { href: '/pr
 const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 18, paddingTop: 12, gap: 14 },
   updated: { marginTop: 4 },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   body: { marginTop: 8, gap: 8 },
   bulletRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.brand400, marginTop: 7 },

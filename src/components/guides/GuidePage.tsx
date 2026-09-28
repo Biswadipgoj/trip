@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
 import { SITE_URL } from '@/config/site'
 import { GUIDES, guideBySlug, type Guide } from '@/lib/guides'
@@ -62,8 +63,12 @@ export function GuidePage({ slug }: { slug: string }) {
     <main className="px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-12 sm:py-16">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <article className="mx-auto max-w-3xl text-slate-700 text-[15px] sm:text-base leading-relaxed">
-        <nav aria-label="Breadcrumb" className="text-xs font-semibold text-violet-700">
-          <Link href="/" className="hover:underline">TripMate</Link> <span aria-hidden="true">/</span> Guide
+        <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <Link href="/" className="inline-flex items-center gap-2 font-bold text-slate-900 hover:text-violet-800">
+            <Image src="/logo.png" alt="" width={28} height={28} className="rounded-lg" />
+            TripMate
+          </Link>
+          <span aria-hidden="true">/</span> Guide
         </nav>
         <h1
           className="mt-3 text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-950 leading-tight"

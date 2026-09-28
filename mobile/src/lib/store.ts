@@ -12,7 +12,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import type {
-  Trip, Member, Expense, Settlement, TripSession, PaymentStatus,
+  Trip, Member, Expense, Settlement, TripSession, PaymentStatus, PaymentMethod,
   SettlementGroup, Sponsorship, HotelExpense, Attachment, OutboxEntry, OutboxOp,
 } from '../types'
 import {
@@ -270,7 +270,7 @@ export interface AppState {
   // ─── Settlement Actions ─────────────────────────────────────────────────────
   generateSettlements:       (tripId: string) => void
   getSettlementsByTrip:      (tripId: string) => Settlement[]
-  updateSettlementStatus:    (id: string, status: PaymentStatus) => void
+  updateSettlementStatus:    (id: string, status: PaymentStatus, method?: PaymentMethod) => void
   deleteSettlement:          (id: string) => void
 
   // ─── Attachments (bill photos, UPI screenshots) ─────────────────────────────
@@ -594,6 +594,7 @@ export const useStore = create<AppState>()(
                         status: 'confirmed' as const,
                         paidAt: x.paidAt ?? r.paidAt,
                         confirmedAt: x.confirmedAt ?? r.confirmedAt,
+                        method: x.method ?? r.method,
                       }
                     : x
                 )
@@ -607,6 +608,7 @@ export const useStore = create<AppState>()(
                   status: 'confirmed' as const,
                   paidAt: r.paidAt,
                   confirmedAt: r.confirmedAt,
+                  method: r.method,
                 }]
               }
             })
@@ -630,7 +632,7 @@ export const useStore = create<AppState>()(
                   sameAmount(r.amount, x.amount)
               )
               if (!remote) return x
-              return { ...x, status: 'paid' as const, paidAt: x.paidAt ?? remote.paidAt }
+              return { ...x, status: 'paid' as const, paidAt: x.paidAt ?? remote.paidAt, method: x.method ?? remote.method }
             }),
           }))
         }
@@ -961,6 +963,7 @@ export const useStore = create<AppState>()(
             amount:       route.amount,
             status:       samePayment ? ('paid' as const) : ('pending' as const),
             paidAt:       samePayment ? prev.paidAt : undefined,
+            method:       samePayment ? prev.method : undefined,
             fromGroupIds: route.fromMemberIds && route.fromMemberIds.length > 1 ? route.fromMemberIds : undefined,
             toGroupIds:   route.toMemberIds && route.toMemberIds.length > 1 ? route.toMemberIds : undefined,
           }
@@ -988,7 +991,7 @@ export const useStore = create<AppState>()(
       getSettlementsByTrip: (tripId) =>
         get().settlements.filter(s => s.tripId === tripId),
 
-      updateSettlementStatus: (settlementId, status) => {
+      updateSettlementStatus: (settlementId, status, method) => {
         const now = new Date().toISOString()
         set(s => ({
           settlements: s.settlements.map(x =>
@@ -998,6 +1001,8 @@ export const useStore = create<AppState>()(
                   status,
                   paidAt:       status === 'paid' || status === 'confirmed' ? (x.paidAt ?? now) : undefined,
                   confirmedAt:  status === 'confirmed' ? now : undefined,
+                  // Paid by UPI or in cash; kept when a payment is confirmed, cleared on undo.
+                  method:       status === 'pending' ? undefined : (method ?? x.method),
                 }
               : x
           ),

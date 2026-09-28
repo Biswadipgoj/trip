@@ -194,8 +194,8 @@ export default function DashboardPage({ params }: DashboardPageProps) {
               </h1>
               <StatusBadge status={trip.status} />
             </div>
-            <p className="text-white/60 text-sm">
-              Code: <span className="font-mono text-brand-400">{trip.tripCode}</span>
+            <p className="text-white/75 text-sm">
+              Code: <span className="font-mono text-brand-700">{trip.tripCode}</span>
               <span className="mx-1.5">·</span>{members.length} member{members.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -281,7 +281,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
             className="overflow-hidden"
           >
             <GlassCard hover={false} className="p-4 flex items-center gap-3">
-              <span className="text-sm text-white/60 flex-shrink-0">Trip budget ₹</span>
+              <span className="text-sm text-white/75 flex-shrink-0">Trip budget ₹</span>
               <input
                 id="budget-input"
                 className="input-glass flex-1 py-2"
@@ -345,7 +345,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 <TrendingUp className="w-4 h-4 text-brand-400" />
                 <span className="text-sm font-semibold text-white">Settlement Progress</span>
               </div>
-              <span className="text-xs text-white/60">{settledCount} of {totalSettlements} confirmed</span>
+              <span className="text-xs text-white/75">{settledCount} of {totalSettlements} confirmed</span>
             </div>
             <div className="h-2 rounded-full bg-white/10 overflow-hidden">
               <motion.div
@@ -379,9 +379,15 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                 <Sparkles className="w-4 h-4 text-brand-400" />
                 Expense Breakdown
               </h2>
+              <div
+                role="img"
+                aria-label={`Spending by category: ${categoryData.map(c => `${getCategoryLabel(c.name)} ${formatCurrency(c.value)}`).join(', ')}`}
+              >
+              <div aria-hidden="true">
               <ResponsiveContainer width="100%" height={160}>
                 <PieChart>
                   <Pie
+                    rootTabIndex={-1}
                     data={categoryData}
                     cx="50%"
                     cy="50%"
@@ -409,9 +415,11 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                   />
                 </PieChart>
               </ResponsiveContainer>
+              </div>
+              </div>
               <div className="flex flex-wrap gap-2 mt-2">
                 {categoryData.map(cat => (
-                  <div key={cat.name} className="flex items-center gap-1.5 text-xs text-white/60">
+                  <div key={cat.name} className="flex items-center gap-1.5 text-xs text-white/75">
                     <div className="w-2 h-2 rounded-full" style={{ background: cat.color }} />
                     {cat.icon} {getCategoryLabel(cat.name)}
                   </div>
@@ -433,7 +441,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
             {expenses.length === 0 ? (
               <div className="text-center py-6">
                 <Receipt className="w-8 h-8 text-white/40 mx-auto mb-2" />
-                <p className="text-white/60 text-sm">No expenses yet</p>
+                <p className="text-white/75 text-sm">No expenses yet</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -455,7 +463,7 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{expense.title}</p>
-                        <p className="text-xs text-white/60">{payer?.name}</p>
+                        <p className="text-xs text-white/75">{payer?.name}</p>
                       </div>
                       <span className="text-sm font-semibold text-white">{formatCurrency(expense.amount)}</span>
                     </motion.div>
@@ -497,13 +505,13 @@ export default function DashboardPage({ params }: DashboardPageProps) {
                           ? 'text-emerald-400'
                           : b.netBalance < 0
                           ? 'text-red-400'
-                          : 'text-white/60'
+                          : 'text-white/75'
                       }`}
                     >
                       {b.netBalance > 0 ? '+' : ''}
                       {formatCurrency(b.netBalance)}
                     </p>
-                    <p className="text-[10px] text-white/50">
+                    <p className="text-[10px] text-white/70">
                       {b.netBalance > 0 ? 'gets back' : b.netBalance < 0 ? 'owes' : 'settled'}
                     </p>
                   </div>
@@ -558,10 +566,10 @@ function TripClosedOverlay({ onDismiss, tripName }: { onDismiss: () => void; tri
           <h2 className="text-2xl font-bold text-white mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             TRIP SUCCESSFULLY CLOSED
           </h2>
-          <p className="text-white/60 text-sm mb-2">
+          <p className="text-white/75 text-sm mb-2">
             <strong className="text-white">{tripName}</strong> is fully settled!
           </p>
-          <p className="text-white/60 text-xs mb-8">Everyone&apos;s accounts are balanced. Great trip! 🎉</p>
+          <p className="text-white/75 text-xs mb-8">Everyone&apos;s accounts are balanced. Great trip! 🎉</p>
         </motion.div>
 
         <motion.div

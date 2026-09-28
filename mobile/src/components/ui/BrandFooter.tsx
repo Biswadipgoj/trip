@@ -77,7 +77,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
           </GradientText>
 
           <T variant="small" color={ink(0.7)} center style={styles.tagline}>
-            TripMate is an independent product, conceived, designed and built end to end by one person. An offline-first ledger for shared travel: every expense recorded without signal, every balance settled in the fewest payments.
+            Designed and built by one person. TripMate records a group’s trip expenses, even without signal, and settles every balance in the fewest payments, by UPI or cash.
           </T>
 
           <View style={styles.divider}>

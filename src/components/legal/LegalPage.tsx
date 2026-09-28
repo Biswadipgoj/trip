@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowLeft } from 'lucide-react'
+import Image from 'next/image'
 import { LEGAL_UPDATED, type LegalDoc } from '@/lib/legal'
 
 function Body({ lines }: { lines: string[] }) {
@@ -31,8 +31,9 @@ export function LegalPage({ doc, other }: { doc: LegalDoc; other: { href: string
   return (
     <main className="px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-10 sm:py-16">
       <article className="mx-auto max-w-2xl rounded-3xl border border-violet-200/80 bg-pure-white p-6 sm:p-10 shadow-lg text-slate-700">
-        <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:text-violet-900">
-          <ArrowLeft className="h-3.5 w-3.5" /> TripMate
+        <Link href="/" className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 hover:text-violet-800">
+          <Image src="/logo.png" alt="" width={28} height={28} className="rounded-lg" />
+          TripMate
         </Link>
         <h1
           className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-950"

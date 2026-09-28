@@ -15,6 +15,13 @@ const CONFIG: Record<BadgeStatus, { label: string; color: string }> = {
   closed: { label: 'Closed', color: C.slate400 },
 }
 
+/** "Paid · Cash", "Confirmed · UPI" — the badge text for a settlement. */
+export function paymentBadgeLabel(status: 'pending' | 'paid' | 'confirmed', method?: 'upi' | 'cash'): string {
+  const base = CONFIG[status].label
+  if (status === 'pending' || !method) return base
+  return `${base} · ${method === 'cash' ? 'Cash' : 'UPI'}`
+}
+
 export function StatusBadge({ status, label }: { status: BadgeStatus; label?: string }) {
   const { label: defaultLabel, color } = CONFIG[status]
   return (

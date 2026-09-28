@@ -323,7 +323,7 @@ function JoinTripContent() {
                     <p className="text-xs text-emerald-400 font-medium">Invite found</p>
                   </div>
                   <p className="text-base font-semibold text-white">{invite.trip.name}</p>
-                  <p className="text-xs text-white/60 mt-0.5">Enter the trip password to confirm joining</p>
+                  <p className="text-xs text-white/75 mt-0.5">Enter the trip password to confirm joining</p>
                 </div>
               )}
 
@@ -336,7 +336,7 @@ function JoinTripContent() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Search className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Code
                   </label>
@@ -352,7 +352,7 @@ function JoinTripContent() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">
                     <Lock className="w-3.5 h-3.5 inline mr-1.5" />
                     Trip Password
                   </label>
@@ -400,10 +400,10 @@ function JoinTripContent() {
                   <Check className="w-5 h-5 text-emerald-400" />
                 </div>
                 <div>
-                  <p className="text-xs text-white/60">Existing trip verified</p>
+                  <p className="text-xs text-white/75">Existing trip verified</p>
                   <p className="font-semibold text-white">{foundTrip.name}</p>
                   {memberCount !== null && memberCount > 0 && (
-                    <p className="text-xs text-white/60">{memberCount} member{memberCount !== 1 ? 's' : ''} already in</p>
+                    <p className="text-xs text-white/75">{memberCount} member{memberCount !== 1 ? 's' : ''} already in</p>
                   )}
                 </div>
               </div>
@@ -416,7 +416,7 @@ function JoinTripContent() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    <label className="block text-xs font-medium text-white/75 mb-1.5">
                       <Users className="w-3.5 h-3.5 inline mr-1.5" />
                       Your Name
                     </label>
@@ -431,7 +431,7 @@ function JoinTripContent() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-white/60 mb-1.5">
+                    <label className="block text-xs font-medium text-white/75 mb-1.5">
                       <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                       Mobile Number
                     </label>
@@ -474,7 +474,7 @@ function JoinTripContent() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">4-Digit PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">4-Digit PIN</label>
                   <input
                     id="join-pin-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -488,7 +488,7 @@ function JoinTripContent() {
                   {errors.pin && <p className="mt-1 text-xs text-red-400">{errors.pin}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-white/60 mb-1.5">Confirm PIN</label>
+                  <label className="block text-xs font-medium text-white/75 mb-1.5">Confirm PIN</label>
                   <input
                     id="join-pin-confirm-input"
                     className="input-glass text-center text-2xl tracking-[0.4em]"
@@ -539,11 +539,11 @@ function JoinTripContent() {
               <h2 className="text-2xl font-bold text-white mb-2">
                 {alreadyMember ? 'Welcome back! 👋' : "You're in! 🎉"}
               </h2>
-              <p className="text-white/60 text-sm mb-2">
+              <p className="text-white/75 text-sm mb-2">
                 {alreadyMember ? 'You were already a member of ' : 'Joined '}
                 <strong className="text-white">{foundTrip.name}</strong>
               </p>
-              <p className="text-white/60 text-xs mb-8">Time to start tracking expenses</p>
+              <p className="text-white/75 text-xs mb-8">Time to start tracking expenses</p>
 
               <button
                 id="join-go-dashboard-btn"
