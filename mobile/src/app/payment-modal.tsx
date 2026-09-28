@@ -3,13 +3,13 @@
 // the status steps Due → Paid → Confirmed. Coming back from the UPI app
 // prompts for the screenshot; adding one marks the payment as paid.
 import { useEffect, useRef, useState } from 'react'
-import { AppState, Linking, ScrollView, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, AppState, Linking, ScrollView, StyleSheet, View } from 'react-native'
 import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated'
 import { router, useLocalSearchParams } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import {
-  ArrowRight, Banknote, Camera, CircleCheck, Copy, CreditCard, ExternalLink, QrCode, ShieldCheck, Smartphone, TriangleAlert, X,
+  ArrowRight, Camera, ChevronRight, CircleCheck, Copy, CreditCard, ExternalLink, QrCode, ShieldCheck, TriangleAlert, X,
 } from 'lucide-react-native'
 import { useStore } from '../lib/store'
 import { proofsFor, useTripData } from '../lib/hooks'
@@ -26,6 +26,7 @@ import { T } from '../components/ui/Text'
 import { Button } from '../components/ui/Button'
 import { Avatar } from '../components/ui/Avatar'
 import { QRCode } from '../components/ui/QRCode'
+import { RupeeCoin, UpiArrows, UpiMark } from '../components/ui/PayMarks'
 import { AttachmentPicker } from '../components/attachments/AttachmentPicker'
 import { AttachmentStrip } from '../components/attachments/AttachmentStrip'
 import { StatusBadge, paymentBadgeLabel } from '../components/animated/PulseBadge'
@@ -333,9 +334,25 @@ export default function PaymentModal() {
         {/* Step 3 — status */}
         <FadeIn delay={200}>
           {status === 'pending' && (
-            <View style={styles.row}>
-              <Button title="Paid by UPI" icon={Smartphone} variant={proofs.length ? 'brand' : 'soft'} size="lg" onPress={() => void markPaid('upi')} loading={busy === 'paid' || busy === 'proof'} disabled={!!busy} style={styles.flex} />
-              <Button title="Paid in cash" icon={Banknote} variant="ghost" size="lg" onPress={() => void markPaid('cash')} loading={busy === 'cash'} disabled={!!busy} style={styles.flex} />
+            <View style={styles.gap12}>
+              <T variant="smallSemibold" color={ink(0.6)} style={styles.methodLabel}>HOW DID YOU PAY?</T>
+              <MethodCard
+                method="upi"
+                title="Paid by UPI"
+                subtitle={proofs.length ? 'Screenshot added. Tap to mark it paid.' : 'GPay, PhonePe, Paytm or any UPI app'}
+                preferred
+                busy={busy === 'paid' || busy === 'proof'}
+                disabled={!!busy}
+                onPress={() => void markPaid('upi')}
+              />
+              <MethodCard
+                method="cash"
+                title="Paid in cash"
+                subtitle={`${formatCurrency(settlement.amount)} handed over in person`}
+                busy={busy === 'cash'}
+                disabled={!!busy}
+                onPress={() => void markPaid('cash')}
+              />
             </View>
           )}
           {status === 'paid' && (
@@ -348,6 +365,12 @@ export default function PaymentModal() {
                     : `Waiting for ${toName.split(' ')[0]} to confirm`}
                 </T>
               </View>
+              {settlement.method ? (
+                <View style={styles.methodTag}>
+                  {settlement.method === 'cash' ? <RupeeCoin size={18} /> : <UpiArrows size={14} />}
+                  <T variant="smallSemibold">{settlement.method === 'cash' ? 'Paid in cash' : 'Paid by UPI'}</T>
+                </View>
+              ) : null}
               <T variant="small" color={ink(0.6)}>
                 {iReceive
                   ? settlement.method === 'cash'
@@ -368,6 +391,44 @@ export default function PaymentModal() {
       </ScrollView>
       <Confetti shot={confetti} />
     </Screen>
+  )
+}
+
+/** A payment method choice: brand mark, what it means, and (for UPI) the Preferred tag. */
+function MethodCard({ method, title, subtitle, preferred, busy, disabled, onPress }: {
+  method: PaymentMethod; title: string; subtitle: string; preferred?: boolean
+  busy?: boolean; disabled?: boolean; onPress: () => void
+}) {
+  const upi = method === 'upi'
+  return (
+    <PressScale
+      onPress={onPress}
+      disabled={disabled}
+      haptic="medium"
+      scaleTo={0.98}
+      accessibilityRole="button"
+      accessibilityLabel={`${title}${preferred ? ', preferred' : ''}. ${subtitle}`}
+      accessibilityState={{ disabled: !!disabled, busy: !!busy }}
+      testID={`method-${method}`}
+      style={[styles.method, upi ? styles.methodUpi : styles.methodCash, disabled && !busy && styles.dim]}
+    >
+      <View style={[styles.mark, upi ? styles.markUpi : styles.markCash]}>
+        {upi ? <UpiArrows size={24} /> : <RupeeCoin size={34} />}
+      </View>
+      <View style={styles.flex}>
+        <View style={styles.inline}>
+          {upi ? <UpiMark size={15} arrows={false} /> : <T style={styles.inrWord}>₹ INR</T>}
+          {preferred && (
+            <View style={styles.preferred}>
+              <T style={styles.preferredText} maxFontSizeMultiplier={1.2}>Preferred</T>
+            </View>
+          )}
+        </View>
+        <T variant="title" style={styles.methodTitle}>{title}</T>
+        <T variant="small" color={ink(0.6)} numberOfLines={2}>{subtitle}</T>
+      </View>
+      {busy ? <ActivityIndicator color={upi ? C.brand500 : C.amber700} /> : <ChevronRight size={20} color={upi ? C.brand500 : C.amber700} />}
+    </PressScale>
   )
 }
 
@@ -437,6 +498,31 @@ const styles = StyleSheet.create({
     borderColor: brand500(0.22),
     padding: 10,
   },
+  methodTag: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: ink(0.05),
+  },
+  methodLabel: { letterSpacing: 1, fontSize: 11 },
+  method: {
+    flexDirection: 'row', alignItems: 'center', gap: 14,
+    borderRadius: 20, borderWidth: 1.5, padding: 14,
+  },
+  methodUpi: {
+    backgroundColor: C.white, borderColor: brand500(0.35),
+    boxShadow: '0px 10px 24px rgba(108, 62, 200, 0.14)',
+  },
+  methodCash: { backgroundColor: 'rgba(255, 250, 235, 0.95)', borderColor: amber(0.35) },
+  dim: { opacity: 0.5 },
+  mark: { width: 52, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  markUpi: { backgroundColor: '#FFF7F1', borderColor: 'rgba(243, 112, 33, 0.25)' },
+  markCash: { backgroundColor: '#FFF6DA', borderColor: amber(0.35) },
+  methodTitle: { marginTop: 2 },
+  inrWord: { fontFamily: F.extrabold, fontSize: 15, lineHeight: 18, color: C.amber700, letterSpacing: 0.2 },
+  preferred: {
+    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999,
+    backgroundColor: emerald(0.14), borderWidth: 1, borderColor: emerald(0.35),
+  },
+  preferredText: { fontFamily: F.bold, fontSize: 10, lineHeight: 14, letterSpacing: 0.4, color: '#0B6147' }, // 6.2:1 on its tint
   stepDot: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.brand500, alignItems: 'center', justifyContent: 'center' },
   stepText: { color: C.white, fontSize: 12, lineHeight: 15, fontFamily: F.bold },
   done: {

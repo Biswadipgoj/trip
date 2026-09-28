@@ -23,6 +23,7 @@ import { useStore } from '../lib/store'
 import { processUploads, recoverPendingPick } from '../lib/uploads'
 import { startNetworkMonitor } from '../lib/sync'
 import { ToastHost } from '../components/ui/Toast'
+import { NetworkBanner } from '../components/ui/NetworkBanner'
 import { KeyboardRoot } from '../components/ui/KeyboardScroll'
 import { Screen } from '../components/ui/Screen'
 import { GlassCard } from '../components/ui/GlassCard'
@@ -96,6 +97,7 @@ export default function RootLayout() {
             <Stack.Screen name="report" options={{ animation: 'none' }} />
           </Stack>
           <ToastHost />
+          <NetworkBanner />
         </KeyboardRoot>
       </SafeAreaProvider>
     </GestureHandlerRootView>

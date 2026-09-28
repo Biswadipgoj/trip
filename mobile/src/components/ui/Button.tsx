@@ -52,12 +52,27 @@ export function Button({
     <View style={[styles.row, { paddingVertical: s.py, paddingHorizontal: s.px }]}>
       {loading ? (
         <ActivityIndicator size="small" color={fg} />
-      ) : (
-        Icon && <Icon size={s.icon} color={fg} strokeWidth={2.2} />
-      )}
+      ) : Icon ? (
+        size === 'sm' ? (
+          <Icon size={s.icon} color={fg} strokeWidth={2.2} />
+        ) : (
+          // Icon sits in its own small chip: reads as a deliberate control, not a label.
+          <View
+            style={[
+              styles.chip,
+              { width: s.icon + 12, height: s.icon + 12, borderRadius: (s.icon + 12) / 3 },
+              variant === 'brand'
+                ? styles.chipOnBrand
+                : { backgroundColor: withAlpha(variant === 'ghost' ? C.brand500 : tint, 0.14), borderColor: withAlpha(variant === 'ghost' ? C.brand500 : tint, 0.22) },
+            ]}
+          >
+            <Icon size={s.icon} color={variant === 'ghost' ? C.brand600 : fg} strokeWidth={2.3} />
+          </View>
+        )
+      ) : null}
       <T
         numberOfLines={1}
-        style={{ fontFamily: variant === 'ghost' ? F.medium : F.semibold, fontSize: s.font, lineHeight: s.font + 6, color: fg }}
+        style={{ fontFamily: variant === 'ghost' ? F.semibold : F.bold, fontSize: s.font, lineHeight: s.font + 6, letterSpacing: 0.1, color: fg }}
       >
         {title}
       </T>
@@ -84,6 +99,7 @@ export function Button({
           style={[styles.clip, { borderRadius: s.radius, boxShadow: inactive ? undefined : shadow.btnBrand }]}
         >
           {!inactive && <Sheen />}
+          <View pointerEvents="none" style={[styles.highlight, { borderRadius: s.radius }]} />
           {content}
         </LinearGradient>
       ) : (
@@ -108,5 +124,9 @@ const styles = StyleSheet.create({
   base: { borderWidth: 1 },
   clip: { overflow: 'hidden' },
   full: { alignSelf: 'stretch' },
+  chip: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, marginLeft: -4 },
+  chipOnBrand: { backgroundColor: 'rgba(255,255,255,0.18)', borderColor: 'rgba(255,255,255,0.30)' },
+  // 1px light edge along the top: the lit bevel of a physical key.
+  highlight: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderTopWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
   disabled: { opacity: 0.45 },
 })

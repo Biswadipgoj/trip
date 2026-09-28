@@ -67,6 +67,10 @@ export type TranslationKey =
   | 'billProof'
   | 'confirmReceived'
   | 'offlineNotice'
+  | 'noInternet'
+  | 'offlineSaved'
+  | 'backOnline'
+  | 'backOnlineSyncing'
   | 'cloudSync'
   | 'changeLanguage'
   | 'logout'
@@ -117,6 +121,10 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     billProof: 'Receipt / Payment Proof',
     confirmReceived: 'Confirm Received',
     offlineNotice: "You're offline — reconnect to sync changes",
+    noInternet: 'No internet',
+    offlineSaved: 'Keep going. Everything is saved on this phone and syncs when you’re back.',
+    backOnline: 'Back online',
+    backOnlineSyncing: 'Syncing your trip now',
     cloudSync: 'Live Cloud Sync',
     changeLanguage: 'Choose Language',
     logout: 'Log out',
@@ -166,6 +174,10 @@ const DICTIONARY: Record<string, Partial<Record<TranslationKey, string>>> = {
     billProof: 'रसीद / पेमेंट स्क्रीनशॉट',
     confirmReceived: 'प्राप्ति कन्फर्म करें',
     offlineNotice: 'आप ऑफलाइन हैं — सिंक करने के लिए इंटरनेट जोड़ें',
+    noInternet: 'इंटरनेट नहीं है',
+    offlineSaved: 'चलते रहिए। सब कुछ इस फ़ोन पर सेव है और नेट आते ही सिंक होगा।',
+    backOnline: 'फिर से ऑनलाइन',
+    backOnlineSyncing: 'आपकी ट्रिप सिंक हो रही है',
     cloudSync: 'लाइव क्लाउड सिंक',
     changeLanguage: 'भाषा चुनें',
     logout: 'लॉग आउट',
