@@ -105,7 +105,7 @@ here (no production access, and both need the owner's go-ahead).
 6. e2e flake (2 in ~10 runs) traced to Playwright's `clearCookies({name})`, which removes *all* cookies and re-adds the rest; a request from the still-open page in that gap logged the test user out. Test now leaves the page first. Not an app bug.
 
 ### Verification (final run)
-web typecheck · web lint · web unit **128/128** · `next build` (inside e2e) · mobile typecheck · mobile lint · mobile unit **46/46** · `expo-doctor` **21/21** · `expo export -p android` · SQL lock **34/34 + 2** · SQL PINs **16/16** · SQL storage (pass) · e2e web **53/53** · e2e app **10/10** · stability: see below · secret scan: 0 hits in tree, `.next/static` and the app bundle; the browser bundle no longer contains the Supabase URL or any key.
+web typecheck · web lint · web unit **128/128** · `next build` (inside e2e) · mobile typecheck · mobile lint · mobile unit **46/46** · `expo-doctor` **21/21** · `expo export -p android` · SQL lock **34/34 + 2** · SQL PINs **16/16** · SQL storage (pass) · e2e web **53/53** · e2e app **10/10** · stability: **5 consecutive full runs** (web 53/53 + app 10/10 each) · secret scan: 0 hits in tree, `.next/static` and the app bundle; the browser bundle no longer contains the Supabase URL or any key.
 
 ### Rollout (owner, in this order — also in `supabase/MIGRATION_GUIDE.md`)
 1. Merge + deploy the website. 2. Run `20261001_settlement_payment_method.sql`. 3. Build 4.2.0 (`cd mobile && npm run build:apk`) and `npm run upload:apk`. 4. Run `20261002_lock_trip_data.sql`. 5. Confirm Vercel's `NEXT_PUBLIC_SUPABASE_ANON_KEY` is the `sb_publishable_` key, then disable the legacy API keys (kills the leaked service-role key).
