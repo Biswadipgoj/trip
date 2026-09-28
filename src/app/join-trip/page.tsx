@@ -259,7 +259,7 @@ function JoinTripContent() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-16">
+    <main className="min-h-[100dvh] flex items-start sm:items-center justify-center px-4 pt-[max(1.5rem,env(safe-area-inset-top))] pb-10 sm:py-16">
       <ConfettiBlast trigger={confetti} type="burst" />
 
       <div className="w-full max-w-md">
