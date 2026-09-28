@@ -10,6 +10,7 @@ import {
   remoteJoinTrip, remoteFetchTripBundle, remoteEnsureTrip,
 } from '@/lib/remote'
 import { authLogin, authUnavailable } from '@/lib/authClient'
+import { AgreeNote } from '@/components/legal/AgreeNote'
 import { ArrowRight, ArrowLeft, Check, Users, Lock, Phone, Search, Link2, AlertTriangle, Loader2 } from 'lucide-react'
 import { ConfettiBlast } from '@/components/animations/ConfettiBlast'
 import { LanguageSelector } from '@/components/shared/LanguageSelector'
@@ -514,6 +515,7 @@ function JoinTripContent() {
                   {busy ? <><Loader2 className="w-4 h-4 animate-spin" /> Joining…</> : <>Join Trip <Check className="w-4 h-4" /></>}
                 </button>
               </div>
+              <AgreeNote action="Join Trip" />
             </motion.div>
           )}
 

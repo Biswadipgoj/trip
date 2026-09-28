@@ -102,6 +102,8 @@ read -r ANON SERVICE <<< "$KEYS"
 
 # ── The app, pointed at the local stack ───────────────────────────────────────
 export NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321 NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON"
+# Short refresh-rotation grace window so the stolen-token check can wait it out.
+export AUTH_ROTATION_GRACE_MS=3000
 export SUPABASE_SERVICE_ROLE_KEY="$SERVICE" SESSION_SECRET="e2e-session-secret-$(head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
 npx next build > "$CACHE/next-build.log" 2>&1 || { tail -30 "$CACHE/next-build.log"; exit 1; }
 setsid npx next start -p 3100 > "$CACHE/next-start.log" 2>&1 & PIDS+=($!)

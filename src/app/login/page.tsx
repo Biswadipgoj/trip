@@ -194,7 +194,7 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-slate-600 hover:text-slate-900 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Back</span>
@@ -223,7 +223,7 @@ export default function LoginPage() {
           {step === 'mobile' && (
             <>
               <div>
-                <label htmlFor="login-mobile" className="block text-xs font-medium text-white/60 mb-1.5">
+                <label htmlFor="login-mobile" className="block text-xs font-medium text-white/75 mb-1.5">
                   <Phone className="w-3.5 h-3.5 inline mr-1.5" />
                   Mobile Number
                 </label>
@@ -310,7 +310,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => setStep('mobile')}
-                className="w-full text-xs text-white/60 hover:text-white/80"
+                className="w-full text-xs text-white/75 hover:text-white/80"
               >
                 Not {mobile}? Use a different number
               </button>
@@ -326,7 +326,7 @@ export default function LoginPage() {
                 </p>
               </div>
               <div>
-                <label htmlFor="login-pin" className="block text-xs font-medium text-white/60 mb-1.5">
+                <label htmlFor="login-pin" className="block text-xs font-medium text-white/75 mb-1.5">
                   <Shield className="w-3.5 h-3.5 inline mr-1.5" />
                   4-Digit PIN
                 </label>
@@ -364,13 +364,13 @@ export default function LoginPage() {
           transition={{ delay: 0.4 }}
           className="mt-6 text-center space-y-2"
         >
-          <p className="text-white/60 text-sm">
+          <p className="text-white/75 text-sm">
             New trip?{' '}
             <Link href="/create-trip" className="text-brand-600 hover:text-brand-700 font-medium transition-colors">
               Create one
             </Link>
           </p>
-          <p className="text-white/60 text-sm">
+          <p className="text-white/75 text-sm">
             Have a code?{' '}
             <Link href="/join-trip" className="text-brand-600 hover:text-brand-700 font-medium transition-colors">
               Join a trip

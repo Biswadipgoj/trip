@@ -2,6 +2,7 @@
 // Joining NEVER creates a trip — it attaches a member to the existing one.
 // Accepts ?invite= (signed link), ?code= and legacy ?d= params, and pasted
 // invite links or codes.
+import { AgreeNote } from '../components/legal/AgreeNote'
 import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, View, type TextInput } from 'react-native'
 import Animated, { FadeInLeft, FadeInRight, useReducedMotion } from 'react-native-reanimated'
@@ -508,6 +509,7 @@ export default function JoinTripScreen() {
                   testID="join-final-btn"
                 />
               </View>
+              <AgreeNote action="Join Trip" />
             </GlassCard>
           </Animated.View>
         )}

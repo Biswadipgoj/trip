@@ -1,5 +1,6 @@
 // Create a trip (web /create-trip): details → PIN → success with the trip
 // code, a shareable join link and confetti.
+import { AgreeNote } from '../components/legal/AgreeNote'
 import { useRef, useState } from 'react'
 import { Share, StyleSheet, View, type TextInput } from 'react-native'
 import Animated, { FadeInLeft, FadeInRight, useReducedMotion } from 'react-native-reanimated'
@@ -278,6 +279,7 @@ export default function CreateTripScreen() {
                   testID="create-trip-final-btn"
                 />
               </View>
+              <AgreeNote action="Create Trip" />
             </GlassCard>
           </Animated.View>
         )}

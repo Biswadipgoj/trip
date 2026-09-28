@@ -87,3 +87,34 @@ describe('SessionService', () => {
     expect(await svc.refresh(left!.refreshToken!)).toBeNull()
   })
 })
+
+describe('SessionService under concurrent requests', () => {
+  it('a late request with the previous-but-one token does not log the user out (rotation burst)', async () => {
+    const { svc, advance } = setup()
+    const a = (await svc.login(undefined, tripA, null)).refreshToken!
+    advance(20 * 60 * 1000) // access token expired long ago
+    const r1 = await svc.refresh(a) // request 1 rotates A → B
+    advance(300)
+    const r2 = await svc.refresh(r1!.refreshToken!) // request 2 (already holding B) must not rotate again yet
+    advance(300)
+    const r3 = await svc.refresh(a) // request 3, sent earlier with A, arrives last
+    expect(r2).not.toBeNull()
+    expect(r3).not.toBeNull()
+    // …and the session still works afterwards with whatever cookie the browser ended up holding.
+    const current = r2!.refreshToken ?? r1!.refreshToken!
+    expect(await svc.refresh(current)).not.toBeNull()
+  })
+
+  it('rotates at most once per grace window, then again after it', async () => {
+    const { svc, advance } = setup()
+    const a = (await svc.login(undefined, tripA, null)).refreshToken!
+    advance(20 * 60 * 1000)
+    const b = (await svc.refresh(a))!.refreshToken!
+    advance(1000)
+    expect((await svc.refresh(b))!.refreshToken).toBeNull() // too soon: keep B
+    advance(ROTATION_GRACE_MS)
+    const c = (await svc.refresh(b))!.refreshToken
+    expect(c).toBeTruthy() // window passed: rotate B → C
+    expect(c).not.toBe(b)
+  })
+})

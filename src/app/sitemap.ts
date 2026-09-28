@@ -1,39 +1,23 @@
 import type { MetadataRoute } from 'next'
+import { SITE_URL } from '@/config/site'
+import { GUIDES } from '@/lib/guides'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://tripmate.app').replace(/\/$/, '')
   const lastModified = new Date()
-
+  const page = (path: string, priority: number, changeFrequency: 'daily' | 'weekly' | 'monthly' | 'yearly' = 'monthly') => ({
+    url: `${SITE_URL}${path}`,
+    lastModified,
+    changeFrequency,
+    priority,
+  })
   return [
-    {
-      url: `${baseUrl}/`,
-      lastModified,
-      changeFrequency: 'daily',
-      priority: 1.0,
-    },
-    {
-      url: `${baseUrl}/download`,
-      lastModified,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/create-trip`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.85,
-    },
-    {
-      url: `${baseUrl}/join-trip`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.85,
-    },
-    {
-      url: `${baseUrl}/login`,
-      lastModified,
-      changeFrequency: 'monthly',
-      priority: 0.7,
-    },
+    page('/', 1.0, 'weekly'),
+    ...GUIDES.map(g => page(`/${g.slug}`, 0.9)),
+    page('/download', 0.8),
+    page('/create-trip', 0.7),
+    page('/join-trip', 0.7),
+    page('/login', 0.5),
+    page('/privacy', 0.3, 'yearly'),
+    page('/terms', 0.3, 'yearly'),
   ]
 }

@@ -32,18 +32,18 @@ The app needs the web app's public Supabase values (Vercel: `NEXT_PUBLIC_SUPABAS
 
 **Local runs** — copy `.env.example` to `.env` (git-ignored) and fill it in.
 
-**EAS cloud builds** — set them once per environment (or in the Expo dashboard → Project → Environment variables):
+**EAS cloud builds** — `.env` is never uploaded to EAS. `eas.json` already sets the public
+`EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_WEB_URL`; add the anon (publishable) key once per environment
+(or in the Expo dashboard → Project → Environment variables):
 
 ```bash
-npx eas-cli@latest env:set --name EXPO_PUBLIC_SUPABASE_URL      --value https://xxxx.supabase.co --environment preview    --visibility plaintext
-npx eas-cli@latest env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon-key>               --environment preview    --visibility plaintext
-npx eas-cli@latest env:set --name EXPO_PUBLIC_WEB_URL           --value https://your-app.vercel.app --environment preview --visibility plaintext
-# repeat with --environment production for Play Store builds
+npx eas-cli@latest env:create --environment production --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon or publishable key> --visibility plaintext
+npx eas-cli@latest env:create --environment preview    --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon or publishable key> --visibility plaintext
 ```
 
-The `preview` build profile uses the `preview` environment and `production` uses `production` (EAS defaults).
-Values are baked into the app at build time — rebuild after changing them. Without them the app runs
-local-only (one phone), exactly like the web app without Supabase.
+Use the same key as Vercel's `NEXT_PUBLIC_SUPABASE_ANON_KEY` (never the secret/service-role key). Values are
+baked in at build time — rebuild after changing them. `scripts/check-build-env.mjs` runs on EAS before install
+and **stops a preview/production build** that is missing them, so an APK can't ship without cloud sync.
 
 ## 3. Run it
 
@@ -56,15 +56,30 @@ npx expo start          # press "a" for an Android emulator, or scan the QR with
 Expo Go works for most things; the smoother keyboard handling (`react-native-keyboard-controller`) needs a
 development build: `npx eas-cli@latest build -p android --profile development`.
 
-## 4. Build the Android app
+## 4. Build the Android app (APK)
+
+TripMate is distributed as an APK from the website, not the Play Store, so **every profile builds an APK;
+none builds an AAB**.
 
 ```bash
-npx eas-cli@latest build -p android --profile preview      # installable APK
-npx eas-cli@latest build -p android --profile production   # Play Store bundle (AAB)
+cd mobile
+npx eas-cli@latest login                 # once
+npm run build:apk                        # = eas build -p android --profile production → signed release APK
 ```
 
-Version 4.0.0 (versionCode 400) adds native modules (camera/gallery, file system, network, print), so it must
-be installed as a new build — over-the-air updates don't reach older installs (`runtimeVersion: appVersion`).
+Then download the APK from the build page and publish it on the website:
+
+```bash
+# repo root, with SUPABASE_SERVICE_ROLE_KEY set in .env.local
+mkdir -p dist && cp ~/Downloads/<downloaded>.apk dist/tripmate-latest.apk
+npm run upload:apk
+```
+
+and update `version` / `versionCode` in `src/config/appRelease.ts` to match `app.json` (currently 4.1.0 / 410).
+
+`preview` builds the same APK for testers (channel `preview`); `development` builds a dev client.
+Bump `version` and `android.versionCode` in `app.json` for every release: builds with native changes can't be
+reached by over-the-air updates on older installs (`runtimeVersion: appVersion`).
 
 ## 5. Checks
 

@@ -1,9 +1,10 @@
-// Brand signature: Compact "Created by Dip ✦" pill.
-// Tapping opens an animated card with full name "Biswodip Goj" and a direct "Visit Owner" button redirecting to biswadip.in.
+// Brand signature: compact "Created by Dip ✦" pill, plus Privacy / Terms links.
+// Tapping the pill opens the creator card (same wording as the web footer) with a link to biswadip.in.
 import { useState } from 'react'
 import { StyleSheet, View, Linking, Pressable } from 'react-native'
 import Animated from 'react-native-reanimated'
 import { LinearGradient } from 'expo-linear-gradient'
+import { router } from 'expo-router'
 import { G, brand500, ink } from '../../theme/colors'
 import { F } from '../../theme/typography'
 import { PressScale } from '../animated/SpringPressable'
@@ -25,7 +26,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
           scaleTo={0.96}
           haptic="light"
           accessibilityRole="button"
-          accessibilityLabel="Created by Dip — Mastermind Behind TripMate"
+          accessibilityLabel="Crafted by Dip — Biswodip Goj"
         >
           <View style={styles.compactPill}>
             <T variant="tiny" color={ink(0.65)}>Created by</T>
@@ -33,6 +34,15 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
             <T variant="tiny" color="#E935CB">✦</T>
           </View>
         </PressScale>
+        <View style={styles.legal}>
+          <Pressable onPress={() => router.push('/privacy')} accessibilityRole="link" hitSlop={10}>
+            <T variant="tiny" color={ink(0.55)}>Privacy Policy</T>
+          </Pressable>
+          <T variant="tiny" color={ink(0.35)}>·</T>
+          <Pressable onPress={() => router.push('/terms')} accessibilityRole="link" hitSlop={10}>
+            <T variant="tiny" color={ink(0.55)}>Terms of Service</T>
+          </Pressable>
+        </View>
       </View>
 
       <Overlay visible={open} onClose={() => setOpen(false)} tapToClose>
@@ -59,7 +69,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
           </View>
 
           <T variant="tinySemibold" color={brand500(0.85)} center style={styles.kicker}>
-            CREATOR & ARCHITECT
+            DESIGNED & ENGINEERED BY
           </T>
 
           <GradientText colors={G.nameplate} center style={styles.name}>
@@ -67,7 +77,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
           </GradientText>
 
           <T variant="small" color={ink(0.7)} center style={styles.tagline}>
-            Mastermind Behind TripMate
+            TripMate is an independent product, conceived, designed and built end to end by one person. An offline-first ledger for shared travel: every expense recorded without signal, every balance settled in the fewest payments.
           </T>
 
           <View style={styles.divider}>
@@ -76,7 +86,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
             <LinearGradient colors={['rgba(217,70,239,0.5)', 'rgba(217,70,239,0)']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.line} />
           </View>
 
-          {/* Visit Owner CTA Button */}
+          {/* Portfolio link */}
           <PressScale onPress={handleVisit} scaleTo={0.96} haptic="medium" style={styles.btnWrap}>
             <LinearGradient
               colors={['#7C3BED', '#E935CB']}
@@ -84,7 +94,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
               end={{ x: 1, y: 0 }}
               style={styles.btn}
             >
-              <T variant="label" color="#FFFFFF">Visit Owner · biswadip.in ↗</T>
+              <T variant="label" color="#FFFFFF">Explore the portfolio · biswadip.in ↗</T>
             </LinearGradient>
           </PressScale>
 
@@ -99,6 +109,7 @@ export function BrandFooter({ bottomPadding = 24 }: { bottomPadding?: number }) 
 
 const styles = StyleSheet.create({
   footer: { alignItems: 'center', paddingTop: 16, paddingHorizontal: 16 },
+  legal: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
   compactPill: {
     flexDirection: 'row',
     alignItems: 'center',

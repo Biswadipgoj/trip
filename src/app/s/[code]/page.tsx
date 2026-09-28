@@ -12,7 +12,9 @@ export async function generateMetadata({ params }: ShortLinkPageProps): Promise<
   const code = (resolved.code || '').toUpperCase()
 
   return {
-    title: `Join Trip ${code} · TripMate`,
+    title: { absolute: `Join Trip ${code} · TripMate` },
+    // Personal invite links: keep them out of search results.
+    robots: { index: false, follow: true },
     description: `You've been invited to join trip ${code} on TripMate. Track group expenses and settle up with zero hassle.`,
     openGraph: {
       title: `Join Trip ${code} · TripMate`,

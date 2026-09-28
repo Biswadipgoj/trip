@@ -1,6 +1,8 @@
 // Trip area (web AppNav + trip layout): session guard, live cloud sync, the
 // top bar, one shared liquid backdrop behind all tabs, and the five web tabs
 // — Dashboard, Members, Expenses, Payments, Report.
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { LAST_MOBILE_KEY, isValidMobile } from '../../lib/tripLogin'
 import { StyleSheet, View } from 'react-native'
 import Animated, { FadeInUp, FadeOutUp, useReducedMotion } from 'react-native-reanimated'
 import { Redirect, Tabs } from 'expo-router'
@@ -39,11 +41,13 @@ export default function TripTabsLayout() {
   const onLogout = async () => {
     const ok = await confirmAction({
       title: 'Log out?',
-      message: 'Your trip is safely saved in the cloud. Log in again anytime with your trip code, mobile number and PIN.',
+      message: 'Your trip is safely saved in the cloud. Log in again anytime with your mobile number and PIN.',
       confirmLabel: 'Log out',
       destructive: true,
     })
     if (!ok) return
+    // Remember the number so logging back in starts with it filled in.
+    if (me?.mobile && isValidMobile(me.mobile)) AsyncStorage.setItem(LAST_MOBILE_KEY, me.mobile).catch(() => {})
     logout()
     leaveTrip()
   }

@@ -60,7 +60,9 @@ check('expired/missing access token is renewed from the refresh cookie', page.ur
 const rt2 = (await ctx.cookies()).find(c => c.name === 'tm_rt')
 check('refresh token rotated on renewal', rt2 && rt2.value !== rt.value)
 
-// 6. Stolen refresh token replayed after rotation → whole session killed.
+// 6. Stolen refresh token replayed after rotation (and after the grace window,
+//    AUTH_ROTATION_GRACE_MS=3000 in the runner) → whole session killed.
+await page.waitForTimeout(3500)
 const thief = await browser.newContext({ serviceWorkers: 'block' })
 await thief.addCookies([{ name: 'tm_rt', value: rt.value, domain: 'localhost', path: '/api/auth', httpOnly: true }])
 const tp = await thief.newPage()

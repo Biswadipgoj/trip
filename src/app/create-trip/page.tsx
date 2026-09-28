@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { authLogin, authUnavailable } from '@/lib/authClient'
+import { AgreeNote } from '@/components/legal/AgreeNote'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useStore } from '@/lib/store'
@@ -142,7 +143,7 @@ export default function CreateTripPage() {
                       : 'rgba(139,78,245,0.16)',
                   }}
                 />
-                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-400' : 'text-white/50'}`}>
+                <p className={`mt-1.5 text-[10px] font-medium ${i <= stepIndex ? 'text-brand-700' : 'text-white/70'}`}>
                   {label}
                 </p>
               </div>
@@ -313,6 +314,7 @@ export default function CreateTripPage() {
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
+              <AgreeNote action="Create Trip" />
             </motion.div>
           )}
 

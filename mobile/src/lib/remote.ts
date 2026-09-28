@@ -19,6 +19,7 @@ import { supabase } from './supabase'
 import { isUuid } from './utils'
 import { MEDIA_BUCKET } from './config'
 import { logSync } from './synclog'
+import type { TripChoice } from './tripLogin'
 import type {
   Trip, Member, Expense, HotelExpense, Settlement, ExpensePayer, PaymentStatus,
   ExpenseCategory, SplitType, Room, SettlementGroup, Sponsorship, Attachment,
@@ -277,6 +278,27 @@ export async function remoteGetMembers(tripId: string): Promise<Member[]> {
     .order('joined_at', { ascending: true })
   if (error || !data) return []
   return data.map(memberFromRow)
+}
+
+/**
+ * Every trip a mobile number belongs to, for the mobile-number login (same
+ * database function as the website). Only members who have a PIN are
+ * returned, and no PIN data leaves the server.
+ */
+export async function remoteFindTripsByMobile(mobile: string): Promise<TripChoice[]> {
+  if (!supabase) return []
+  const { data, error } = await supabase.rpc('tm_find_trips_by_mobile', { p_mobile: mobile })
+  if (error) throw new Error('Could not reach the server. Check your connection and try again.')
+  return ((data ?? []) as any[]).map(r => ({
+    tripId: r.trip_id,
+    tripCode: r.trip_code,
+    name: r.trip_name,
+    status: r.status === 'closed' ? 'closed' as const : 'active' as const,
+    createdAt: r.created_at,
+    memberId: r.member_id,
+    memberName: r.member_name,
+    memberCount: r.member_count ?? 0,
+  }))
 }
 
 export const PIN_LOCKED_MESSAGE = 'Too many wrong PINs. This member is locked for 15 minutes; try again later.'
